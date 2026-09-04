@@ -3160,10 +3160,21 @@ async function sbLoadAllIntoData() {
       userId: r.user_id, userName: r.user_name, stars: r.stars,
       text: r.text, date: r.created_at
     }));
-    data.userNotifs = (userNotifs.data || []).map(n => ({
-      id: n.id, userId: n.user_id, title: n.title, body: n.body,
-      read: !!n.read, date: n.created_at
-    }));
+    // user_notifications ne contient que le lien vers notifications.
+    // On récupère donc le titre et le corps depuis la notification liée
+    // afin de ne jamais afficher "undefined" dans l'espace Notifications.
+    const notificationById = new Map((notifications.data || []).map(n => [String(n.id), n]));
+    data.userNotifs = (userNotifs.data || []).map(n => {
+      const linked = notificationById.get(String(n.notification_id)) || {};
+      return {
+        id: n.id,
+        userId: n.user_id,
+        title: n.title || linked.title || (lang === 'en' ? 'Notification' : 'Notification'),
+        body: n.body || linked.body || '',
+        read: !!n.read_at,
+        date: n.created_at || linked.created_at || new Date().toISOString()
+      };
+    });
     data.wishlist = (wishlist.data || []).map(w => ({
       userId: w.user_id, productId: w.product_id, date: w.created_at
     }));
