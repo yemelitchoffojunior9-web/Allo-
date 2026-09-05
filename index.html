@@ -794,6 +794,7 @@ nav.bottom {
   display:flex; align-items:center; gap:12px; width:100%; text-align:left;
   padding:14px; margin-bottom:10px; border:1px solid var(--border);
   border-radius:18px; background:linear-gradient(145deg,var(--surface),var(--surface-2));
+  color:var(--text); font-family:'Outfit',sans-serif; cursor:pointer;
 }
 .client-company-card .ccc-ico {
   width:46px; height:46px; border-radius:14px; display:flex; align-items:center; justify-content:center;
@@ -3137,11 +3138,43 @@ async function sbLoadAllIntoData() {
       itemsByO[it.order_id].push(it);
     });
     data.orders = (orders.data || []).map(o => mapOrderRow(o, itemsByO[o.id]));
-    data.messages = (messages.data || []).map(m => ({
-      id: m.id, from: m.from_id, fromName: m.from_name, to: m.to_id || m.to_target,
-      text: m.text, date: m.created_at, companyId: m.company_id,
-      replyTo: m.reply_to, readBy: m.read_by || []
-    }));
+    // IMPORTANT : la table Supabase `messages` utilise sender_id/receiver_id/body.
+    // L'ancien mapping lisait from_id/to_id/text, ce qui produisait "undefined"
+    // dans l'interface. On garde aussi les anciens noms en fallback pour compatibilité.
+    const loadedMessages = messages.data || [];
+    // Chaque message garde uniquement l'identifiant du compte expéditeur.
+    // On récupère donc le vrai nom depuis profiles, afin que l'interface puisse
+    // identifier correctement chaque expéditeur, même avec des milliers d'utilisateurs.
+    const senderIds = [...new Set(loadedMessages.map(m => m.sender_id || m.from_id).filter(Boolean).map(String))];
+    let senderProfiles = [];
+    if (senderIds.length) {
+      // Supabase accepte des listes limitées : on découpe en lots pour rester robuste.
+      for (let i = 0; i < senderIds.length; i += 500) {
+        const batch = senderIds.slice(i, i + 500);
+        const pr = await sb.from('profiles').select('id,name,identifier').in('id', batch);
+        if (!pr.error) senderProfiles = senderProfiles.concat(pr.data || []);
+      }
+    }
+    const senderById = new Map(senderProfiles.map(p => [String(p.id), p]));
+    data.messages = loadedMessages.map(m => {
+      const fromId = m.sender_id || m.from_id || null;
+      const toId = m.receiver_id || m.to_id || m.to_target || m.target || null;
+      const sender = fromId ? senderById.get(String(fromId)) : null;
+      const company = (data.companies || []).find(c => String(c.id) === String(m.company_id || ''));
+      const fromName = sender?.name || sender?.identifier || m.from_name || m.sender_name ||
+        ((company && String(company.ownerId) === String(fromId)) ? company.name : null) || 'Utilisateur';
+      return {
+        id: m.id,
+        from: fromId,
+        fromName,
+        to: toId,
+        text: m.body ?? m.text ?? '',
+        date: m.created_at || m.date || new Date().toISOString(),
+        companyId: m.company_id || null,
+        replyTo: m.reply_to || null,
+        readBy: m.read_by || []
+      };
+    });
     data.feedback = (feedback.data || []).map(f => ({
       id: f.id,
       userId: f.user_id || f.fromId || f.userId,
@@ -6721,13 +6754,12 @@ function getVisibleProducts() {
   };
   let list = [];
   if (currentUser.role === 'client') {
+    // Catalogue entreprise STRICT : seuls les produits explicitement
+    // rattachés à l'entreprise du client sont visibles.
     const cid = currentUser.companyId;
-    list = (data.products || []).filter(p => {
-      if (p.companyId && String(p.companyId) === String(cid)) return true;
-      const shop = (data.shops || []).find(s => String(s.id) === String(p.shopId));
-      if (shop && shop.companyId && String(shop.companyId) === String(cid)) return true;
-      return false;
-    });
+    list = cid ? (data.products || []).filter(p =>
+      !!p.companyId && String(p.companyId) === String(cid)
+    ) : [];
   } else if (currentUser.role === 'boutique') {
     const myShopIds = (data.shops || [])
       .filter(s =>
@@ -6741,15 +6773,13 @@ function getVisibleProducts() {
       String(p.ownerId || '') === String(currentUser.id)
     );
   } else if (currentUser.role === 'entreprise' || currentUser.role === 'employe') {
+    // Isolation stricte : seuls les produits explicitement rattachés
+    // à l'entreprise active sont visibles. Les produits boutique, même
+    // créés par le même compte, restent totalement séparés.
     const cid = currentUser.companyId;
-    list = (data.products || []).filter(p =>
-      (cid && String(p.companyId) === String(cid)) ||
-      String(p.ownerId || '') === String(currentUser.id) ||
-      ((data.shops || []).some(s =>
-        String(s.id) === String(p.shopId) &&
-        ((s.companyId && String(s.companyId) === String(cid)) || String(s.ownerId) === String(currentUser.id))
-      ))
-    );
+    list = cid ? (data.products || []).filter(p =>
+      !!p.companyId && String(p.companyId) === String(cid)
+    ) : [];
   } else if (currentUser.role === 'admin') {
     list = data.products || [];
   } else {
@@ -6852,14 +6882,22 @@ function renderHome() {
   } else if (role === 'entreprise') {
     const clients = data.clients.filter(c => c.companyId === currentUser.companyId);
     const shops = data.shops.filter(s => s.companyId === currentUser.companyId);
-    const orders = data.orders.filter(o => o.companyId === currentUser.companyId);
+    const cid = currentUser.companyId ? String(currentUser.companyId) : '';
+    const orders = cid ? data.orders.filter(o => (o.items || []).some(it => {
+      const p = data.products.find(x => String(x.id) === String(it.productId));
+      return p && !!p.companyId && String(p.companyId) === cid;
+    })) : [];
     const staff = getCompanyEmployees();
     stats.innerHTML = `
       <div class="hero-stat"><b>${clients.length}</b><span>${t('clientsCount')}</span></div>
       <div class="hero-stat"><b>${staff.length}</b><span>${t('employees')}</span></div>
       <div class="hero-stat"><b>${orders.length}</b><span>${t('ordersCount')}</span></div>`;
   } else if (role === 'employe') {
-    const orders = data.orders.filter(o => o.companyId === currentUser.companyId);
+    const cid = currentUser.companyId ? String(currentUser.companyId) : '';
+    const orders = cid ? data.orders.filter(o => (o.items || []).some(it => {
+      const p = data.products.find(x => String(x.id) === String(it.productId));
+      return p && !!p.companyId && String(p.companyId) === cid;
+    })) : [];
     const products = getVisibleProducts();
     stats.innerHTML = `
       <div class="hero-stat"><b>${staffJobLabel(currentUser.job || 'autre')}</b><span>${t('employeeJob')}</span></div>
@@ -7724,7 +7762,10 @@ async function confirmCheckout() {
     const order = {
       id: 'o' + Date.now() + Math.random().toString(36).slice(2, 5),
       userId: currentUser.id,
-      companyId: currentUser.companyId || (shop && shop.companyId) || null,
+      // La commande appartient au catalogue du VENDEUR, jamais à l'entreprise
+      // à laquelle l'acheteur est éventuellement rattaché.
+      // Boutique = companyId null ; entreprise = companyId du shop entreprise.
+      companyId: (shop && shop.companyId) || null,
       shopId: g.shopId,
       items: g.items.map(({ item, p }) => ({
         productId: p.id, qty: item.qty,
@@ -8098,10 +8139,13 @@ function getSellerShopIds() {
     return ids;
   }
   if (currentUser.role === 'entreprise' || currentUser.role === 'employe') {
+    // Catalogue entreprise STRICT : ne jamais inclure une boutique publique
+    // appartenant au même utilisateur.
     return (data.shops || [])
       .filter(sh =>
-        (currentUser.companyId && String(sh.companyId) === String(currentUser.companyId)) ||
-        String(sh.ownerId) === String(currentUser.id)
+        !!currentUser.companyId &&
+        String(sh.companyId) === String(currentUser.companyId) &&
+        sh.isCompanyCatalog === true
       )
       .map(sh => sh.id);
   }
@@ -8143,8 +8187,22 @@ function _paintOrdersList() {
   let orders = [];
   const sellerShopIds = getSellerShopIds();
 
-  if (currentUser.role === 'user' || currentUser.role === 'client') {
-    orders = data.orders.filter(o => o.userId === currentUser.id);
+  if (currentUser.role === 'user') {
+    orders = data.orders.filter(o => String(o.userId) === String(currentUser.id));
+  } else if (currentUser.role === 'client') {
+    // Dans l'espace privé d'une entreprise, le client ne voit que ses commandes
+    // contenant des produits du catalogue de CETTE entreprise.
+    const cid = currentUser.companyId ? String(currentUser.companyId) : '';
+    if (cid) {
+      orders = data.orders.filter(o => String(o.userId) === String(currentUser.id) &&
+        (o.items || []).some(it => {
+          const p = data.products.find(x => String(x.id) === String(it.productId));
+          return p && String(p.companyId || '') === cid;
+        })
+      );
+    } else {
+      orders = data.orders.filter(o => String(o.userId) === String(currentUser.id));
+    }
   } else if (currentUser.role === 'boutique') {
     // Uniquement commandes contenant AU MOINS un produit de CETTE boutique
     orders = data.orders.filter(o =>
@@ -8154,13 +8212,12 @@ function _paintOrdersList() {
       })
     );
   } else if (currentUser.role === 'entreprise' || currentUser.role === 'employe') {
-    orders = data.orders.filter(o =>
-      o.companyId === currentUser.companyId ||
-      (o.items || []).some(it => {
-        const p = data.products.find(x => x.id === it.productId);
-        return p && sellerShopIds.includes(p.shopId);
-      })
-    );
+    // Une entreprise ne voit que les commandes contenant ses produits entreprise.
+    const cid = currentUser.companyId ? String(currentUser.companyId) : '';
+    orders = cid ? data.orders.filter(o => (o.items || []).some(it => {
+      const p = data.products.find(x => String(x.id) === String(it.productId));
+      return p && !!p.companyId && String(p.companyId) === cid;
+    })) : [];
   } else if (currentUser.role === 'admin') {
     orders = data.orders.slice();
   }
@@ -8756,26 +8813,52 @@ function renderMessages() {
 
 function getVisibleMessages() {
   if (!currentUser) return [];
+  const uid = String(currentUser.id || '');
+  const cid = currentUser.companyId ? String(currentUser.companyId) : '';
+  const company = cid ? (data.companies || []).find(c => String(c.id) === cid) : null;
+  const companyOwnerId = company ? String(company.ownerId || '') : '';
+
   if (currentUser.role === 'entreprise') {
-    return (data.messages || []).filter(m => m.companyId === currentUser.companyId);
+    // Messages de l'entreprise : broadcasts de cette entreprise + conversations
+    // directes entre le propriétaire et ses clients/employés. Ne jamais prendre
+    // les messages d'une boutique ou d'une autre entreprise.
+    return (data.messages || []).filter(m => {
+      const mcid = m.companyId ? String(m.companyId) : '';
+      if (mcid && mcid === cid) return true;
+      const from = String(m.from || ''), to = String(m.to || '');
+      if (!mcid && companyOwnerId && (from === companyOwnerId || to === companyOwnerId)) {
+        const other = from === companyOwnerId ? to : from;
+        const isClient = (data.clients || []).some(c => String(c.id) === other && String(c.companyId || '') === cid);
+        const isEmployee = (typeof getCompanyEmployees === 'function') && (getCompanyEmployees() || []).some(e => String(e.id) === other);
+        return isClient || isEmployee || from === uid || to === uid;
+      }
+      return from === uid || to === uid;
+    });
   }
   if (currentUser.role === 'employe') {
-    const cid = currentUser.companyId;
-    const uid = currentUser.id;
     return (data.messages || []).filter(m => {
-      if (m.companyId !== cid) return false;
-      if (m.to === 'all_staff' || m.to === 'staff') return true;
-      if (m.to === uid || m.from === uid) return true;
-      return false;
+      const mcid = m.companyId ? String(m.companyId) : '';
+      if (mcid && mcid !== cid) return false;
+      if (mcid === cid) {
+        if (m.to === 'all_staff' || m.to === 'staff') return true;
+        return String(m.from || '') === uid || String(m.to || '') === uid;
+      }
+      return String(m.from || '') === uid || String(m.to || '') === uid;
     });
   }
   if (currentUser.role === 'client') {
     return (data.messages || []).filter(m => {
-      if (m.companyId !== currentUser.companyId) return false;
-      if (m.to === 'all') return true;
-      if (m.to === 'all_staff' || m.to === 'staff') return false;
-      return m.from === currentUser.id || m.to === currentUser.id ||
-             m.from === 'cl1' || m.to === 'cl1' || m.from === 'e1' || m.to === 'e1';
+      const mcid = m.companyId ? String(m.companyId) : '';
+      if (mcid && mcid !== cid) return false;
+      if (mcid === cid) {
+        if (m.to === 'all') return true;
+        if (m.to === 'all_staff' || m.to === 'staff') return false;
+        return String(m.from || '') === uid || String(m.to || '') === uid;
+      }
+      // Anciennes conversations directes sans company_id : uniquement avec
+      // le propriétaire de l'entreprise dont le client est membre.
+      const from = String(m.from || ''), to = String(m.to || '');
+      return !!companyOwnerId && ((from === uid && to === companyOwnerId) || (to === uid && from === companyOwnerId));
     });
   }
   return [];
@@ -9396,14 +9479,27 @@ function renderClientSpace() {
     return;
   }
   el.innerHTML = companies.map(c => `
-    <div class="client-company-card">
+    <button class="client-company-card" type="button" onclick="openClientCompanySpace('${String(c.id).replace(/'/g, "\\'")}')">
       <div class="ccc-ico">🏢</div>
       <div class="ccc-info">
         <div class="ccc-name">${String(c.name || '').replace(/</g,'&lt;')}</div>
         <div class="ccc-sub">${lang === 'en' ? 'You are a client of this company.' : 'Vous êtes client de cette entreprise.'}</div>
       </div>
       <div class="ccc-arrow">›</div>
-    </div>`).join('');
+    </button>`).join('');
+}
+
+async function openClientCompanySpace(companyId) {
+  if (!currentUser || !companyId) return;
+  const membership = (data.clients || []).find(c => String(c.id) === String(currentUser.id) && String(c.companyId || '') === String(companyId));
+  if (!membership) { alert(lang === 'en' ? 'You are not a client of this company.' : 'Vous n’êtes pas client de cette entreprise.'); return; }
+  const company = (data.companies || []).find(c => String(c.id) === String(companyId));
+  if (!company) { alert(lang === 'en' ? 'Company not found.' : 'Entreprise introuvable.'); return; }
+  window._alloBaseRole = window._alloBaseRole || currentUser.role;
+  currentUser.role = 'client';
+  currentUser.companyId = company.id;
+  try { if (USE_SUPABASE && typeof sbLoadAllIntoData === 'function') await sbLoadAllIntoData(); } catch (e) { console.warn('[Allo] client company catalog refresh', e); }
+  buildSidebarNav(); buildNav(); switchView('home'); renderAll();
 }
 
 function renderAccount() {
@@ -10621,8 +10717,33 @@ async function addProduct(shopIdOverride) {
     }
     if (!shopId || !shop) {
       if (currentUser.role === 'entreprise') {
-        shop = ensureBoutiqueShop();
-        shopId = shop ? shop.id : null;
+        // Ne jamais rattacher un produit entreprise à la boutique publique.
+        const cid = currentUser.companyId;
+        if (!cid) {
+          alert(lang === 'en' ? 'Your company space is not linked to a company.' : 'Votre espace entreprise n’est rattaché à aucune entreprise.');
+          return;
+        }
+        shop = (data.shops || []).find(s =>
+          String(s.companyId || '') === String(cid) && s.isCompanyCatalog === true
+        );
+        if (!shop) {
+          const tempId = 'cs-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+          const company = (data.companies || []).find(c => String(c.id) === String(cid));
+          shop = { id: tempId, name: (company && company.name) || (lang === 'en' ? 'Company catalog' : 'Catalogue entreprise'), ownerId: currentUser.id, companyId: cid, description: lang === 'en' ? 'Private company catalog' : 'Catalogue privé de l’entreprise', coverImage: null, deliveryZones: [], deliveryHours: 48, private: true, isCompanyCatalog: true };
+          data.shops.push(shop);
+          try {
+            if (USE_SUPABASE && sb && typeof sbSaveShop === 'function') {
+              const remote = await sbSaveShop(shop);
+              if (!remote || !remote.id) throw new Error(lang === 'en' ? 'Company catalog could not be created.' : 'Le catalogue entreprise n’a pas pu être créé.');
+              shop.id = remote.id; Object.assign(shop, mapShopRow ? mapShopRow(remote) : {});
+            }
+          } catch (e) {
+            data.shops = data.shops.filter(x => x !== shop);
+            alert((lang === 'en' ? 'Company catalog creation failed: ' : 'Création du catalogue entreprise impossible : ') + (e.message || e));
+            return;
+          }
+        }
+        shopId = shop.id;
       }
     }
     if (!shopId || !shop) {
@@ -10634,6 +10755,12 @@ async function addProduct(shopIdOverride) {
     if (!currentUser.shopId) currentUser.shopId = shopId;
 
     const isEnt = currentUser.role === 'entreprise';
+    if (isEnt && (!currentUser.companyId || !shop.companyId ||
+        String(shop.companyId) !== String(currentUser.companyId) ||
+        shop.isCompanyCatalog !== true)) {
+      alert(lang === 'en' ? 'This product must belong to the company catalog, not the shop catalog.' : 'Ce produit doit appartenir au catalogue entreprise, pas au catalogue boutique.');
+      return;
+    }
     const imgs = (typeof getProductImagesFromForm === 'function') ? getProductImagesFromForm() : [];
     const cover = (imgs[0] || (image && String(image).startsWith('data:') ? image : null)) || null;
     const newId = 'p' + Date.now();
@@ -10785,11 +10912,11 @@ function sendMessage(toId) {
 
   let fromId = currentUser.id;
   let fromName = currentUser.name;
-  let companyId = currentUser.companyId;
+  let companyId = currentUser.companyId || null;
 
-  if (currentUser.role === 'entreprise') {
-    fromName = data.companies.find(c => c.id === currentUser.companyId)?.name || currentUser.name;
-  }
+  // Le nom affiché dans une conversation est toujours celui du compte qui envoie.
+  // Le nom de l'entreprise ne remplace pas le nom de l'utilisateur expéditeur.
+  fromName = currentUser.name || currentUser.identifier || fromId;
 
   if (to === 'company' && (currentUser.role === 'client' || currentUser.role === 'employe')) {
     const company = data.companies.find(c => c.id === currentUser.companyId);
@@ -10806,7 +10933,7 @@ function sendMessage(toId) {
     to,
     text,
     date: new Date().toISOString(),
-    companyId: companyId || currentUser.companyId,
+    companyId: companyId || currentUser.companyId || null,
     replyTo: null
   };
   data.messages.push(msg);
@@ -10826,7 +10953,7 @@ function sendMessage(toId) {
     }
   } catch (e) {}
 
-  try { saveAppData(); } catch (e) {}
+  try { saveAppDataAsync().catch(e => console.warn('[Allo] message send sync', e)); } catch (e) {}
   closeModal();
   replyToMsgId = null;
   switchView('messages');
@@ -10850,10 +10977,8 @@ function sendReply() {
     to = company ? company.ownerId : 'e1';
   }
 
-  let fromName = currentUser.name;
-  if (currentUser.role === 'entreprise') {
-    fromName = data.companies.find(c => c.id === currentUser.companyId)?.name || currentUser.name;
-  }
+  // Une réponse doit elle aussi afficher le nom du compte qui répond.
+  let fromName = currentUser.name || currentUser.identifier || currentUser.id;
 
   if (!data.messages) data.messages = [];
   data.messages.push({
@@ -10863,10 +10988,11 @@ function sendReply() {
     to,
     text,
     date: new Date().toISOString(),
-    companyId: currentUser.companyId,
+    companyId: currentUser.companyId || (original && original.companyId) || null,
     replyTo: replyToMsgId
   });
 
+  try { saveAppDataAsync().catch(e => console.warn('[Allo] reply sync', e)); } catch (e) {}
   closeModal();
   replyToMsgId = null;
   renderMessages();
@@ -11148,15 +11274,29 @@ async function sbSyncRuntimeState() {
       await sbUpsertOrder(o);
     }
 
-    // Messages. Les identifiants locaux sont remplacés par les UUID Supabase.
+    // Messages : les messages directs utilisent receiver_id, les broadcasts
+    // utilisent target + company_id. Les deux doivent être persistés.
     for (const m of (data.messages || [])) {
-      if (!m || !alloUuid(m.from) || !alloUuid(m.to)) continue;
-      if (!admin && String(m.from)!==String(uid) && String(m.to)!==String(uid)) continue;
-      const row={sender_id:m.from,receiver_id:m.to,body:m.text||'',read_at:m.readAt||null,created_at:m.date||new Date().toISOString()};
+      if (!m || !alloUuid(m.from)) continue;
+      const isBroadcast = m.to === 'all' || m.to === 'all_staff' || m.to === 'staff';
+      if (!isBroadcast && !alloUuid(m.to)) continue;
+      if (!admin && !isBroadcast && String(m.from)!==String(uid) && String(m.to)!==String(uid)) continue;
+      if (!admin && isBroadcast && String(m.companyId || currentUser.companyId || '') !== String(currentUser.companyId || '')) continue;
+      const row={
+        sender_id:m.from,
+        receiver_id:isBroadcast ? null : m.to,
+        body:m.text||'',
+        read_at:m.readAt||null,
+        created_at:m.date||new Date().toISOString(),
+        company_id:alloUuid(m.companyId)?m.companyId:(alloUuid(currentUser.companyId)?currentUser.companyId:null),
+        target:isBroadcast?m.to:null,
+        reply_to:alloUuid(m.replyTo)?m.replyTo:null
+      };
       let res;
       if (alloUuid(m.id)) res=await sb.from('messages').upsert(Object.assign({id:m.id},row),{onConflict:'id'}).select().maybeSingle();
       else res=await sb.from('messages').insert(row).select().single();
       if (!res.error && res.data && !alloUuid(m.id)) m.id=res.data.id;
+      if (res.error) console.warn('[Allo] message sync', res.error);
     }
 
     // Avis, retours, favoris et feedback.
@@ -12097,41 +12237,46 @@ init();
 // ===== BADGES & ORDER NOTIFICATIONS =====
 function countUndeliveredOrders() {
   if (!currentUser) return 0;
-  let orders = [];
-  if (currentUser.role === 'user' || currentUser.role === 'client') {
-    orders = data.orders.filter(o => o.userId === currentUser.id && o.status !== 'livré' && o.status !== 'annulé');
-  } else if (currentUser.role === 'boutique' || currentUser.role === 'entreprise') {
-    const shopIds = typeof getSellerShopIds === 'function' ? getSellerShopIds() : [];
-    orders = data.orders.filter(o => {
-      if (o.status === 'livré' || o.status === 'annulé') {
-        // per-shop: still undelivered for me?
-        if (shopIds.length && o.shopStatus) {
-          return shopIds.some(sid => o.shopStatus[sid] !== 'livré');
-        }
-        return false;
-      }
-      return (o.items || []).some(it => {
-        const p = data.products.find(x => x.id === it.productId);
-        if (!p) return false;
-        if (currentUser.role === 'boutique') return shopIds.includes(p.shopId);
-        if (currentUser.role === 'entreprise') {
-          return o.companyId === currentUser.companyId || shopIds.includes(p.shopId);
-        }
-        return false;
+  const visible = (o) => {
+    if (!o) return false;
+    const statusRank = {'en cours':0,'preparation':1,'livraison':2,'livré':3,'annulé':4};
+    const norm = (typeof normalizeOrderStatus === 'function') ? normalizeOrderStatus(o.status) : String(o.status || '').toLowerCase();
+    if (norm === 'annulé') return false;
+    if (currentUser.role === 'user') {
+      return String(o.userId || '') === String(currentUser.id || '') && norm !== 'livré';
+    }
+    if (currentUser.role === 'client') {
+      const cid = currentUser.companyId ? String(currentUser.companyId) : '';
+      const belongsToCompany = cid && (o.items || []).some(it => {
+        const p = data.products.find(x => String(x.id) === String(it.productId));
+        return p && String(p.companyId || '') === cid;
       });
-    });
-    // exclude if my local status already livré
-    orders = orders.filter(o => {
-      if (!shopIds.length) return true;
-      const st = (o.shopStatus && o.shopStatus[shopIds[0]]) || o.status;
-      return st !== 'livré' && st !== 'annulé';
-    });
-  } else if (currentUser.role === 'admin') {
-    orders = data.orders.filter(o => o.status !== 'livré' && o.status !== 'annulé');
-  }
-  return orders.length;
+      return String(o.userId || '') === String(currentUser.id || '') && (!cid || belongsToCompany) && norm !== 'livré';
+    }
+    if (currentUser.role === 'boutique' || currentUser.role === 'entreprise') {
+      const shopIds = (typeof getSellerShopIds === 'function' ? getSellerShopIds() : []).map(String);
+      const items = (o.items || []).filter(it => {
+        const p = data.products.find(x => String(x.id) === String(it.productId));
+        return p && shopIds.includes(String(p.shopId));
+      });
+      if (!items.length) return false;
+      // Une commande vendeur est considérée terminée pour ce vendeur seulement
+      // lorsque le statut de chacune de ses boutiques concernées est livré.
+      const relevantShopIds = [...new Set(items.map(it => {
+        const p = data.products.find(x => String(x.id) === String(it.productId));
+        return p ? String(p.shopId) : '';
+      }).filter(Boolean))];
+      return relevantShopIds.some(sid => {
+        const st = o.shopStatus && (o.shopStatus[sid] || o.shopStatus[String(sid)]);
+        const effective = st ? ((typeof normalizeOrderStatus === 'function') ? normalizeOrderStatus(st) : String(st).toLowerCase()) : norm;
+        return effective !== 'livré' && effective !== 'annulé';
+      });
+    }
+    if (currentUser.role === 'admin') return norm !== 'livré';
+    return false;
+  };
+  return (data.orders || []).filter(visible).length;
 }
-
 function countUnreadNotifs() {
   if (!currentUser) return 0;
   return getMyNotifs().filter(n => !n.read).length;
