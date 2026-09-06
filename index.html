@@ -3292,28 +3292,30 @@ async function sbLoadAllIntoData() {
 
       // ISOLATION DES COMPTES : un compte désactivé/supprimé ne peut plus
       // exposer sa boutique ou ses produits aux nouveaux utilisateurs.
-      const activeIds = new Set((profiles || []).filter(p => p && p.is_active !== false).map(p => String(p.id)));
-      const activeCompanyIds = new Set((data.companies || []).filter(c => activeIds.has(String(c.ownerId))).map(c => String(c.id)));
-      // IMPORTANT : ne pas dépendre de la visibilité RLS de profiles pour afficher les boutiques.
-      // La boutique publique est déterminée par les colonnes de shops elles-mêmes.
-      // Un utilisateur normal doit pouvoir voir une nouvelle boutique dès sa création.
+      // Ne pas utiliser la visibilité de `profiles` pour décider si un catalogue
+      // entreprise est chargé. Un client peut avoir accès à son entreprise sans
+      // avoir le droit de lire le profil du propriétaire de cette entreprise.
+      // La RLS de `shops`/`products` est déjà la première barrière d'accès.
+      // IMPORTANT : ne pas supprimer ici les catalogues entreprise ni leurs produits.
+      // Supabase/RLS a déjà déterminé les lignes que la session a le droit de lire.
+      // L'ancien filtre dépendait de `profiles` pour savoir si le propriétaire
+      // d'une entreprise était actif. Or un client n'a normalement pas accès au
+      // profil du propriétaire de l'entreprise ; le catalogue était donc retiré
+      // de data.shops, puis ses produits étaient retirés de data.products.
+      // Résultat : l'entreprise était bien affichée, mais son catalogue était vide.
+      // On conserve les lignes autorisées par Supabase et on laisse les fonctions
+      // getPublicShops()/getVisibleProducts() appliquer la visibilité métier.
       data.shops = (data.shops || []).filter(sh => {
         if (!sh) return false;
-        const isPublicShop = sh.private !== true && !sh.companyId && sh.isCompanyCatalog !== true;
-        if (!isPublicShop) return activeIds.has(String(sh.ownerId || '')) || (sh.companyId && activeCompanyIds.has(String(sh.companyId)));
+        if (sh.ownerId && (data.deletedAccounts || []).some(id => String(id) === String(sh.ownerId))) return false;
         return true;
       });
-      const activeShopIds = new Set(data.shops.map(sh => String(sh.id)));
       data.products = (data.products || []).filter(p => {
         if (!p) return false;
-        const shop = p.shopId ? data.shops.find(sh => String(sh.id) === String(p.shopId)) : null;
-        // Tout produit d'une boutique publique est visible, sans exiger la lecture du profil propriétaire.
-        if (shop && shop.private !== true && !shop.companyId && shop.isCompanyCatalog !== true) return true;
-        if (p.companyId) return false;
-        if (p.ownerId && activeIds.has(String(p.ownerId)) && !p.private && !p.hidden && p.available !== false) return true;
-        return false;
+        if (p.ownerId && (data.deletedAccounts || []).some(id => String(id) === String(p.ownerId))) return false;
+        return true;
       });
-      console.log('[Allo] catalogue actif:', data.shops.length, 'boutiques,', data.products.length, 'produits');
+      console.log('[Allo] catalogue Supabase chargé:', data.shops.length, 'catalogues/boutiques,', data.products.length, 'produits');
     } catch (e) { console.warn(e); }
 
     return true;
@@ -10680,6 +10682,75 @@ function ensureBoutiqueShop() {
   return shop;
 }
 
+async function ensureCompanyCatalogForCurrentUser() {
+  if (!currentUser || currentUser.role !== 'entreprise') return null;
+  const cid = currentUser.companyId;
+  if (!cid) return null;
+  if (!data.shops) data.shops = [];
+
+  // Une entreprise ne doit jamais réutiliser currentUser.shopId s'il pointe
+  // vers une boutique publique. Le catalogue est déterminé par companyId.
+  let catalog = data.shops.find(s =>
+    s && String(s.companyId || '') === String(cid) && s.isCompanyCatalog === true
+  );
+
+  // Supabase est la source de vérité : rechercher d'abord le catalogue distant.
+  if (USE_SUPABASE && sb) {
+    try {
+      const remote = await sb.from('shops')
+        .select('*')
+        .eq('company_id', cid)
+        .eq('is_company_catalog', true)
+        .limit(1)
+        .maybeSingle();
+      if (!remote.error && remote.data) {
+        catalog = mapShopRow(remote.data);
+        const idx = data.shops.findIndex(s => String(s.id) === String(catalog.id));
+        if (idx >= 0) data.shops[idx] = catalog;
+        else data.shops.push(catalog);
+      }
+    } catch (e) {
+      console.warn('[Allo] recherche catalogue entreprise', e);
+    }
+  }
+
+  if (!catalog) {
+    const company = (data.companies || []).find(c => String(c.id) === String(cid));
+    catalog = {
+      id: 'cs-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+      name: (company && company.name) || (lang === 'en' ? 'Company catalog' : 'Catalogue entreprise'),
+      ownerId: currentUser.id,
+      companyId: cid,
+      description: lang === 'en' ? 'Private company catalog' : 'Catalogue privé de l’entreprise',
+      coverImage: null,
+      deliveryZones: [],
+      deliveryHours: 48,
+      private: true,
+      isCompanyCatalog: true
+    };
+
+    if (USE_SUPABASE && sb && typeof sbSaveShop === 'function') {
+      const remote = await sbSaveShop(catalog);
+      if (!remote || !remote.id) {
+        throw new Error(lang === 'en'
+          ? 'Company catalog could not be created.'
+          : 'Le catalogue entreprise n’a pas pu être créé.');
+      }
+      catalog = mapShopRow(remote);
+    }
+    data.shops.push(catalog);
+  }
+
+  catalog.ownerId = catalog.ownerId || currentUser.id;
+  catalog.companyId = cid;
+  catalog.private = true;
+  catalog.isCompanyCatalog = true;
+  currentUser.shopId = catalog.id;
+  const reg = (registeredUsers || []).find(u => String(u.id) === String(currentUser.id));
+  if (reg) reg.shopId = catalog.id;
+  return catalog;
+}
+
 async function addProduct(shopIdOverride) {
   try {
     const nameEl = document.getElementById('mName');
@@ -10702,63 +10773,47 @@ async function addProduct(shopIdOverride) {
       return;
     }
 
-    let shopId = (shopIdOverride && shopIdOverride !== 'undefined' && shopIdOverride !== '')
-      ? shopIdOverride
-      : (currentUser.shopId || selectedBoutiqueId || null);
+    let shopId;
+    let shop;
+    const isEnt = currentUser.role === 'entreprise';
 
-    let shop = shopId ? (data.shops || []).find(s => String(s.id) === String(shopId)) : null;
-
-    if (!shop && currentUser.role === 'boutique') {
-      shop = ensureBoutiqueShop();
+    if (isEnt) {
+      // En entreprise, on ignore volontairement shopIdOverride/currentUser.shopId
+      // afin qu'une boutique publique ne puisse jamais recevoir le produit.
+      try {
+        shop = await ensureCompanyCatalogForCurrentUser();
+      } catch (e) {
+        console.error('[Allo] ensure company catalog', e);
+        alert((lang === 'en' ? 'Company catalog unavailable: ' : 'Catalogue entreprise indisponible : ') + (e.message || e));
+        return;
+      }
       shopId = shop ? shop.id : null;
-    }
-    if (!shop && shopId) {
-      shop = (data.shops || []).find(s => String(s.id) === String(shopId));
-    }
-    if (!shopId || !shop) {
-      if (currentUser.role === 'entreprise') {
-        // Ne jamais rattacher un produit entreprise à la boutique publique.
-        const cid = currentUser.companyId;
-        if (!cid) {
-          alert(lang === 'en' ? 'Your company space is not linked to a company.' : 'Votre espace entreprise n’est rattaché à aucune entreprise.');
-          return;
-        }
-        shop = (data.shops || []).find(s =>
-          String(s.companyId || '') === String(cid) && s.isCompanyCatalog === true
-        );
-        if (!shop) {
-          const tempId = 'cs-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
-          const company = (data.companies || []).find(c => String(c.id) === String(cid));
-          shop = { id: tempId, name: (company && company.name) || (lang === 'en' ? 'Company catalog' : 'Catalogue entreprise'), ownerId: currentUser.id, companyId: cid, description: lang === 'en' ? 'Private company catalog' : 'Catalogue privé de l’entreprise', coverImage: null, deliveryZones: [], deliveryHours: 48, private: true, isCompanyCatalog: true };
-          data.shops.push(shop);
-          try {
-            if (USE_SUPABASE && sb && typeof sbSaveShop === 'function') {
-              const remote = await sbSaveShop(shop);
-              if (!remote || !remote.id) throw new Error(lang === 'en' ? 'Company catalog could not be created.' : 'Le catalogue entreprise n’a pas pu être créé.');
-              shop.id = remote.id; Object.assign(shop, mapShopRow ? mapShopRow(remote) : {});
-            }
-          } catch (e) {
-            data.shops = data.shops.filter(x => x !== shop);
-            alert((lang === 'en' ? 'Company catalog creation failed: ' : 'Création du catalogue entreprise impossible : ') + (e.message || e));
-            return;
-          }
-        }
-        shopId = shop.id;
+    } else {
+      shopId = (shopIdOverride && shopIdOverride !== 'undefined' && shopIdOverride !== '')
+        ? shopIdOverride
+        : (currentUser.shopId || selectedBoutiqueId || null);
+      shop = shopId ? (data.shops || []).find(s => String(s.id) === String(shopId)) : null;
+
+      if (!shop && currentUser.role === 'boutique') {
+        shop = ensureBoutiqueShop();
+        shopId = shop ? shop.id : null;
+      }
+      if (!shop && shopId) {
+        shop = (data.shops || []).find(s => String(s.id) === String(shopId));
       }
     }
+
     if (!shopId || !shop) {
       alert(t('shopNotFound'));
       return;
     }
 
-    if (!shop.ownerId && currentUser.id) shop.ownerId = currentUser.id;
-    if (!currentUser.shopId) currentUser.shopId = shopId;
-
-    const isEnt = currentUser.role === 'entreprise';
-    if (isEnt && (!currentUser.companyId || !shop.companyId ||
-        String(shop.companyId) !== String(currentUser.companyId) ||
+    if (isEnt && (!currentUser.companyId ||
+        String(shop.companyId || '') !== String(currentUser.companyId) ||
         shop.isCompanyCatalog !== true)) {
-      alert(lang === 'en' ? 'This product must belong to the company catalog, not the shop catalog.' : 'Ce produit doit appartenir au catalogue entreprise, pas au catalogue boutique.');
+      alert(lang === 'en'
+        ? 'The company catalog could not be resolved. Please reload the company space.'
+        : 'Le catalogue entreprise n’a pas pu être identifié. Rechargez l’espace entreprise.');
       return;
     }
     const imgs = (typeof getProductImagesFromForm === 'function') ? getProductImagesFromForm() : [];
