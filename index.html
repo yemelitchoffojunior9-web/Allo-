@@ -2912,13 +2912,13 @@ async function sbUpsertOrder(o) {
 /** True si la commande concerne le vendeur courant (via shopId ou items). */
 function orderBelongsToSeller(o, sellerShopIds) {
   if (!o) return false;
-  const ids = sellerShopIds || (typeof getSellerShopIds === 'function' ? getSellerShopIds() : []);
-  if (!ids.length) return false;
-  if (o.shopId && ids.includes(o.shopId)) return true;
-  return (o.items || []).some(it => {
-    if (it.shopId && ids.includes(it.shopId)) return true;
+  const ids = new Set((sellerShopIds || getSellerShopIds()).map(String));
+  if (!ids.size) return false;
+  return normalizeOrderItems(o.items || []).some(it => {
+    const sid = String(it.shopId || '');
+    if (sid && ids.has(sid)) return true;
     const p = (data.products || []).find(x => String(x.id) === String(it.productId));
-    return p && ids.includes(p.shopId);
+    return !!(p && ids.has(String(p.shopId)));
   });
 }
 
@@ -3202,9 +3202,11 @@ async function sbLoadAllIntoData() {
       return {
         id: n.id,
         userId: n.user_id,
+        notificationId: n.notification_id,
         title: n.title || linked.title || (lang === 'en' ? 'Notification' : 'Notification'),
         body: n.body || linked.body || '',
         read: !!n.read_at,
+        readAt: n.read_at || null,
         date: n.created_at || linked.created_at || new Date().toISOString()
       };
     });
@@ -6872,9 +6874,10 @@ function renderHome() {
       <div class="hero-stat"><b>${myOrders.length}</b><span>${t('ordersCount')}</span></div>
       <div class="hero-stat"><b>${data.shops.length}</b><span>${t('shopsCount')}</span></div>`;
   } else if (role === 'boutique') {
-    const prods = data.products.filter(p => p.shopId === currentUser.shopId);
-    const orders = data.orders.filter(o => o.items.some(it => prods.find(p => p.id === it.productId)));
-    const myShopId = currentUser.shopId || (data.shops.find(s => String(s.ownerId) === String(currentUser.id)) || {}).id;
+    const sellerShopIds = getSellerShopIds();
+    const prods = data.products.filter(p => sellerShopIds.includes(String(p.shopId)));
+    const orders = data.orders.filter(o => orderBelongsToSeller(o, sellerShopIds));
+    const myShopId = currentUser.shopId || (data.shops.find(s => sellerShopIds.includes(String(s.id))) || {}).id;
     const subCount = typeof countShopSubscribers === 'function' ? countShopSubscribers(myShopId) : 0;
     stats.innerHTML = `
       <div class="hero-stat"><b>${prods.length}</b><span>${t('productsCount')}</span></div>
@@ -6883,23 +6886,17 @@ function renderHome() {
       <div class="hero-stat"><b>${subCount}</b><span>${t('subscribersCount')}</span></div>`;
   } else if (role === 'entreprise') {
     const clients = data.clients.filter(c => c.companyId === currentUser.companyId);
-    const shops = data.shops.filter(s => s.companyId === currentUser.companyId);
-    const cid = currentUser.companyId ? String(currentUser.companyId) : '';
-    const orders = cid ? data.orders.filter(o => (o.items || []).some(it => {
-      const p = data.products.find(x => String(x.id) === String(it.productId));
-      return p && !!p.companyId && String(p.companyId) === cid;
-    })) : [];
+    const shops = data.shops.filter(s => s.companyId === currentUser.companyId && s.isCompanyCatalog === true);
+    const sellerShopIds = getSellerShopIds();
+    const orders = data.orders.filter(o => orderBelongsToSeller(o, sellerShopIds));
     const staff = getCompanyEmployees();
     stats.innerHTML = `
       <div class="hero-stat"><b>${clients.length}</b><span>${t('clientsCount')}</span></div>
       <div class="hero-stat"><b>${staff.length}</b><span>${t('employees')}</span></div>
       <div class="hero-stat"><b>${orders.length}</b><span>${t('ordersCount')}</span></div>`;
   } else if (role === 'employe') {
-    const cid = currentUser.companyId ? String(currentUser.companyId) : '';
-    const orders = cid ? data.orders.filter(o => (o.items || []).some(it => {
-      const p = data.products.find(x => String(x.id) === String(it.productId));
-      return p && !!p.companyId && String(p.companyId) === cid;
-    })) : [];
+    const sellerShopIds = getSellerShopIds();
+    const orders = data.orders.filter(o => orderBelongsToSeller(o, sellerShopIds));
     const products = getVisibleProducts();
     stats.innerHTML = `
       <div class="hero-stat"><b>${staffJobLabel(currentUser.job || 'autre')}</b><span>${t('employeeJob')}</span></div>
@@ -7917,91 +7914,67 @@ function generateDeliveryCode() {
 async function advanceOrderStatus(orderId) {
   try {
     const o = (data.orders || []).find(x => String(x.id) === String(orderId));
-    if (!o) {
-      console.warn('[Allo] advance: order not found', orderId);
-      return;
-    }
+    if (!o) return;
+    const role = currentUser && currentUser.role;
+    if (role !== 'boutique' && role !== 'entreprise' && role !== 'employe') return;
     if (normalizeOrderStatus(o.status) === 'annulé' || normalizeOrderStatus(o.status) === 'livré') return;
-
     if (!o.shopStatus || typeof o.shopStatus !== 'object') o.shopStatus = {};
 
-    const myShops = (typeof getSellerShopIds === 'function' ? getSellerShopIds() : []).map(String);
-    // Statut de référence : max entre statut global et shopStatus des boutiques du vendeur
-    let current = normalizeOrderStatus(o.status);
-    myShops.forEach(sid => {
-      if (o.shopStatus[sid]) {
-        const r = { 'en cours': 0, 'preparation': 1, 'livraison': 2, 'livré': 3 };
-        const a = r[normalizeOrderStatus(o.shopStatus[sid])] || 0;
-        const b = r[current] || 0;
-        if (a > b) current = normalizeOrderStatus(o.shopStatus[sid]);
-      }
-    });
+    const sellerShopIds = (typeof getSellerShopIds === 'function' ? getSellerShopIds() : []).map(String);
+    if (!sellerShopIds.length) return;
 
-    const n = nextSellerStatus(current);
-    if (!n) {
-      alert(typeof t === 'function' ? t('sellerMaxStatus') : 'Maximum : en livraison');
-      return;
-    }
+    // Seulement les boutiques présentes dans CETTE commande et appartenant au vendeur.
+    const relevantShopIds = [...new Set(normalizeOrderItems(o.items || []).map(it => {
+      const sid = it.shopId || ((data.products || []).find(x => String(x.id) === String(it.productId)) || {}).shopId;
+      return sid ? String(sid) : null;
+    }).filter(sid => sid && sellerShopIds.includes(sid)))];
+    if (!relevantShopIds.length) return;
 
-    // Appliquer localement TOUT DE SUITE (UI réactive)
-    myShops.forEach(sid => { o.shopStatus[sid] = n; });
-    // Statut global = le plus bas des boutiques de la commande, ou n si on ne sait pas
     const rank = { 'en cours': 0, 'preparation': 1, 'livraison': 2, 'livré': 3, 'annulé': -1 };
-    const itemShopIds = [...new Set((o.items || []).map(it => {
-      if (it.shopId) return String(it.shopId);
-      const p = (data.products || []).find(x => String(x.id) === String(it.productId));
-      return p && p.shopId ? String(p.shopId) : null;
+    for (const sid of relevantShopIds) {
+      const current = normalizeOrderStatus(o.shopStatus[sid] || o.status);
+      const n = nextSellerStatus(current);
+      if (n) o.shopStatus[sid] = n;
+    }
+
+    // Le statut global tient compte uniquement des boutiques réellement présentes dans la commande.
+    const allOrderShopIds = [...new Set(normalizeOrderItems(o.items || []).map(it => {
+      const sid = it.shopId || ((data.products || []).find(x => String(x.id) === String(it.productId)) || {}).shopId;
+      return sid ? String(sid) : null;
     }).filter(Boolean))];
-    const shopsToCheck = itemShopIds.length ? itemShopIds : myShops;
-    let minRank = 99;
-    shopsToCheck.forEach(sid => {
-      const st = normalizeOrderStatus(o.shopStatus[sid] || (myShops.includes(sid) ? n : o.status));
-      minRank = Math.min(minRank, rank[st] != null ? rank[st] : 0);
-    });
-    o.status = Object.keys(rank).find(k => rank[k] === minRank) || n;
-    // Si le vendeur avance sa boutique, le statut global suit au moins jusqu'à n
-    if ((rank[o.status] || 0) < (rank[n] || 0) && shopsToCheck.every(sid => myShops.includes(String(sid)))) {
-      o.status = n;
-    }
+    const statuses = allOrderShopIds.map(sid => normalizeOrderStatus(o.shopStatus[sid] || o.status));
+    const minRank = statuses.length
+      ? Math.min(...statuses.map(st => rank[st] != null ? rank[st] : 0))
+      : (rank[normalizeOrderStatus(o.status)] ?? 0);
+    o.status = Object.keys(rank).find(k => rank[k] === minRank) || 'en cours';
 
+    if (relevantShopIds.some(sid => normalizeOrderStatus(o.shopStatus[sid]) === 'livraison') && !o.deliveryCode) {
+      o.deliveryCode = generateDeliveryCode();
+    }
+    const advanced = relevantShopIds.map(sid => normalizeOrderStatus(o.shopStatus[sid]))
+      .sort((a,b) => (rank[b] || 0) - (rank[a] || 0))[0] || o.status;
     if (!Array.isArray(o.timeline)) o.timeline = [];
-    o.timeline.push({ status: n, date: new Date().toISOString(), by: currentUser && currentUser.id, shops: myShops });
+    o.timeline.push({ status: advanced, date: new Date().toISOString(), by: currentUser && currentUser.id, shops: relevantShopIds });
 
-    if (n === 'livraison' && !o.deliveryCode) {
-      o.deliveryCode = (typeof generateDeliveryCode === 'function')
-        ? generateDeliveryCode()
-        : String(Math.floor(100000 + Math.random() * 900000));
-    }
-
-    // UI immédiate — bloquer refresh cloud 8s pour ne pas annuler le statut
     window._lastOrdersRefresh = Date.now();
     try { saveAppData(); } catch (e) {}
     try { renderOrders(); } catch (e) {}
     try { updateAllBadges(); } catch (e) {}
 
-    // Sync Supabase en arrière-plan (ne bloque pas, n'annule pas l'UI)
     if (typeof alloIsSupabaseMode === 'function' && alloIsSupabaseMode()) {
-      Promise.resolve()
-        .then(() => sbUpsertOrder(o))
-        .then(() => {
-          // Empêcher un refresh immédiat qui écraserait le statut local
-          window._lastOrdersRefresh = Date.now();
-        })
-        .catch(e => {
-          console.error('[Allo] advanceOrderStatus remote', e);
-          alert(lang === 'en'
-            ? 'Status updated locally but cloud sync failed. Check connection.'
-            : 'Statut mis à jour ici, mais la sync cloud a échoué. Vérifiez la connexion.');
-        });
+      Promise.resolve().then(() => sbUpsertOrder(o)).then(() => {
+        window._lastOrdersRefresh = Date.now();
+      }).catch(e => {
+        console.error('[Allo] advanceOrderStatus remote', e);
+        alert(lang === 'en' ? 'Status updated locally but cloud sync failed. Check connection.' : 'Statut mis à jour ici, mais la sync cloud a échoué. Vérifiez la connexion.');
+      });
     }
 
     try {
       if (o.userId && typeof pushUserNotif === 'function') {
         pushUserNotif(o.userId, lang === 'en' ? 'Order update' : 'Mise à jour commande',
-          (lang === 'en' ? 'Status: ' : 'Statut : ') + orderStatusLabel(n) +
-          (n === 'livraison'
-            ? (lang === 'en' ? ' — the seller will bring a code; enter it to confirm' : ' — le vendeur apportera un code ; saisissez-le pour confirmer')
-            : ''));
+          (lang === 'en' ? 'Status: ' : 'Statut : ') + orderStatusLabel(advanced) +
+          (advanced === 'livraison' ? (lang === 'en' ? ' — the seller will bring a code; enter it to confirm' : ' — le vendeur apportera un code ; saisissez-le pour confirmer') : ''));
       }
     } catch (e) {}
   } catch (err) {
@@ -8130,38 +8103,36 @@ async function markDeliveredForShops(orderId, shopIds) {
 
 function getSellerShopIds() {
   if (!currentUser) return [];
+  const uid = String(currentUser.id || '');
+  const cid = String(currentUser.companyId || '');
+
   if (currentUser.role === 'boutique') {
-    const ids = [];
-    if (currentUser.shopId) ids.push(currentUser.shopId);
-    (data.shops || []).forEach(sh => {
-      if (String(sh.ownerId) === String(currentUser.id) && !ids.includes(sh.id)) {
-        ids.push(sh.id);
-      }
-    });
-    return ids;
+    return (data.shops || []).filter(sh =>
+      String(sh.ownerId || '') === uid &&
+      !sh.companyId &&
+      sh.isCompanyCatalog !== true &&
+      sh.private !== true
+    ).map(sh => String(sh.id));
   }
+
   if (currentUser.role === 'entreprise' || currentUser.role === 'employe') {
-    // Catalogue entreprise STRICT : ne jamais inclure une boutique publique
-    // appartenant au même utilisateur.
-    return (data.shops || [])
-      .filter(sh =>
-        !!currentUser.companyId &&
-        String(sh.companyId) === String(currentUser.companyId) &&
-        sh.isCompanyCatalog === true
-      )
-      .map(sh => sh.id);
+    if (!cid) return [];
+    return (data.shops || []).filter(sh =>
+      String(sh.companyId || '') === cid &&
+      sh.isCompanyCatalog === true
+    ).map(sh => String(sh.id));
   }
   return [];
 }
 
 function orderItemsForSeller(o) {
-  const shopIds = getSellerShopIds();
-  const raw = normalizeOrderItems(o.items || []);
-  if (!shopIds.length) return raw;
-  return raw.filter(it => {
-    if (it.shopId && shopIds.includes(it.shopId)) return true;
-    const p = data.products.find(x => String(x.id) === String(it.productId));
-    return p && shopIds.includes(p.shopId);
+  const shopIds = new Set(getSellerShopIds().map(String));
+  if (!o || !shopIds.size) return [];
+  return normalizeOrderItems(o.items || []).filter(it => {
+    const sid = String(it.shopId || '');
+    if (sid && shopIds.has(sid)) return true;
+    const p = (data.products || []).find(x => String(x.id) === String(it.productId));
+    return !!(p && shopIds.has(String(p.shopId)));
   });
 }
 
@@ -8205,21 +8176,10 @@ function _paintOrdersList() {
     } else {
       orders = data.orders.filter(o => String(o.userId) === String(currentUser.id));
     }
-  } else if (currentUser.role === 'boutique') {
-    // Uniquement commandes contenant AU MOINS un produit de CETTE boutique
-    orders = data.orders.filter(o =>
-      (o.items || []).some(it => {
-        const p = data.products.find(x => x.id === it.productId);
-        return p && sellerShopIds.includes(p.shopId);
-      })
-    );
-  } else if (currentUser.role === 'entreprise' || currentUser.role === 'employe') {
-    // Une entreprise ne voit que les commandes contenant ses produits entreprise.
-    const cid = currentUser.companyId ? String(currentUser.companyId) : '';
-    orders = cid ? data.orders.filter(o => (o.items || []).some(it => {
-      const p = data.products.find(x => String(x.id) === String(it.productId));
-      return p && !!p.companyId && String(p.companyId) === cid;
-    })) : [];
+  } else if (currentUser.role === 'boutique' || currentUser.role === 'entreprise' || currentUser.role === 'employe') {
+    // Séparation stricte : une commande n'apparaît que si une ligne appartient
+    // réellement à l'un des catalogues du vendeur courant.
+    orders = data.orders.filter(o => orderBelongsToSeller(o, sellerShopIds));
   } else if (currentUser.role === 'admin') {
     orders = data.orders.slice();
   }
@@ -12296,7 +12256,8 @@ function countUndeliveredOrders() {
     if (!o) return false;
     const statusRank = {'en cours':0,'preparation':1,'livraison':2,'livré':3,'annulé':4};
     const norm = (typeof normalizeOrderStatus === 'function') ? normalizeOrderStatus(o.status) : String(o.status || '').toLowerCase();
-    if (norm === 'annulé') return false;
+    // Une commande globalement livrée est définitivement terminée : son badge disparaît.
+    if (norm === 'livré' || norm === 'annulé') return false;
     if (currentUser.role === 'user') {
       return String(o.userId || '') === String(currentUser.id || '') && norm !== 'livré';
     }
@@ -12308,19 +12269,16 @@ function countUndeliveredOrders() {
       });
       return String(o.userId || '') === String(currentUser.id || '') && (!cid || belongsToCompany) && norm !== 'livré';
     }
-    if (currentUser.role === 'boutique' || currentUser.role === 'entreprise') {
+    if (currentUser.role === 'boutique' || currentUser.role === 'entreprise' || currentUser.role === 'employe') {
       const shopIds = (typeof getSellerShopIds === 'function' ? getSellerShopIds() : []).map(String);
-      const items = (o.items || []).filter(it => {
-        const p = data.products.find(x => String(x.id) === String(it.productId));
-        return p && shopIds.includes(String(p.shopId));
-      });
+      const items = orderItemsForSeller(o);
       if (!items.length) return false;
       // Une commande vendeur est considérée terminée pour ce vendeur seulement
       // lorsque le statut de chacune de ses boutiques concernées est livré.
       const relevantShopIds = [...new Set(items.map(it => {
         const p = data.products.find(x => String(x.id) === String(it.productId));
-        return p ? String(p.shopId) : '';
-      }).filter(Boolean))];
+        return String(it.shopId || (p && p.shopId) || '');
+      }).filter(sid => sid && shopIds.includes(sid)))];
       return relevantShopIds.some(sid => {
         const st = o.shopStatus && (o.shopStatus[sid] || o.shopStatus[String(sid)]);
         const effective = st ? ((typeof normalizeOrderStatus === 'function') ? normalizeOrderStatus(st) : String(st).toLowerCase()) : norm;
@@ -12539,15 +12497,11 @@ function renderReturns() {
   let list = data.returns || [];
   if (currentUser.role === 'user' || currentUser.role === 'client') {
     list = list.filter(r => r.userId === currentUser.id);
-  } else if (currentUser.role === 'boutique' || currentUser.role === 'entreprise') {
+  } else if (currentUser.role === 'boutique' || currentUser.role === 'entreprise' || currentUser.role === 'employe') {
     const shopIds = getSellerShopIds();
     list = list.filter(r => {
       const o = data.orders.find(x => x.id === r.orderId);
-      if (!o) return false;
-      return (o.items || []).some(it => {
-        const p = data.products.find(x => x.id === it.productId);
-        return p && shopIds.includes(p.shopId);
-      });
+      return !!o && orderBelongsToSeller(o, shopIds);
     });
   }
   list = list.slice().reverse();
@@ -13161,18 +13115,26 @@ function pushUserNotif(userId, title, body) {
 
 function getMyNotifs() {
   if (!currentUser) return [];
-  // Une notification ciblée 'user' n'est JAMAIS une notification globale.
-  // Elle doit obligatoirement passer par user_notifications + userId.
-  const adminBroadcast = (data.notifications || []).filter(n => {
+  // SUPABASE = source de vérité : l'état lu/non-lu de TOUTES les notifications
+  // est stocké dans user_notifications.read_at, y compris les broadcasts.
+  const readLinks = new Map((data.userNotifs || [])
+    .filter(n => String(n.userId) === String(currentUser.id))
+    .map(n => [String(n.notificationId || n.id), n]));
+
+  const broadcasts = (data.notifications || []).filter(n => {
     if (n.target === 'all') return true;
     return n.target === currentUser.role && n.target !== 'user';
-  }).map(n => ({
-    id: n.id, title: n.title, body: n.body, date: n.date,
-    read: (n.readBy || []).includes(currentUser.id),
-    broadcast: true
-  }));
-  const personal = (data.userNotifs || []).filter(n => n.userId === currentUser.id);
-  return adminBroadcast.concat(personal).sort((a,b) => new Date(b.date) - new Date(a.date));
+  }).map(n => {
+    const link = readLinks.get(String(n.id));
+    return { id:n.id, notificationId:n.id, title:n.title, body:n.body, date:n.date,
+      read:!!(link && (link.read || link.readAt)), readAt:link ? (link.readAt || null) : null, broadcast:true };
+  });
+
+  const personal = (data.userNotifs || []).filter(n => String(n.userId) === String(currentUser.id))
+    .map(n => Object.assign({}, n, { notificationId:n.notificationId || null, read:!!(n.read || n.readAt) }));
+  const personalIds = new Set(personal.map(n => String(n.notificationId || n.id)));
+  return broadcasts.filter(n => !personalIds.has(String(n.id))).concat(personal)
+    .sort((a,b) => new Date(b.date) - new Date(a.date));
 }
 
 function updateNotifBadge() {
@@ -13214,17 +13176,57 @@ function renderNotifs() {
 
 async function markAllNotifsRead(silent) {
   if (!currentUser) return;
-  const now=new Date().toISOString();
-  (data.userNotifs || []).forEach(n => { if (n.userId === currentUser.id) { n.read=true; n.readAt=now; } });
-  if (USE_SUPABASE&&sb&&alloUuid(currentUser.id)) {
-    try { await sb.from('user_notifications').update({read_at:now}).eq('user_id',currentUser.id).is('read_at',null); } catch(e) { console.warn('[Allo] read notifications',e); }
+  if (!(USE_SUPABASE && sb && alloUuid(currentUser.id))) {
+    console.error('[Allo] Refus de marquer les notifications hors Supabase.');
+    updateNotifBadge(); updateAllBadges();
+    if (!silent) renderNotifs();
+    return;
   }
-  (data.notifications || []).forEach(n => {
-    if (!n.readBy) n.readBy = [];
-    if (!n.readBy.includes(currentUser.id)) n.readBy.push(currentUser.id);
-  });
-  updateNotifBadge();
-  updateAllBadges();
+  try {
+    const now = new Date().toISOString();
+    const upd = await sb.from('user_notifications').update({read_at:now})
+      .eq('user_id',currentUser.id).is('read_at',null);
+    if (upd.error) throw upd.error;
+
+    // Les broadcasts n'avaient pas de lien par utilisateur. On en crée un,
+    // lu immédiatement, afin que leur état survive à toutes les reconnexions.
+    const broadcasts = (data.notifications || []).filter(n => {
+      if (n.target === 'all') return true;
+      return n.target === currentUser.role && n.target !== 'user';
+    }).filter(n => alloUuid(n.id));
+    const existing = new Set((data.userNotifs || [])
+      .filter(n => String(n.userId) === String(currentUser.id))
+      .map(n => String(n.notificationId || '')));
+    const missing = broadcasts.filter(n => !existing.has(String(n.id))).map(n => ({
+      user_id:currentUser.id, notification_id:n.id, read_at:now, created_at:n.date || now
+    }));
+    if (missing.length) {
+      const ins = await sb.from('user_notifications').upsert(missing,{onConflict:'user_id,notification_id'});
+      if (ins.error) throw ins.error;
+    }
+
+    // Relecture serveur : aucune valeur locale ne devient une vérité durable.
+    const [linksRes, notifsRes] = await Promise.all([
+      sb.from('user_notifications').select('*').eq('user_id',currentUser.id),
+      sb.from('notifications').select('*')
+    ]);
+    if (linksRes.error) throw linksRes.error;
+    if (notifsRes.error) throw notifsRes.error;
+    const byId = new Map((notifsRes.data || []).map(n => [String(n.id),n]));
+    data.userNotifs = (linksRes.data || []).map(n => {
+      const linked = byId.get(String(n.notification_id)) || {};
+      return {id:n.id,userId:n.user_id,notificationId:n.notification_id,
+        title:linked.title || n.title || (lang==='en'?'Notification':'Notification'),
+        body:linked.body || n.body || '',read:!!n.read_at,readAt:n.read_at || null,
+        date:n.created_at || linked.created_at || now};
+    });
+  } catch(e) {
+    console.error('[Allo] mark notifications read',e);
+    updateNotifBadge(); updateAllBadges();
+    if (!silent) renderNotifs();
+    return;
+  }
+  updateNotifBadge(); updateAllBadges();
   if (!silent) renderNotifs();
 }
 
@@ -13271,14 +13273,10 @@ function renderAnalytics() {
   if (!el || !currentUser) return;
   let orders = [];
   let products = [];
-  if (currentUser.role === 'boutique') {
-    products = data.products.filter(p => p.shopId === currentUser.shopId);
-    const ids = products.map(p => p.id);
-    orders = data.orders.filter(o => o.items.some(it => ids.includes(it.productId)));
-  } else if (currentUser.role === 'entreprise') {
-    const shops = data.shops.filter(s => s.companyId === currentUser.companyId).map(s => s.id);
-    products = data.products.filter(p => shops.includes(p.shopId));
-    orders = data.orders.filter(o => o.companyId === currentUser.companyId);
+  if (currentUser.role === 'boutique' || currentUser.role === 'entreprise' || currentUser.role === 'employe') {
+    const sellerShopIds = getSellerShopIds();
+    products = data.products.filter(p => sellerShopIds.includes(String(p.shopId)));
+    orders = data.orders.filter(o => orderBelongsToSeller(o, sellerShopIds));
   } else if (currentUser.role === 'admin') {
     products = data.products;
     orders = data.orders;
