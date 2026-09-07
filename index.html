@@ -3065,7 +3065,7 @@ async function sbLoadAllIntoData() {
     const [
       companies, shops, products, clients, orders, messages,
       feedback, notifications, reviews, userNotifs, wishlist,
-      promoCodes, returns, walletTx, topUps, withdraws, payMethods,
+      promoCodes, returns, walletTx, walletAccounts, topUps, withdraws, payMethods,
       categories, zones, settings, variants, pimgs, appRecords
     ] = await Promise.all([
       sb.from('companies').select('*'),
@@ -3082,6 +3082,7 @@ async function sbLoadAllIntoData() {
       sb.from('promo_codes').select('*'),
       sb.from('returns').select('*'),
       sb.from('wallet_transactions').select('*'),
+      sb.from('wallet_accounts').select('*'),
       sb.from('top_up_requests').select('*'),
       sb.from('withdraw_requests').select('*'),
       sb.from('payment_methods').select('*'),
@@ -3223,11 +3224,20 @@ async function sbLoadAllIntoData() {
     data.walletTx = (walletTx.data || []).map(t => ({
       id: t.id,
       ownerId: t.user_id || t.owner_id,
+      walletScope: t.wallet_scope || 'profile',
+      walletEntityId: t.wallet_entity_id || null,
       amount: Number(t.amount || 0),
       label: t.description || t.label || t.reference || '',
       description: t.description || '',
       reference: t.reference || '',
       date: t.created_at || t.date
+    }));
+    data.walletAccounts = (walletAccounts.data || []).map(w => ({
+      id: w.id,
+      ownerUserId: w.owner_user_id,
+      scopeType: w.scope_type,
+      scopeId: w.scope_id,
+      balance: Number(w.balance || 0)
     }));
     data.topUpRequests = (topUps.data || []).map(r => {
       const note = alloParseRequestNote(r.admin_note);
@@ -3242,6 +3252,8 @@ async function sbLoadAllIntoData() {
         methodId: r.payment_method_id || null,
         comment: r.comment || note.comment || note.legacy || '',
         proof: r.proof_url || null, status: r.status || 'pending',
+        walletScope: r.wallet_scope || 'profile',
+        walletEntityId: r.wallet_entity_id || null,
         reason: (r.status === 'refused' && note.legacy) ? note.legacy : '', date: r.created_at, reviewedAt: r.updated_at || null
       };
     });
@@ -3254,7 +3266,10 @@ async function sbLoadAllIntoData() {
         method: alloPaymentMethodName(r.payment_method_id || r.method),
         methodId: r.payment_method_id || null, phone: r.phone || r.account_number || '',
         beneficiary: r.beneficiary || note.beneficiary || '', extra: r.extra || note.extra || '',
-        status: r.status || 'pending', reason: (r.status === 'refused' && note.legacy) ? note.legacy : '', date: r.created_at,
+        status: r.status || 'pending',
+        walletScope: r.wallet_scope || 'profile',
+        walletEntityId: r.wallet_entity_id || null,
+        reason: (r.status === 'refused' && note.legacy) ? note.legacy : '', date: r.created_at,
         reviewedAt: r.updated_at || null
       };
     });
@@ -6323,7 +6338,10 @@ function enterApp() {
 function updateWalletChip() {
   const el = document.getElementById('walletChipAmount');
   if (!el || !currentUser) return;
-  const w = currentUser.wallet || 0;
+  const ctx = getActiveWalletContext();
+  const account = findWalletAccount(ctx);
+  const w = ctx ? Number(account?.balance || 0) : Number(currentUser.wallet || 0);
+  currentUser.wallet = w;
   el.textContent = w >= 1000 ? (Math.round(w/1000) + 'k') : String(w);
 }
 
@@ -8338,13 +8356,21 @@ function markDelivered(orderId, fromAdvance) {
       totalComm += applyCommissionOnSale(p, line);
     });
     amount = Math.max(0, amount - totalComm);
-    // Credit company if shop belongs to company, else boutique owner
+    // Une vente crédite toujours le portefeuille de l'espace vendeur qui porte le catalogue.
+    // Une boutique rattachée à une entreprise conserve donc son portefeuille propre.
+    let walletCtx = null;
     let ownerId = shop.ownerId;
-    if (shop.companyId) {
-      const company = data.companies.find(c => c.id === shop.companyId);
-      if (company) ownerId = company.ownerId;
+    if (shop.isCompanyCatalog) {
+      const company = data.companies.find(c => String(c.id) === String(shop.companyId));
+      if (company) {
+        ownerId = company.ownerId;
+        walletCtx = { scope: 'entreprise', entityId: company.id, ownerId: company.ownerId, name: company.name };
+      }
+    } else {
+      walletCtx = { scope: 'boutique', entityId: shop.id, ownerId: shop.ownerId, name: shop.name };
     }
-    creditWallet(ownerId, amount, t('saleDelivered') + ' #' + String(o.id).slice(-6));
+    creditWallet(ownerId, amount, t('saleDelivered') + ' #' + String(o.id).slice(-6), walletCtx)
+      .catch(e => console.error('[Allo] crédit portefeuille vendeur', e));
   });
 
   renderOrders();
@@ -8353,51 +8379,163 @@ function markDelivered(orderId, fromAdvance) {
   try { updateAllBadges(); } catch(e) {}
 }
 
-async function creditWallet(ownerId, amount, label) {
-  if (!amount) return null;
-  if (!(typeof USE_SUPABASE !== 'undefined' && USE_SUPABASE && sb && alloUuid(ownerId))) {
+function getActiveWalletContext() {
+  if (!currentUser) return null;
+  const uid = String(currentUser.id || '');
+  if (currentUser.role === 'boutique') {
+    let shop = currentUser.shopId
+      ? (data.shops || []).find(s => String(s.id) === String(currentUser.shopId))
+      : null;
+    if (!shop || shop.isCompanyCatalog || String(shop.ownerId || '') !== uid) {
+      shop = (data.shops || []).find(s =>
+        String(s.ownerId || '') === uid && !s.isCompanyCatalog
+      ) || null;
+    }
+    return shop && shop.id ? { scope: 'boutique', entityId: shop.id, ownerId: shop.ownerId || currentUser.id, name: shop.name } : null;
+  }
+  if (currentUser.role === 'entreprise') {
+    let company = currentUser.companyId
+      ? (data.companies || []).find(c => String(c.id) === String(currentUser.companyId))
+      : null;
+    if (!company) {
+      company = (data.companies || []).find(c => String(c.ownerId || '') === uid) || null;
+    }
+    return company && company.id ? { scope: 'entreprise', entityId: company.id, ownerId: company.ownerId || currentUser.id, name: company.name } : null;
+  }
+  return null;
+}
+
+function findWalletAccount(ctx) {
+  if (!ctx) return null;
+  return (data.walletAccounts || []).find(w =>
+    w.scopeType === ctx.scope && String(w.scopeId) === String(ctx.entityId)
+  ) || null;
+}
+
+async function ensureWalletAccount(ctx) {
+  if (!ctx) return null;
+  let account = findWalletAccount(ctx);
+  if (account) return account;
+  if (!(USE_SUPABASE && sb && alloUuid(ctx.entityId) && alloUuid(ctx.ownerId))) return null;
+  const payload = {
+    owner_user_id: ctx.ownerId,
+    scope_type: ctx.scope,
+    scope_id: ctx.entityId,
+    balance: 0
+  };
+  const { data: row, error } = await sb.from('wallet_accounts')
+    .upsert(payload, { onConflict: 'scope_type,scope_id' })
+    .select('*').maybeSingle();
+  if (error) throw error;
+  account = {
+    id: row.id, ownerUserId: row.owner_user_id, scopeType: row.scope_type,
+    scopeId: row.scope_id, balance: Number(row.balance || 0)
+  };
+  data.walletAccounts = data.walletAccounts || [];
+  const idx = data.walletAccounts.findIndex(w => String(w.scopeId) === String(ctx.entityId) && w.scopeType === ctx.scope);
+  if (idx >= 0) data.walletAccounts[idx] = account; else data.walletAccounts.push(account);
+  return account;
+}
+
+async function adjustSpaceWallet(ctx, amount, label) {
+  if (!ctx || !amount) return false;
+  if (!(USE_SUPABASE && sb && alloUuid(ctx.entityId) && alloUuid(ctx.ownerId))) {
     throw new Error('Supabase requis pour toute opération financière');
   }
-  let newWallet = null;
-  const tx = {
-    id: 'w' + Date.now() + Math.random().toString(36).slice(2,5),
-    ownerId,
-    amount,
-    label,
-    date: new Date().toISOString()
+  const account = await ensureWalletAccount(ctx);
+  if (!account) return false;
+  const next = Number(account.balance || 0) + Number(amount);
+  if (next < 0) return false;
+
+  const { data: updated, error: upErr } = await sb.from('wallet_accounts')
+    .update({ balance: next, updated_at: new Date().toISOString() })
+    .eq('scope_type', ctx.scope).eq('scope_id', ctx.entityId)
+    .select('*').maybeSingle();
+  if (upErr || !updated) return false;
+
+  account.balance = Number(updated.balance || 0);
+  if (!data.walletAccounts) data.walletAccounts = [];
+  const txPayload = {
+    user_id: ctx.ownerId,
+    amount: Math.round(Number(amount)),
+    type: Number(amount) >= 0 ? 'credit' : 'debit',
+    reference: 'space_' + ctx.scope + '_' + String(ctx.entityId),
+    description: label || '',
+    wallet_scope: ctx.scope,
+    wallet_entity_id: ctx.entityId
   };
-  data.walletTx.push(tx);
-  // Persistance nationale Supabase
-  if (typeof USE_SUPABASE !== 'undefined' && USE_SUPABASE && sb && alloUuid(ownerId)) {
-    // IMPORTANT: le crédit doit être confirmé par Supabase avant de poursuivre.
-    // On relit le solde actuel puis on écrit le nouveau solde et la transaction.
-    const { data: prof, error: profErr } = await sb.from('profiles')
-      .select('wallet')
-      .eq('id', ownerId)
-      .maybeSingle();
-    if (profErr) throw profErr;
-    const currentWallet = Number((prof && prof.wallet) || 0);
-    const remoteWallet = currentWallet + Number(amount);
-    const { error: walletErr } = await sb.from('profiles').update({
-      wallet: remoteWallet,
-      updated_at: new Date().toISOString()
-    }).eq('id', ownerId);
-    if (walletErr) throw walletErr;
-    const { data: row, error: txErr } = await sb.from('wallet_transactions').insert({
-      owner_id: ownerId,
-      amount: Math.round(Number(amount)),
-      label: label || '',
-      created_at: tx.date
-    }).select('id').maybeSingle();
-    if (txErr) throw txErr;
-    if (row && row.id) tx.id = row.id;
-    // Garder le vendeur à jour même si son compte n'est pas ouvert sur cet appareil.
-    if (currentUser && String(currentUser.id) === String(ownerId)) {
-      currentUser.wallet = remoteWallet;
-    }
-    return remoteWallet;
+  const { error: txErr } = await sb.from('wallet_transactions').insert(txPayload);
+  if (txErr) return false;
+
+  if (currentUser && String(currentUser.id) === String(ctx.ownerId)) {
+    currentUser.wallet = account.balance;
   }
-  throw new Error('Supabase requis pour toute opération financière');
+  return true;
+}
+
+async function creditWallet(ownerId, amount, label, walletCtx) {
+  if (!amount) return null;
+  const ctx = walletCtx || (currentUser && String(currentUser.id) === String(ownerId) ? getActiveWalletContext() : null);
+  if (!ctx) throw new Error('Portefeuille boutique/entreprise introuvable');
+  const ok = await adjustSpaceWallet(ctx, Number(amount), label);
+  if (!ok) throw new Error('Impossible de créditer le portefeuille');
+  return findWalletAccount(ctx)?.balance ?? null;
+}
+
+async function creditUserBalance(userId, amount, label, walletCtx) {
+  if (!userId || userId === 'admin') return false;
+  const ctx = walletCtx || (currentUser && String(currentUser.id) === String(userId) ? getActiveWalletContext() : null);
+  if (ctx && (ctx.scope === 'boutique' || ctx.scope === 'entreprise')) {
+    return adjustSpaceWallet(ctx, Number(amount), label);
+  }
+  if (USE_SUPABASE && sb) {
+    const { data: profile, error } = await sb.from('profiles')
+      .select('id,role,balance,wallet').eq('id', userId).maybeSingle();
+    if (error || !profile || profile.role === 'admin') return false;
+    const field = 'balance';
+    const { error: upErr } = await sb.from('profiles').update({
+      [field]: Number(profile[field] || 0) + Number(amount)
+    }).eq('id', userId);
+    if (upErr) return false;
+    await sbAdminWriteWalletTx(userId, Number(amount), label);
+    return true;
+  }
+  const reg = registeredUsers.find(u => u.id === userId);
+  let user = currentUser && currentUser.id === userId ? currentUser : null;
+  if (!user && reg) user = reg;
+  if (!user) return false;
+  user.balance = (user.balance || 0) + Number(amount);
+  if (reg) reg.balance = user.balance;
+  saveRegisteredUsers();
+  return true;
+}
+
+async function debitUserBalance(userId, amount, label, walletCtx) {
+  const ctx = walletCtx || (currentUser && String(currentUser.id) === String(userId) ? getActiveWalletContext() : null);
+  if (ctx && (ctx.scope === 'boutique' || ctx.scope === 'entreprise')) {
+    return adjustSpaceWallet(ctx, -Math.abs(Number(amount)), label);
+  }
+  if (USE_SUPABASE && sb) {
+    const { data: profile, error } = await sb.from('profiles')
+      .select('id,role,balance,wallet').eq('id', userId).maybeSingle();
+    if (error || !profile || profile.role === 'admin') return false;
+    const field = 'balance', avail = Number(profile[field] || 0), amt = Number(amount);
+    if (amt > avail) return false;
+    const { error: upErr } = await sb.from('profiles').update({ [field]: avail - amt }).eq('id', userId);
+    if (upErr) return false;
+    await sbAdminWriteWalletTx(userId, -amt, label);
+    return true;
+  }
+  const reg = registeredUsers.find(u => u.id === userId);
+  let user = currentUser && currentUser.id === userId ? currentUser : null;
+  if (!user && reg) user = reg;
+  if (!user) return false;
+  const avail = Number(user.balance || 0);
+  if (Number(amount) > avail) return false;
+  user.balance = avail - Number(amount);
+  if (reg) reg.balance = user.balance;
+  saveRegisteredUsers();
+  return true;
 }
 
 function renderWallet() {
@@ -8406,10 +8544,16 @@ function renderWallet() {
   const histEl = document.getElementById('walletHistory');
   if (!balEl) return;
   const isSeller = currentUser.role === 'boutique' || currentUser.role === 'entreprise';
-  // Sellers: wallet (sales). Buyers/admin: spendable balance
-  const amount = (isSeller || currentUser.role === 'admin')
-    ? Number(currentUser.wallet || 0)
-    : Number(currentUser.balance || 0);
+  const walletCtx = getActiveWalletContext();
+  const spaceAccount = findWalletAccount(walletCtx);
+  if ((currentUser.role === 'boutique' || currentUser.role === 'entreprise') && walletCtx && !spaceAccount && USE_SUPABASE && sb) {
+    ensureWalletAccount(walletCtx).then(() => { if (currentUser) { renderWallet(); updateWalletChip(); } }).catch(e => console.warn('[Allo] wallet init', e));
+  }
+  // Le portefeuille vendeur appartient à l'espace actif, jamais au profil personnel.
+  const amount = isSeller
+    ? Number(spaceAccount?.balance || 0)
+    : (currentUser.role === 'admin' ? Number(currentUser.wallet || 0) : Number(currentUser.balance || 0));
+  if (isSeller) currentUser.wallet = amount;
   balEl.textContent = formatMoney(amount);
   updateWalletChip();
   updateSectionHeads();
@@ -8432,7 +8576,14 @@ function renderWallet() {
     }
   }
 
-  const txs = (data.walletTx || []).filter(t => String(t.ownerId || '') === String(currentUser.id)).slice().sort((a,b) => new Date(b.date || 0) - new Date(a.date || 0));
+  const txs = (data.walletTx || []).filter(t => {
+    if (isSeller) {
+      return String(t.ownerId || '') === String(currentUser.id)
+        && t.walletScope === walletCtx?.scope
+        && String(t.walletEntityId || '') === String(walletCtx?.entityId || '');
+    }
+    return String(t.ownerId || '') === String(currentUser.id) && (!t.walletScope || t.walletScope === 'profile');
+  }).slice().sort((a,b) => new Date(b.date || 0) - new Date(a.date || 0));
   if (!histEl) return;
   if (!txs.length) {
     histEl.innerHTML = `<div class="empty">${isSeller ? t('noRevenue') : (lang==='en'?'No transactions':'Aucune transaction')}</div>`;
@@ -11635,6 +11786,12 @@ async function submitTopUpRequest() {
     return;
   }
 
+  const walletCtx = getActiveWalletContext();
+  if ((currentUser.role === 'boutique' || currentUser.role === 'entreprise') && !walletCtx) {
+    alert(lang === 'en' ? 'Seller wallet is not linked to an active space.' : 'Le portefeuille vendeur n’est pas lié à un espace actif.');
+    return;
+  }
+
   const payMethod = (data.paymentMethods || []).find(m => String(m.id) === String(method) && m.active !== false);
   if (!payMethod) {
     alert(lang === 'en' ? 'This payment method is no longer available.' : 'Ce mode de paiement n’est plus disponible.');
@@ -11657,7 +11814,9 @@ async function submitTopUpRequest() {
     id, userId: currentUser.id, userName: currentUser.name || currentUser.identifier || '',
     userRole: currentUser.role || '', senderName, senderPhone, amount,
     method: payMethod.name, methodId: payMethod.id, comment, proof: proofUrl,
-    status: 'pending', date: now, reviewedAt: null, reviewedBy: null, reason: null
+    status: 'pending', date: now, reviewedAt: null, reviewedBy: null, reason: null,
+    walletScope: walletCtx ? walletCtx.scope : 'profile',
+    walletEntityId: walletCtx ? walletCtx.entityId : null
   };
 
   if (USE_SUPABASE && sb) {
@@ -11669,6 +11828,8 @@ async function submitTopUpRequest() {
       proof_url: proofUrl || null,
       status: 'pending',
       admin_note: note,
+      wallet_scope: walletCtx ? walletCtx.scope : 'profile',
+      wallet_entity_id: walletCtx ? walletCtx.entityId : null,
       created_at: req.date
     });
     if (error) {
@@ -11708,7 +11869,13 @@ async function submitWithdrawRequest() {
   }
 
   const isSeller = currentUser.role === 'boutique' || currentUser.role === 'entreprise';
-  const avail = Number(isSeller ? currentUser.wallet : currentUser.balance) || 0;
+  const walletCtx = isSeller ? getActiveWalletContext() : null;
+  if (isSeller && !walletCtx) {
+    alert(lang === 'en' ? 'Seller wallet is not linked to an active space.' : 'Le portefeuille vendeur n’est pas lié à un espace actif.');
+    return;
+  }
+  const spaceAccount = walletCtx ? findWalletAccount(walletCtx) : null;
+  const avail = Number(isSeller ? (spaceAccount?.balance || 0) : currentUser.balance) || 0;
   if (amount > avail) { alert(t('balanceInsufficient')); return; }
 
   const now = new Date().toISOString();
@@ -11717,7 +11884,9 @@ async function submitWithdrawRequest() {
   const req = {
     id, userId: currentUser.id, userName: currentUser.name || currentUser.identifier || '',
     userRole: currentUser.role || '', amount, method: payMethod.name, methodId: payMethod.id,
-    phone, beneficiary, extra, status: 'pending', date: now, reviewedAt: null, reason: null
+    phone, beneficiary, extra, status: 'pending', date: now, reviewedAt: null, reason: null,
+    walletScope: walletCtx ? walletCtx.scope : 'profile',
+    walletEntityId: walletCtx ? walletCtx.entityId : null
   };
 
   if (USE_SUPABASE && sb) {
@@ -11729,6 +11898,8 @@ async function submitWithdrawRequest() {
       account_number: req.phone,
       status: 'pending',
       admin_note: note,
+      wallet_scope: walletCtx ? walletCtx.scope : 'profile',
+      wallet_entity_id: walletCtx ? walletCtx.entityId : null,
       created_at: req.date
     });
     if (error) {
@@ -11798,7 +11969,11 @@ function renderWithdraws() {
 function renderTransactions() {
   const el = document.getElementById('transactionsList');
   if (!el || !currentUser) return;
-  const list = (data.walletTx || []).filter(tx => tx.ownerId === currentUser.id).slice().reverse();
+  const ctx = getActiveWalletContext();
+  const list = (data.walletTx || []).filter(tx => {
+    if (ctx) return tx.ownerId === currentUser.id && tx.walletScope === ctx.scope && String(tx.walletEntityId || '') === String(ctx.entityId);
+    return tx.ownerId === currentUser.id && (!tx.walletScope || tx.walletScope === 'profile');
+  }).slice().reverse();
   if (!list.length) { el.innerHTML = '<div class="empty">Aucune transaction</div>'; return; }
   el.innerHTML = list.map(tx => {
     const pos = (tx.amount||0) >= 0;
@@ -11812,7 +11987,7 @@ async function adminValidateTopUp(id) {
   const req = (data.topUpRequests || []).find(r => String(r.id) === String(id));
   if (!req || req.status !== 'pending') return;
 
-  const ok = await creditUserBalance(req.userId, req.amount, 'Recharge validée · ' + (req.method || ''));
+  const ok = await creditUserBalance(req.userId, req.amount, 'Recharge validée · ' + (req.method || ''), req.walletScope && req.walletEntityId ? { scope:req.walletScope, entityId:req.walletEntityId, ownerId:req.userId } : null);
   if (!ok) { alert(lang === 'en' ? 'Could not credit account.' : 'Impossible de créditer le compte.'); return; }
 
   if (USE_SUPABASE && sb) {
@@ -11821,7 +11996,7 @@ async function adminValidateTopUp(id) {
       .eq('id', id).eq('status', 'pending')
       .select('id,status');
     if (error || !updatedRows || updatedRows.length !== 1) {
-      await debitUserBalance(req.userId, req.amount, 'Annulation recharge · ' + (req.method || ''));
+      await debitUserBalance(req.userId, req.amount, 'Annulation recharge · ' + (req.method || ''), req.walletScope && req.walletEntityId ? { scope:req.walletScope, entityId:req.walletEntityId, ownerId:req.userId } : null);
       alert(lang === 'en' ? 'Could not validate request. The credit was rolled back.' : 'Impossible de valider la demande. Le crédit a été annulé.');
       await sbLoadAllIntoData();
       return;
@@ -11862,7 +12037,7 @@ async function adminValidateWithdraw(id) {
   const req = (data.withdrawRequests || []).find(r => String(r.id) === String(id));
   if (!req || req.status !== 'pending') return;
 
-  const ok = await debitUserBalance(req.userId, req.amount, 'Retrait validé · ' + (req.method || ''));
+  const ok = await debitUserBalance(req.userId, req.amount, 'Retrait validé · ' + (req.method || ''), req.walletScope && req.walletEntityId ? { scope:req.walletScope, entityId:req.walletEntityId, ownerId:req.userId } : null);
   if (!ok) { alert(lang === 'en' ? 'Insufficient balance.' : 'Solde insuffisant.'); return; }
 
   if (USE_SUPABASE && sb) {
@@ -11871,7 +12046,7 @@ async function adminValidateWithdraw(id) {
       .eq('id', id).eq('status', 'pending')
       .select('id,status');
     if (error || !updatedRows || updatedRows.length !== 1) {
-      await creditUserBalance(req.userId, req.amount, 'Annulation retrait · ' + (req.method || ''));
+      await creditUserBalance(req.userId, req.amount, 'Annulation retrait · ' + (req.method || ''), req.walletScope && req.walletEntityId ? { scope:req.walletScope, entityId:req.walletEntityId, ownerId:req.userId } : null);
       alert(lang === 'en' ? 'Could not validate withdrawal. The debit was rolled back.' : 'Impossible de valider le retrait. Le débit a été annulé.');
       await sbLoadAllIntoData();
       return;
