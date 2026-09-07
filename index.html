@@ -696,6 +696,14 @@ nav.bottom {
 }
 
 .empty { text-align: center; padding: 28px 10px; color: var(--text-muted); font-size: 13px; }
+.profile-avatar-img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; display:block; }
+.profile-completion-card { background:linear-gradient(135deg,rgba(139,92,246,.16),rgba(34,211,238,.08)); border:1px solid rgba(139,92,246,.35); border-radius:16px; padding:14px; margin-bottom:12px; }
+.profile-photo-preview { width:88px; height:88px; border-radius:22px; overflow:hidden; margin:0 auto 10px; background:linear-gradient(135deg,var(--accent),var(--cyan)); display:flex;align-items:center;justify-content:center;font-size:30px; border:1px solid var(--border); }
+.delivery-profile { display:flex; gap:10px; align-items:flex-start; margin-top:10px; padding:10px; border-radius:14px; background:rgba(34,211,238,.07); border:1px solid rgba(34,211,238,.18); }
+.delivery-profile .dp-avatar { width:48px;height:48px;flex:0 0 48px;border-radius:14px;overflow:hidden;background:linear-gradient(135deg,var(--accent),var(--cyan));display:flex;align-items:center;justify-content:center;font-weight:800; }
+.delivery-profile .dp-info { min-width:0; flex:1; }
+.delivery-profile .dp-name { font-weight:800;font-size:13px; }
+.delivery-profile .dp-line { font-size:11px;color:var(--text-muted);line-height:1.45;margin-top:2px; }
 .hidden { display: none !important; }
 
 /* Balance */
@@ -2640,6 +2648,10 @@ function mapProfileToUser(p) {
     job: p.job || null,
     features: p.features || {},
     avatar_url: p.avatar_url || null,
+    country: p.country || '',
+    city: p.city || '',
+    neighborhood: p.neighborhood || '',
+    profile_completed: !!p.profile_completed,
     is_active: p.is_active !== false
   };
 }
@@ -2710,6 +2722,14 @@ function mapOrderRow(r, items) {
     shopStatus: r.shop_status || {},
     timeline: Array.isArray(r.timeline) ? r.timeline : [],
     commissionTotal: Number(r.commission_total || 0),
+    buyerName: r.buyer_name || '',
+    buyerAvatarUrl: r.buyer_avatar_url || '',
+    buyerCountry: r.buyer_country || '',
+    buyerCity: r.buyer_city || '',
+    buyerNeighborhood: r.buyer_neighborhood || '',
+    buyerPhone: r.buyer_phone || '',
+    deliveryAddress: r.delivery_address || '',
+    deliveryZone: r.delivery_zone || '',
     date: r.created_at || r.date || new Date().toISOString(),
     items: normalizeOrderItems((items || []).map(it => ({
       productId: it.product_id,
@@ -2822,6 +2842,12 @@ function buildOrderRow(o) {
     shop_status: o.shopStatus && typeof o.shopStatus === 'object' ? o.shopStatus : {},
     timeline: Array.isArray(o.timeline) ? o.timeline : [],
     commission_total: Math.round(Number(o.commissionTotal || 0)),
+    buyer_name: o.buyerName || currentUser?.name || null,
+    buyer_avatar_url: o.buyerAvatarUrl || currentUser?.avatar_url || null,
+    buyer_country: o.buyerCountry || currentUser?.country || null,
+    buyer_city: o.buyerCity || currentUser?.city || null,
+    buyer_neighborhood: o.buyerNeighborhood || currentUser?.neighborhood || null,
+    buyer_phone: o.buyerPhone || currentUser?.phone || null,
     created_at: o.date || new Date().toISOString(),
     updated_at: new Date().toISOString()
   };
@@ -4760,11 +4786,8 @@ async function doRegister() {
       await sbLoadAllIntoData();
       enterApp();
       try { startOrderRealtime(); } catch (e) {}
-      setTimeout(function(){
-        try {
-          alert((lang==='en'?'Account created! ':'Compte utilisateur créé ! ') + name.split(' ')[0] + ' 🎉\n\n' + (lang==='en' ? 'You can create your Shop or Company later from My Account.' : 'Vous pourrez créer votre boutique ou votre entreprise plus tard depuis Mon compte.'));
-        } catch(e){}
-      }, 200);
+      // Nouveau compte : le questionnaire de profil s'ouvre immédiatement.
+      try { await ensureProfileCompletion(true); } catch(e) { console.warn('[Allo] profile completion', e); }
       return;
     } catch (e) {
       console.error(e);
@@ -6327,7 +6350,8 @@ function enterApp() {
   document.getElementById('welcomeName').textContent = currentUser.name.split(' ')[0];
   document.getElementById('profileName').textContent = currentUser.name;
   document.getElementById('profileEmail').textContent = currentUser.email || currentUser.phone || 'email';
-  document.getElementById('profileAvatar').textContent = currentUser.name.charAt(0).toUpperCase();
+  const pAvatar = document.getElementById('profileAvatar');
+  if (pAvatar) { pAvatar.innerHTML = currentUser.avatar_url ? `<img class="profile-avatar-img" src="${String(currentUser.avatar_url).replace(/"/g,'&quot;')}" alt="">` : currentUser.name.charAt(0).toUpperCase(); }
 
   // Welcome text per role
   const subs = {
@@ -6346,6 +6370,7 @@ function enterApp() {
   renderAll();
   switchView('home');
   try { updateAllBadges(); } catch(e) {}
+  try { ensureProfileCompletion(false); } catch(e) {}
 }
 
 function updateWalletChip() {
@@ -6374,7 +6399,8 @@ function closeSidebar() {
 function buildSidebarNav() {
   const el = document.getElementById('sidebarNav');
   if (!el || !currentUser) return;
-  document.getElementById('sidebarAvatar').textContent = currentUser.name.charAt(0).toUpperCase();
+  const sAvatar = document.getElementById('sidebarAvatar');
+  if (sAvatar) sAvatar.innerHTML = currentUser.avatar_url ? `<img class="profile-avatar-img" src="${String(currentUser.avatar_url).replace(/"/g,'&quot;')}" alt="">` : currentUser.name.charAt(0).toUpperCase();
   document.getElementById('sidebarName').textContent = currentUser.name;
   const roleLabels = lang === 'en' ? ROLE_LABELS_EN : ROLE_LABELS;
   document.getElementById('sidebarRole').textContent = roleLabels[currentUser.role] || currentUser.role;
@@ -7792,6 +7818,14 @@ async function confirmCheckout() {
     const order = {
       id: 'o' + Date.now() + Math.random().toString(36).slice(2, 5),
       userId: currentUser.id,
+      buyerName: currentUser.name || '',
+      buyerAvatarUrl: currentUser.avatar_url || '',
+      buyerCountry: currentUser.country || '',
+      buyerCity: currentUser.city || '',
+      buyerNeighborhood: currentUser.neighborhood || '',
+      buyerPhone: currentUser.phone || '',
+      deliveryAddress: [currentUser.neighborhood, currentUser.city, currentUser.country].filter(Boolean).join(', '),
+      deliveryZone: currentUser.city || '',
       // La commande appartient au catalogue du VENDEUR, jamais à l'entreprise
       // à laquelle l'acheteur est éventuellement rattaché.
       // Boutique = companyId null ; entreprise = companyId du shop entreprise.
@@ -8270,6 +8304,23 @@ function _paintOrdersList() {
     const payLabel = o.payment ? ({ balance: t('payBalance'), wave: t('payWave'), orange: t('payOrange'), mtn: t('payMtn'), cod: t('payCod') }[o.payment] || o.payment) : '';
     const totalShow = seller ? subtotal : o.total;
     const deadlineStr = o.deadlineAt ? new Date(o.deadlineAt).toLocaleString(locale) : '';
+    const buyerProfileBlock = seller ? (() => {
+      const name = o.buyerName || o.userName || 'Client';
+      const avatar = o.buyerAvatarUrl || '';
+      const initial = String(name).charAt(0).toUpperCase();
+      const place = [o.buyerNeighborhood, o.buyerCity, o.buyerCountry].filter(Boolean).join(' · ');
+      const phone = o.buyerPhone || '';
+      const address = o.deliveryAddress || place;
+      return `<div class="delivery-profile">
+        <div class="dp-avatar">${avatar ? `<img class="profile-avatar-img" src="${String(avatar).replace(/"/g,'&quot;')}" alt="">` : initial}</div>
+        <div class="dp-info">
+          <div class="dp-name">👤 ${String(name).replace(/</g,'&lt;')}</div>
+          ${place ? `<div class="dp-line">📍 ${String(place).replace(/</g,'&lt;')}</div>` : ''}
+          ${address ? `<div class="dp-line">🚚 ${String(address).replace(/</g,'&lt;')}</div>` : ''}
+          ${phone ? `<div class="dp-line">📞 ${String(phone).replace(/</g,'&lt;')}</div>` : ''}
+        </div>
+      </div>`;
+    })() : '';
     const sellerCodeBlock = (seller && statusIsDelivery && o.deliveryCode)
       ? `<div class="card" style="margin-top:8px;padding:14px;background:linear-gradient(135deg,rgba(34,211,238,.16),rgba(52,211,153,.08));border:1px solid rgba(34,211,238,.4)">
           <div style="font-size:12px;font-weight:700;color:var(--cyan);margin-bottom:4px">🔑 ${t('showCodeToDriver')}</div>
@@ -8307,6 +8358,7 @@ function _paintOrdersList() {
         </div>
         <span class="status-pill ${stClass}">${stLabel}</span>
       </div>
+      ${buyerProfileBlock}
       ${orderTimelineHTML(Object.assign({}, o, { status: displayStatus }))}
       ${itemsHtml}
       <div class="row-info" style="margin-top:8px">
@@ -10245,6 +10297,28 @@ function openModal(type, extra) {
       </div>
       <button class="btn btn-accent btn-block" onclick="withdrawFunds()">${lang==='en'?'Confirm withdrawal':'Confirmer le retrait'}</button>`;
   }
+  if (type === 'completeProfile') {
+    const u = currentUser || {};
+    window._profilePhotoData = u.avatar_url || '';
+    const avatar = u.avatar_url || '';
+    const initial = String(u.name || 'A').charAt(0).toUpperCase();
+    html = `<div class="profile-completion-card">
+      <div class="profile-photo-preview" id="mProfilePhotoPreview">${avatar ? `<img class="profile-avatar-img" src="${String(avatar).replace(/"/g,'&quot;')}" alt="Photo de profil">` : initial}</div>
+      <div style="text-align:center;font-weight:800;font-size:16px">${lang==='en'?'Complete your delivery profile':'Complétez votre profil de livraison'}</div>
+      <p style="font-size:12px;color:var(--text-muted);line-height:1.45;text-align:center;margin-top:5px">${lang==='en'?'These details help sellers identify you and deliver your orders correctly.':'Ces informations permettent au vendeur de vous identifier et de livrer vos commandes facilement.'}</p>
+    </div>
+    <div class="field"><label>${lang==='en'?'Profile photo':'Photo de profil'} *</label>
+      <input type="file" id="mProfilePhoto" accept="image/*" onchange="previewProfilePhoto(this)">
+      <p style="font-size:10.5px;color:var(--text-muted);margin-top:4px">${lang==='en'?'Required for delivery identification.':'Obligatoire pour faciliter votre identification à la livraison.'}</p>
+    </div>
+    <div class="field"><label>${lang==='en'?'Full name':'Nom complet'} *</label><input id="mProfileName" type="text" value="${String(u.name||'').replace(/"/g,'&quot;')}" autocomplete="name"></div>
+    <div class="field"><label>${lang==='en'?'Country':'Pays'} *</label><input id="mProfileCountry" type="text" value="${String(u.country||'').replace(/"/g,'&quot;')}" placeholder="Ex : Cameroun" autocomplete="country-name"></div>
+    <div class="field"><label>${lang==='en'?'City':'Ville'} *</label><input id="mProfileCity" type="text" value="${String(u.city||'').replace(/"/g,'&quot;')}" placeholder="Ex : Yaoundé" autocomplete="address-level2"></div>
+    <div class="field"><label>${lang==='en'?'Neighborhood / district':'Quartier'} *</label><input id="mProfileNeighborhood" type="text" value="${String(u.neighborhood||'').replace(/"/g,'&quot;')}" placeholder="Ex : Bastos" autocomplete="address-line2"></div>
+    <div class="field"><label>${lang==='en'?'Phone for delivery':'Téléphone de livraison'} *</label><input id="mProfilePhone" type="tel" value="${String(u.phone||'').replace(/"/g,'&quot;')}" placeholder="Ex : +237 6..." autocomplete="tel"></div>
+    <p class="error-msg" id="profileError"></p>
+    <button class="btn btn-accent btn-block" id="btnSaveCompleteProfile" onclick="saveCompleteProfile()">${lang==='en'?'Save and continue':'Enregistrer et continuer'}</button>`;
+  }
   if (type === 'checkout') {
     const groups = groupCartByShop();
     const total = groups.reduce((s, g) => s + g.subtotal, 0);
@@ -10483,7 +10557,80 @@ function openModal(type, extra) {
 }
 
 
+function profileNeedsCompletion(u) {
+  if (!u || u.role === 'admin') return false;
+  return !(u.profile_completed === true && u.name && u.avatar_url && u.country && u.city && u.neighborhood && u.phone);
+}
+
+function previewProfilePhoto(input) {
+  const file = input && input.files && input.files[0];
+  const prev = document.getElementById('mProfilePhotoPreview');
+  if (!file || !prev) return;
+  compressImageFile(file, 700, 0.78).then(dataUrl => {
+    window._profilePhotoData = dataUrl;
+    prev.innerHTML = `<img class="profile-avatar-img" src="${dataUrl}" alt="Photo de profil">`;
+  }).catch(() => { alert(lang==='en'?'Could not read this photo.':'Impossible de lire cette photo.'); });
+}
+
+async function uploadProfilePhoto(uid, value) {
+  if (!value) return null;
+  if (/^https?:\/\//i.test(String(value))) return value;
+  let url = null;
+  try { url = await sbUploadImage('profile-images', uid, value, 'profile.jpg'); } catch(e) {}
+  // Compatibilité si le bucket dédié n'a pas encore été créé dans Supabase.
+  if (!url) { try { url = await sbUploadImage('product-images', uid, value, 'profile.jpg'); } catch(e) {} }
+  return url;
+}
+
+async function saveCompleteProfile() {
+  if (!currentUser || !USE_SUPABASE || !sb || !alloUuid(currentUser.id)) return;
+  const err = document.getElementById('profileError');
+  const btn = document.getElementById('btnSaveCompleteProfile');
+  if (err) err.classList.remove('show');
+  const name = (document.getElementById('mProfileName')?.value || '').trim();
+  const country = (document.getElementById('mProfileCountry')?.value || '').trim();
+  const city = (document.getElementById('mProfileCity')?.value || '').trim();
+  const neighborhood = (document.getElementById('mProfileNeighborhood')?.value || '').trim();
+  const phone = (document.getElementById('mProfilePhone')?.value || '').trim();
+  let avatar = window._profilePhotoData || currentUser.avatar_url || '';
+  if (!name || !country || !city || !neighborhood || !phone || !avatar) {
+    if (err) { err.textContent = lang==='en' ? 'Please complete all required fields and add a profile photo.' : 'Veuillez remplir tous les champs obligatoires et ajouter une photo de profil.'; err.classList.add('show'); }
+    return;
+  }
+  if (btn) { btn.disabled = true; btn.textContent = lang==='en' ? 'Saving…' : 'Enregistrement…'; }
+  try {
+    if (String(avatar).startsWith('data:image/')) {
+      const uploaded = await uploadProfilePhoto(currentUser.id, avatar);
+      if (!uploaded) throw new Error(lang==='en' ? 'Photo upload failed' : 'Échec de l’envoi de la photo');
+      avatar = uploaded;
+    }
+    const payload = { name, country, city, neighborhood, phone, avatar_url: avatar, profile_completed: true, updated_at: new Date().toISOString() };
+    const { data, error } = await sb.from('profiles').update(payload).eq('id', currentUser.id).select('*').maybeSingle();
+    if (error) throw error;
+    currentUser = mapProfileToUser(data || Object.assign({}, currentUser, payload));
+    window._profileCompletionRequired = false;
+    window._profilePhotoData = currentUser.avatar_url || '';
+    document.getElementById('modalOverlay').classList.remove('show');
+    try { await sbLoadAllIntoData(); } catch(e) {}
+    enterApp();
+    alert(lang==='en' ? 'Profile completed. Your delivery details are now ready.' : 'Profil complété. Vos informations de livraison sont maintenant prêtes.');
+  } catch (e) {
+    console.error('[Allo] saveCompleteProfile', e);
+    if (err) { err.textContent = e?.message || (lang==='en'?'Could not save your profile.':'Impossible d’enregistrer votre profil.'); err.classList.add('show'); }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = lang==='en' ? 'Save and continue' : 'Enregistrer et continuer'; }
+  }
+}
+
+async function ensureProfileCompletion(force) {
+  if (!currentUser || currentUser.role === 'admin' || !USE_SUPABASE || !sb) return;
+  if (!force && !profileNeedsCompletion(currentUser)) return;
+  window._profileCompletionRequired = true;
+  setTimeout(() => { try { openModal('completeProfile'); } catch(e) { console.warn(e); } }, 120);
+}
+
 function closeModal() {
+  if (window._profileCompletionRequired) return;
   document.getElementById('modalOverlay').classList.remove('show');
 }
 
