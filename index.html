@@ -3063,7 +3063,7 @@ async function sbLoadAllIntoData() {
   if (!USE_SUPABASE || !sb) return false;
   try {
     const [
-      companies, shops, products, clients, orders, messages,
+      companies, shops, products, clients, employeeMemberships, orders, messages,
       feedback, notifications, reviews, userNotifs, wishlist,
       promoCodes, returns, walletTx, walletAccounts, topUps, withdraws, payMethods,
       categories, zones, settings, variants, pimgs, appRecords
@@ -3072,6 +3072,7 @@ async function sbLoadAllIntoData() {
       sb.from('shops').select('*'),
       sb.from('products').select('*'),
       sb.from('company_clients').select('*'),
+      sb.from('company_employees').select('*'),
       sb.from('orders').select('*'),
       sb.from('messages').select('*'),
       sb.from('feedback').select('*'),
@@ -3131,6 +3132,17 @@ async function sbLoadAllIntoData() {
       companyId: c.company_id,
       name: c.name,
       identifiant: c.identifier, phone: c.phone, balance: Number(c.balance || 0)
+    }));
+    // Les employés sont des adhésions entreprise, jamais un changement de rôle du compte principal.
+    data.employeeMemberships = (employeeMemberships.data || []).map(e => ({
+      id: e.id,
+      userId: e.user_id,
+      companyId: e.company_id,
+      job: e.job || 'autre',
+      features: e.features || {},
+      isActive: e.is_active !== false,
+      createdAt: e.created_at,
+      updatedAt: e.updated_at
     }));
     const orderItems = await sb.from('order_items').select('*');
     const itemsByO = {};
@@ -4278,6 +4290,7 @@ let data = {
   shops: [],
   products: [],
   clients: [],
+  employeeMemberships: [],
   orders: [],
   messages: [],
   subscriptions: [],
@@ -8678,7 +8691,7 @@ async function deleteClient(id) {
   if (!confirm(t('deleteClientConfirm'))) return;
   if (USE_SUPABASE && sb) {
     try {
-      const {data:res,error}=await sb.functions.invoke('manage-company-user-v2',{body:{action:'delete',user_id:id}});
+      const {data:res,error}=await sb.functions.invoke('manage-company-user-v2',{body:{action:'delete_client',company_id:currentUser.companyId,user_id:id}});
       if(error||!res||!res.ok) throw new Error((res&&res.error)||(error&&error.message)||'Suppression impossible');
       await sbLoadAllIntoData(); renderClients(); alert(lang==='en'?'Client disabled.':'Client désactivé.'); return;
     } catch(e){console.error('[Allo] delete client',e);alert((lang==='en'?'Deletion failed: ':'Suppression impossible : ')+(e.message||e));return;}
@@ -8688,9 +8701,29 @@ async function deleteClient(id) {
 
 function getCompanyEmployees() {
   if (!currentUser || !currentUser.companyId) return [];
-  return (registeredUsers || []).filter(u =>
-    u.role === 'employe' && String(u.companyId) === String(currentUser.companyId)
-  );
+  const profiles = new Map((registeredUsers || []).map(u => [String(u.id), u]));
+  return (data.employeeMemberships || [])
+    .filter(m => m.isActive !== false && String(m.companyId) === String(currentUser.companyId))
+    .map(m => Object.assign({}, profiles.get(String(m.userId)) || {}, {
+      id: m.userId, role: 'employe', companyId: m.companyId,
+      job: m.job || 'autre', features: m.features || {}, membershipId: m.id
+    }))
+    .filter(e => e.id);
+}
+
+function getEmployeeMembershipsForCurrentUser() {
+  if (!currentUser || !currentUser.id) return [];
+  const profile = (registeredUsers || []).find(u => String(u.id) === String(currentUser.id)) || currentUser;
+  return (data.employeeMemberships || [])
+    .filter(m => m.isActive !== false && String(m.userId) === String(currentUser.id))
+    .map(m => {
+      const company = (data.companies || []).find(c => String(c.id) === String(m.companyId));
+      return Object.assign({}, profile, {
+        role: 'employe', membershipId: m.id, companyId: m.companyId,
+        companyName: company?.name || (lang === 'en' ? 'Company' : 'Entreprise'),
+        job: m.job || 'autre', features: m.features || {}
+      });
+    });
 }
 
 function renderEmployees() {
@@ -8761,7 +8794,7 @@ async function deleteEmployee(id) {
   if (!confirm(t('deleteEmployeeConfirm'))) return;
   if (USE_SUPABASE && sb) {
     try {
-      const {data:res,error}=await sb.functions.invoke('manage-company-user-v2',{body:{action:'delete',user_id:id}});
+      const {data:res,error}=await sb.functions.invoke('manage-company-user-v2',{body:{action:'delete',company_id:currentUser.companyId,user_id:id}});
       if(error||!res||!res.ok) throw new Error((res&&res.error)||(error&&error.message)||'Suppression impossible');
       await sbLoadAllIntoData(); renderEmployees(); alert(lang==='en'?'Employee disabled.':'Employé désactivé.'); return;
     } catch(e){console.error('[Allo] delete employee',e);alert((lang==='en'?'Deletion failed: ':'Suppression impossible : ')+(e.message||e));return;}
@@ -8769,29 +8802,34 @@ async function deleteEmployee(id) {
   registeredUsers=(registeredUsers||[]).filter(u=>!(u.role==='employe'&&String(u.id)===String(id)&&String(u.companyId)===String(currentUser.companyId))); saveRegisteredUsers(); renderEmployees();
 }
 
-function saveEmployee(id) {
+async function saveEmployee(id) {
   if (!currentUser || currentUser.role !== 'entreprise') return;
-  const emp = (registeredUsers || []).find(u =>
-    u.role === 'employe' && String(u.id) === String(id) && String(u.companyId) === String(currentUser.companyId)
-  );
+  const emp = getCompanyEmployees().find(u => String(u.id) === String(id));
   if (!emp) { alert(lang === 'en' ? 'Employee not found' : 'Employé introuvable'); return; }
   const name = (document.getElementById('mEmpName')?.value || '').trim();
   const job = document.getElementById('mEmpJob')?.value || emp.job || 'autre';
   const pass = document.getElementById('mEmpPass')?.value || '';
   if (!name) { alert(t('fillFields')); return; }
-  emp.name = name;
-  emp.job = job;
-  emp.features = readStaffFeaturesFromForm();
-  if (pass && pass.length >= 6) emp.password = pass;
-  else if (pass && pass.length > 0 && pass.length < 6) {
+  if (pass && pass.length < 6) {
     alert(lang === 'en' ? 'Password must contain at least 6 characters.' : 'Le mot de passe doit contenir au moins 6 caractères.');
     return;
   }
-  saveRegisteredUsers();
-  try { saveAppData(); } catch (e) {}
-  closeModal();
-  renderEmployees();
-  alert(t('employeeUpdated'));
+  const features = readStaffFeaturesFromForm();
+  if (USE_SUPABASE && sb) {
+    try {
+      const {data:res,error}=await sb.functions.invoke('manage-company-user-v2',{
+        body:{action:'update_employee',company_id:currentUser.companyId,user_id:id,name,job,features,password:pass||null}
+      });
+      if(error||!res||!res.ok) throw new Error((res&&res.error)||(error&&error.message)||'Modification impossible');
+      await sbLoadAllIntoData(); closeModal(); renderEmployees();
+      alert(t('employeeUpdated'));
+      return;
+    } catch(e) {
+      console.error('[Allo] update employee',e);
+      alert((lang==='en'?'Update failed: ':'Modification impossible : ')+(e.message||e));
+      return;
+    }
+  }
 }
 
 function onEmpJobChangeDefaults() {
@@ -9539,21 +9577,18 @@ async function openAccountRoleCard(kind) {
   }
 
   if (kind === 'employee') {
-    const employeeProfile = (currentUser.role === 'employe')
-      ? currentUser
-      : (registeredUsers || []).find(u => String(u.id) === String(currentUser.id) && u.role === 'employe');
-    if (!employeeProfile) {
+    const memberships = getEmployeeMembershipsForCurrentUser();
+    if (!memberships.length) {
       alert(lang === 'en'
         ? 'This account is not linked to an employee space yet. An enterprise must first attach your existing Allo account as an employee.'
         : 'Ce compte n’est pas encore rattaché à un espace employé. Une entreprise doit d’abord rattacher votre compte Allo existant comme employé.');
       return;
     }
-    window._alloBaseRole = 'user';
-    currentUser.role = 'employe';
-    currentUser.companyId = employeeProfile.companyId || currentUser.companyId || null;
-    currentUser.job = employeeProfile.job || currentUser.job || 'autre';
-    currentUser.features = employeeProfile.features || currentUser.features || {};
-    buildSidebarNav(); buildNav(); switchView('home');
+    if (memberships.length === 1) {
+      openEmployeeSpace(memberships[0].membershipId);
+      return;
+    }
+    openModal('employeeCompanies');
     return;
   }
 }
@@ -9562,10 +9597,57 @@ function leaveAccountSpace() {
   if (!currentUser) return;
   const base = window._alloBaseRole || 'user';
   currentUser.role = base === 'client' ? 'user' : base;
+  if (window._alloActiveEmployeeMembershipId) {
+    window._alloActiveEmployeeMembershipId = null;
+    currentUser.employeeMembershipId = null;
+    currentUser.employeeCompanyId = null;
+    currentUser.job = null;
+    currentUser.features = {};
+  }
   window._alloBaseRole = null;
   buildSidebarNav(); buildNav();
   switchView('account');
   renderAccount();
+}
+
+async function openEmployeeSpace(membershipId) {
+  if (!currentUser || !membershipId) return;
+  const membership = (data.employeeMemberships || []).find(m =>
+    String(m.id) === String(membershipId) &&
+    m.isActive !== false &&
+    String(m.userId) === String(currentUser.id)
+  );
+  if (!membership) {
+    alert(lang === 'en' ? 'Employee membership not found.' : 'Rattachement employé introuvable.');
+    return;
+  }
+  const company = (data.companies || []).find(c => String(c.id) === String(membership.companyId));
+  if (!company) {
+    alert(lang === 'en' ? 'Company not found.' : 'Entreprise introuvable.');
+    return;
+  }
+  window._alloBaseRole = 'user';
+  window._alloActiveEmployeeMembershipId = membership.id;
+  currentUser.employeeMembershipId = membership.id;
+  currentUser.role = 'employe';
+  currentUser.employeeCompanyId = membership.companyId;
+  currentUser.companyId = membership.companyId;
+  currentUser.job = membership.job || 'autre';
+  currentUser.features = membership.features || {};
+  buildSidebarNav(); buildNav(); switchView('home'); renderAll();
+}
+
+function renderEmployeeCompanyChooser() {
+  const memberships = getEmployeeMembershipsForCurrentUser();
+  return memberships.map(m => `
+    <button class="client-company-card" type="button" onclick="openEmployeeSpace('${String(m.membershipId).replace(/'/g, "\'")}');closeModal()">
+      <div class="ccc-ico">🧑‍💼</div>
+      <div class="ccc-info">
+        <div class="ccc-name">${String(m.companyName || '').replace(/</g,'&lt;')}</div>
+        <div class="ccc-sub">${staffJobLabel(m.job)} · ${lang === 'en' ? 'Open employee space' : 'Ouvrir l’espace employé'}</div>
+      </div>
+      <div class="ccc-arrow">›</div>
+    </button>`).join('') || `<div class="empty">${lang === 'en' ? 'No employee space.' : 'Aucun espace employé.'}</div>`;
 }
 
 function getCompaniesForCurrentClient() {
@@ -9667,12 +9749,13 @@ function renderAccount() {
     const clientsSub = clientCompanies.length
       ? (lang === 'en' ? String(clientCompanies.length) + ' company relationship(s)' : String(clientCompanies.length) + ' entreprise(s) dont vous êtes client')
       : (lang === 'en' ? 'Open your client space and join a company' : 'Ouvrir votre espace client et rejoindre une entreprise');
-    const employeeProfile = (currentUser.role === 'employe')
-      ? currentUser
-      : (registeredUsers || []).find(u => String(u.id) === String(currentUser.id) && u.role === 'employe');
-    const employeeTitle = lang === 'en' ? 'My employee space' : 'Mon espace employé';
-    const employeeSub = employeeProfile
-      ? (lang === 'en' ? 'Open your employee workspace' : 'Ouvrir votre espace employé')
+    const employeeMemberships = getEmployeeMembershipsForCurrentUser();
+    const employeeProfile = employeeMemberships[0] || null;
+    const employeeTitle = lang === 'en' ? 'My employee spaces' : 'Mes espaces employés';
+    const employeeSub = employeeMemberships.length
+      ? (lang === 'en'
+          ? String(employeeMemberships.length) + ' company relationship(s)'
+          : String(employeeMemberships.length) + ' entreprise(s) où vous travaillez')
       : (lang === 'en' ? 'You are not linked as an employee yet' : 'Vous n’êtes pas encore rattaché comme employé');
 
     roleCards.innerHTML = `
@@ -9915,10 +9998,15 @@ function openModal(type, extra) {
       <button class="btn btn-accent btn-block" onclick="addEmployee()">${t('createEmployee')}</button>`;
   }
 
+  if (type === 'employeeCompanies') {
+    html = `<button class="modal-close" onclick="closeModal()">×</button>
+      <h3>${lang === 'en' ? 'Choose an employee space' : 'Choisir un espace employé'}</h3>
+      <p class="sub">${lang === 'en' ? 'Your Allo account can work for several companies. Choose the company you want to enter.' : 'Votre compte Allo peut travailler pour plusieurs entreprises. Choisissez l’entreprise dont vous voulez ouvrir l’espace.'}</p>
+      ${renderEmployeeCompanyChooser()}`;
+  }
+
   if (type === 'editEmployee' && currentUser.role === 'entreprise') {
-    const emp = (registeredUsers || []).find(u =>
-      u.role === 'employe' && String(u.id) === String(extra) && String(u.companyId) === String(currentUser.companyId)
-    );
+    const emp = getCompanyEmployees().find(u => String(u.id) === String(extra));
     if (!emp) { alert(lang === 'en' ? 'Employee not found' : 'Employé introuvable'); return; }
     const jobOpts = Object.keys(STAFF_JOBS).map(k => {
       const j = STAFF_JOBS[k];
