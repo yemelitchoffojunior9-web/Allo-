@@ -2263,6 +2263,14 @@ nav.bottom,
           <button class="link" id="adminCatAddBtn" onclick="openModal('addCategory')">+ Catégorie</button>
         </div>
         <div id="adminCategoriesList"></div>
+        <div class="section-head" style="margin-top:18px">
+          <h2><span class="bar"></span> <span id="adminHashtagsTitle">Hashtags de recherche</span></h2>
+          <button class="link" id="adminHashtagAddBtn" onclick="openModal('addHashtag')">+ Hashtag</button>
+        </div>
+        <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:10px;line-height:1.45">
+          Le Super Admin crée les hashtags disponibles. Les boutiques et entreprises peuvent seulement les sélectionner lors de la création d’un produit.
+        </p>
+        <div id="adminHashtagsList"></div>
       </div>
       <div class="view" id="view-admin-zones">
         <div class="section-head">
@@ -2668,7 +2676,9 @@ function mapProductRow(r) {
     stock: Number(r.stock || 0),
     icon: r.icon || '📦',
     cat: r.cat,
-    cats: r.cats || [],
+    categoryId: r.category_id || null,
+    cats: r.cat ? [r.cat] : [],
+    hashtags: Array.isArray(r.hashtags) ? r.hashtags : [],
     image: r.image_url,
     images: r.image_url ? [r.image_url] : [],
     private: !!r.private,
@@ -3092,7 +3102,7 @@ async function sbLoadAllIntoData() {
       companies, shops, products, clients, employeeMemberships, orders, messages,
       feedback, notifications, reviews, userNotifs, wishlist,
       promoCodes, returns, walletTx, walletAccounts, topUps, withdraws, payMethods,
-      categories, zones, settings, variants, pimgs, appRecords
+      categories, zones, settings, variants, pimgs, appRecords, hashtags, productHashtags
     ] = await Promise.all([
       sb.from('companies').select('*'),
       sb.from('shops').select('*'),
@@ -3118,7 +3128,9 @@ async function sbLoadAllIntoData() {
       sb.from('app_settings').select('*'),
       sb.from('product_variants').select('*'),
       sb.from('product_images').select('*'),
-      sb.from('app_records').select('*')
+      sb.from('app_records').select('*'),
+      sb.from('hashtags').select('*'),
+      sb.from('product_hashtags').select('*')
     ]);
 
     data.companies = (companies.data || []).map(c => ({
@@ -3148,6 +3160,21 @@ async function sbLoadAllIntoData() {
       p.variants = varsByP[p.id] || [];
       const ims = (imgsByP[p.id] || []).sort((a, b) => a.sort - b.sort).map(x => x.url);
       if (ims.length) { p.images = ims; p.image = ims[0]; }
+    });
+    const categoryIds = {};
+    (categories.data || []).forEach(c => { categoryIds[String(c.name).trim().toLowerCase()] = c.id; });
+    window._alloCategoryIds = categoryIds;
+    const hashtagNames = {};
+    window._alloHashtags = (hashtags.data || []).slice().sort((a,b) => String(a.name||'').localeCompare(String(b.name||'')));
+    (hashtags.data || []).forEach(h => { hashtagNames[h.id] = h.name; });
+    const hashtagsByProduct = {};
+    (productHashtags.data || []).forEach(ph => {
+      if (!hashtagsByProduct[ph.product_id]) hashtagsByProduct[ph.product_id] = [];
+      if (hashtagNames[ph.hashtag_id]) hashtagsByProduct[ph.product_id].push(hashtagNames[ph.hashtag_id]);
+    });
+    prods.forEach(p => {
+      p.hashtags = hashtagsByProduct[p.id] || [];
+      p.categoryId = p.categoryId || categoryIds[String(p.cat || '').trim().toLowerCase()] || null;
     });
     data.products = prods;
     data.clients = (clients.data || []).map(c => ({
@@ -3396,8 +3423,9 @@ async function sbUpsertProduct(p) {
     price: Math.round(Number(p.price) || 0),
     stock: Math.round(Number(p.stock) || 0),
     icon: p.icon || '📦',
+    category_id: p.categoryId || (window._alloCategoryIds && window._alloCategoryIds[String(p.cat || '').trim().toLowerCase()]) || null,
     cat: p.cat || null,
-    cats: p.cats || [],
+    cats: p.cat ? [p.cat] : [],
     image_url: imageUrl || null,
     private: !!p.private,
     hidden: !!p.hidden,
@@ -3418,6 +3446,22 @@ async function sbUpsertProduct(p) {
   if (res.error) {
     console.warn('sbUpsertProduct', res.error);
     return null;
+  }
+  // Hashtags: indépendants de la catégorie et sans effet sur la commission.
+  if (res.data) {
+    try {
+      const normalized = Array.from(new Set((p.hashtags || []).map(x => String(x).trim().replace(/^#+/, '').toLowerCase()).filter(Boolean))).slice(0, 30);
+      const hs = [];
+      for (const name of normalized) {
+        const hr = await sb.from('hashtags').upsert({ name: name }, { onConflict: 'name' }).select().single();
+        if (!hr.error && hr.data) hs.push(hr.data.id);
+      }
+      await sb.from('product_hashtags').delete().eq('product_id', res.data.id);
+      if (hs.length) {
+        const links = hs.map(hashtag_id => ({ product_id: res.data.id, hashtag_id }));
+        await sb.from('product_hashtags').insert(links);
+      }
+    } catch (e) { console.warn('[Allo] hashtags sync', e); }
   }
   // extra images
   if (Array.isArray(p.images) && res.data) {
@@ -3733,7 +3777,7 @@ you: 'Vous', product: 'Produit', shopOnAllora: 'Boutique sur Allo',
     shopNotFound: 'Boutique non trouvée', writeMessage: 'Écrivez un message',
     newProduct: 'Nouveau produit', editProduct: 'Modifier le produit', addProductToShop: 'Ajouter un produit à votre boutique',
     addProductToThisShop: 'Ajouter un produit à cette boutique',
-    productName: 'Nom du produit', category: 'Catégories', price: 'Prix (FCFA)', stockLabel: 'Stock',
+    productName: 'Nom du produit', category: 'Catégorie', price: 'Prix (FCFA)', stockLabel: 'Stock',
     iconEmoji: 'Icône (emoji)', productImage: 'Image du produit', createProduct: 'Créer le produit',
     deleteProduct: 'Supprimer le produit', newClient: 'Nouveau client',
     createPrivateClient: 'Ajouter un compte Allo existant comme client de votre entreprise',
@@ -5629,6 +5673,57 @@ function renderAdminCategories() {
   }).join('');
 }
 
+async function renderAdminHashtags() {
+  if (!currentUser || currentUser.role !== 'admin') return;
+  const el = document.getElementById('adminHashtagsList');
+  if (!el) return;
+  const tags = Array.isArray(window._alloHashtags) ? window._alloHashtags : [];
+  if (!tags.length) {
+    el.innerHTML = `<div class="empty">${lang==='en' ? 'No search hashtags yet' : 'Aucun hashtag de recherche pour le moment'}</div>`;
+    return;
+  }
+  el.innerHTML = tags.map(h => {
+    const raw = String(h.name || '').replace(/^#+/,'').trim();
+    const safe = raw.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    return `<div class="list-row">
+      <div class="c-info"><div class="c-name">#${raw}</div></div>
+      <button class="btn btn-sm btn-danger" onclick="adminRemoveHashtag('${safe}')" title="${lang==='en'?'Delete':'Supprimer'}">🗑</button>
+    </div>`;
+  }).join('');
+}
+
+async function adminAddHashtag() {
+  if (!currentUser || currentUser.role !== 'admin') return;
+  const input = document.getElementById('mHashtagName');
+  const raw = String(input?.value || '').trim().replace(/^#+/,'').toLowerCase();
+  if (!raw) { alert(lang==='en' ? 'Enter a hashtag.' : 'Entrez un hashtag.'); return; }
+  if (!/^[\p{L}\p{N}_-]{1,50}$/u.test(raw)) {
+    alert(lang==='en' ? 'Use letters, numbers, _ or - only.' : 'Utilisez uniquement des lettres, chiffres, _ ou -.');
+    return;
+  }
+  if (USE_SUPABASE && sb) {
+    const res = await sb.from('hashtags').upsert({name:raw}, {onConflict:'name'}).select().maybeSingle();
+    if (res.error) { console.error('[Allo] hashtag add', res.error); alert(lang==='en' ? 'Could not save hashtag.' : 'Impossible d’enregistrer le hashtag.'); return; }
+    await sbLoadAllIntoData();
+  }
+  closeModal();
+  renderAdminHashtags();
+  alert(lang==='en' ? 'Hashtag added.' : 'Hashtag ajouté.');
+}
+
+async function adminRemoveHashtag(name) {
+  if (!currentUser || currentUser.role !== 'admin') return;
+  const raw = String(name || '').replace(/^#+/,'').trim().toLowerCase();
+  if (!raw) return;
+  if (!confirm(lang==='en' ? `Delete #${raw}? Products using it will lose this hashtag.` : `Supprimer #${raw} ? Les produits qui l’utilisent perdront ce hashtag.`)) return;
+  if (USE_SUPABASE && sb) {
+    const res = await sb.from('hashtags').delete().eq('name', raw);
+    if (res.error) { console.error('[Allo] hashtag delete', res.error); alert(lang==='en' ? 'Could not delete hashtag.' : 'Impossible de supprimer le hashtag.'); return; }
+    await sbLoadAllIntoData();
+  }
+  renderAdminHashtags();
+}
+
 async function adminAddCategory() {
   const name = (document.getElementById('mCatName')?.value || '').trim();
   if (!name) { alert(t('fillFields')); return; }
@@ -5735,9 +5830,8 @@ function getCommissionRate(cat) {
 
 // Taux effectif d'un produit : chaque hashtag ajoute le taux configuré par le Super Admin.
 function getProductCommissionRate(product) {
-  const cats = typeof getProductCats === 'function' ? getProductCats(product) : ((product && product.cat) ? [product.cat] : []);
-  if (!cats.length) return 0;
-  return cats.reduce((sum, cat) => sum + Math.max(0, Number(getCommissionRate(cat)) || 0), 0);
+  const cat = String(product && product.cat || '').trim();
+  return cat ? Math.max(0, Number(getCommissionRate(cat)) || 0) : 0;
 }
 
 function productCountByCategory() {
@@ -6875,6 +6969,7 @@ function renderAll() {
     renderAdminHome();
     renderAdminAccounts();
     renderAdminCategories();
+    renderAdminHashtags();
     renderAdminZones();
     renderAdminCommissions();
     renderAdminNotifs();
@@ -7237,130 +7332,106 @@ function getCategoryOptionsHTML(selected) {
 /** Catégories d'un produit (multi + rétrocompat mono cat) */
 function getProductCats(p) {
   if (!p) return [];
-  if (Array.isArray(p.cats) && p.cats.length) {
-    return p.cats.map(c => String(c).trim()).filter(Boolean);
-  }
-  if (p.cat) return [String(p.cat).trim()].filter(Boolean);
-  return [];
+  const cat = String(p.cat || '').trim();
+  return cat ? [cat] : [];
 }
 
 function productHasCat(p, cat) {
   if (!cat || cat === 'all') return true;
-  return getProductCats(p).some(c => c === cat);
+  return String(p && p.cat || '').trim() === String(cat).trim();
 }
 
 function collectAllProductCats(products) {
   const set = new Set();
-  (products || []).forEach(p => getProductCats(p).forEach(c => set.add(c)));
+  (products || []).forEach(p => {
+    const c = String(p && p.cat || '').trim();
+    if (c) set.add(c);
+  });
   return [...set];
 }
 
-/** Checkboxes multi-catégories (style hashtags) */
-function getCategoryCheckboxesHTML(selectedList) {
-  const selected = (Array.isArray(selectedList) ? selectedList : (selectedList ? [selectedList] : []))
-    .map(c => String(c).trim()).filter(Boolean);
-  const safeSelected = JSON.stringify(selected).replace(/</g, '\\u003c');
-  return `<div class="cat-picker" id="mCatPicker" data-selected='${safeSelected.replace(/'/g, '&apos;')}'>
-    <input id="mCatSearch" type="search" placeholder="Rechercher un hashtag…" autocomplete="off" oninput="renderCategoryPickerResults(this.value)">
-    <div id="mCatPickerMeta" class="cat-picker-meta">${selected.length ? selected.length + ' sélectionné(s)' : 'Aucun hashtag sélectionné'}</div>
-    <div class="cat-check-grid" id="mCatGrid"></div>
-  </div>
-  <p style="font-size:11px;color:var(--text-muted);margin-top:6px">${lang==='en'?'Select at least one hashtag. Each selected hashtag adds its commission rate.':'Choisissez au moins un hashtag. Chaque hashtag sélectionné ajoute son pourcentage de commission.'}</p>
-  <div id="mCatCommissionInfo" style="font-size:11px;color:var(--accent-bright);margin-top:5px"></div>
-`;
+/* Un seul produit = une seule catégorie. Les hashtags sont prédéfinis par le Super Admin. */
+function getCategoryCheckboxesHTML(selectedList, selectedHashtags) {
+  const selected = Array.isArray(selectedList) ? selectedList[0] : (selectedList || '');
+  const current = String(selected).trim();
+  const categories = typeof getAdminCategories === 'function' ? getAdminCategories() : [];
+  const opts = categories.map(c => {
+    const value = String(c || '').trim();
+    const label = typeof tCat === 'function' ? tCat(value) : value;
+    const esc = x => String(x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    return `<option value="${esc(value)}" ${value === current ? 'selected' : ''}>${esc(label)}</option>`;
+  }).join('');
+  const selectedTags = new Set((Array.isArray(selectedHashtags) ? selectedHashtags : []).map(x => String(x).replace(/^#+/,'').trim().toLowerCase()).filter(Boolean));
+  const hashtags = Array.isArray(window._alloHashtags) ? window._alloHashtags : [];
+  const tagOpts = hashtags.map(h => {
+    const raw = String(h && h.name || '').replace(/^#+/,'').trim().toLowerCase();
+    if (!raw) return '';
+    const label = '#' + raw;
+    const esc = x => String(x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    return `<option value="${esc(raw)}" ${selectedTags.has(raw) ? 'selected' : ''}>${esc(label)}</option>`;
+  }).join('');
+  return `
+    <select id="mCat" onchange="updateCategoryCommissionInfo()" required>
+      <option value="">${lang==='en' ? 'Choose one category' : 'Choisissez une seule catégorie'}</option>
+      ${opts}
+    </select>
+    <div id="mCatCommissionInfo" style="font-size:11px;color:var(--accent-bright);margin-top:6px"></div>
+    <div class="field" style="margin-top:10px;margin-bottom:0">
+      <label>${lang==='en' ? 'Search hashtags' : 'Hashtags de recherche'}</label>
+      <select id="mHashtags" multiple size="5" style="min-height:110px">
+        ${tagOpts || `<option disabled>${lang==='en' ? 'No hashtags available. Ask the Super Admin to add some.' : 'Aucun hashtag disponible. Le Super Admin doit d’abord en ajouter.'}</option>`}
+      </select>
+      <div style="font-size:10.5px;color:var(--text-muted);margin-top:5px">
+        ${lang==='en'
+          ? 'Select only hashtags created by the Super Admin. They never change the commission.'
+          : 'Sélectionnez uniquement les hashtags créés par le Super Admin. Ils ne modifient jamais la commission.'}
+      </div>
+    </div>
+  `;
 }
 
 function getCategoryPickerSelected() {
-  const picker = document.getElementById('mCatPicker');
-  if (!picker) return [];
-  try {
-    const raw = picker.getAttribute('data-selected') || '[]';
-    return JSON.parse(raw.replace(/&apos;/g, "'")) || [];
-  } catch (e) { return []; }
+  const sel = document.getElementById('mCat');
+  return sel && sel.value ? [String(sel.value).trim()] : [];
 }
 
 function setCategoryPickerSelected(list) {
-  const picker = document.getElementById('mCatPicker');
-  if (!picker) return;
-  const arr = Array.from(new Set((list || []).map(c => String(c).trim()).filter(Boolean)));
-  picker.setAttribute('data-selected', JSON.stringify(arr));
-  const meta = document.getElementById('mCatPickerMeta');
-  if (meta) meta.textContent = arr.length ? (arr.length + (lang==='en' ? ' selected' : ' sélectionné(s)')) : (lang==='en' ? 'No hashtag selected' : 'Aucun hashtag sélectionné');
-}
-
-function renderCategoryPickerResults(query) {
-  const grid = document.getElementById('mCatGrid');
-  if (!grid) return;
-  const all = getAdminCategories();
-  const q = String(query || '').trim().toLowerCase();
-  const selected = getCategoryPickerSelected();
-  const selectedSet = new Set(selected);
-  const limit = 40;
-  const matches = [];
-
-  // Ne jamais rendre toutes les catégories dans le formulaire.
-  // Même avec 1 000 000 catégories, le DOM reste limité à quelques dizaines d'éléments.
-  if (q) {
-    for (let i = 0; i < all.length && matches.length < limit; i++) {
-      const c = String(all[i]);
-      if (c.toLowerCase().includes(q) || selectedSet.has(c)) matches.push(c);
-    }
-  } else {
-    selected.forEach(c => { if (all.includes(c) && matches.length < limit) matches.push(c); });
-    for (let i = 0; i < all.length && matches.length < limit; i++) {
-      const c = String(all[i]);
-      if (!selectedSet.has(c)) matches.push(c);
-    }
-  }
-
-  if (!matches.length) {
-    grid.innerHTML = `<div class="empty" style="padding:12px">${lang==='en'?'No matching hashtag':'Aucun hashtag correspondant'}</div>`;
-    return;
-  }
-
-  grid.innerHTML = matches.map((c, i) => {
-    const id = 'mCatCb' + i;
-    const on = selectedSet.has(c) ? 'on' : '';
-    const checked = selectedSet.has(c) ? 'checked' : '';
-    const safe = String(c).replace(/"/g, '&quot;');
-    return `<label class="cat-check ${on}" for="${id}">
-      <input type="checkbox" id="${id}" name="mCatMulti" value="${safe}" ${checked}
-        onchange="toggleCategoryPickerValue(this)">
-      <span class="hash">#</span>${tCat(c)}
-    </label>`;
-  }).join('');
-}
-
-function toggleCategoryPickerValue(input) {
-  const selected = getCategoryPickerSelected();
-  const value = String(input.value || '').trim();
-  const set = new Set(selected);
-  if (input.checked) set.add(value); else set.delete(value);
-  setCategoryPickerSelected(Array.from(set));
-  const label = input.closest('.cat-check');
-  if (label) label.classList.toggle('on', input.checked);
+  const sel = document.getElementById('mCat');
+  if (!sel) return;
+  sel.value = Array.isArray(list) && list.length ? String(list[0]).trim() : '';
   updateCategoryCommissionInfo();
 }
 
+function renderCategoryPickerResults() {}
+function toggleCategoryPickerValue() { updateCategoryCommissionInfo(); }
+
 function updateCategoryCommissionInfo() {
   const el = document.getElementById('mCatCommissionInfo');
+  const sel = document.getElementById('mCat');
   if (!el) return;
-  const selected = getCategoryPickerSelected();
-  const total = selected.reduce((sum, c) => sum + Number(getCommissionRate(c) || 0), 0);
-  el.textContent = selected.length
-    ? ((lang==='en' ? 'Commission for this product: ' : 'Commission de ce produit : ') + total + '%')
+  const cat = String(sel && sel.value || '').trim();
+  const pct = cat ? Number(getCommissionRate(cat) || 0) : 0;
+  el.textContent = cat
+    ? ((lang==='en' ? 'Commission for this category: ' : 'Commission de cette catégorie : ') + pct + '%')
     : '';
 }
 
 function getSelectedCategoriesFromForm() {
-  const picker = document.getElementById('mCatPicker');
-  if (picker) return getCategoryPickerSelected();
-  const boxes = document.querySelectorAll('input[name="mCatMulti"]:checked');
-  const cats = Array.from(boxes).map(b => b.value).filter(Boolean);
-  if (cats.length) return cats;
   const sel = document.getElementById('mCat');
-  if (sel && sel.value) return [sel.value];
-  return [];
+  return sel && sel.value ? [String(sel.value).trim()] : [];
+}
+
+function getProductHashtagsFromForm() {
+  const select = document.getElementById('mHashtags');
+  if (!select) return [];
+  return Array.from(select.selectedOptions || []).map(o => String(o.value || '').trim().toLowerCase()).filter(Boolean).map(x => '#' + x).slice(0, 30);
+}
+
+function setProductHashtagsInForm(list) {
+  const select = document.getElementById('mHashtags');
+  if (!select) return;
+  const selected = new Set((Array.isArray(list) ? list : []).map(x => String(x).replace(/^#+/,'').trim().toLowerCase()).filter(Boolean));
+  Array.from(select.options).forEach(o => { o.selected = selected.has(String(o.value||'').toLowerCase()); });
 }
 
 function openShopPage(shopId) {
@@ -10004,7 +10075,7 @@ function openModal(type, extra) {
       <p class="sub">${safeName}</p>
       <div class="field"><label>${t('productName')}</label><input id="mName" value="${safeName}"></div>
       <div class="field"><label>${t('category')}</label>
-        ${getCategoryCheckboxesHTML(getProductCats(p))}
+        ${getCategoryCheckboxesHTML(getProductCats(p), p.hashtags || [])}
       </div>
       <div class="field"><label>${t('price')}</label><input id="mPrice" type="number" value="${p.price}"></div>
       <div class="field"><label>${t('stockLabel')}</label><input id="mStock" type="number" value="${p.stock}"></div>
@@ -10170,6 +10241,13 @@ function openModal(type, extra) {
   }
 
 
+  if (type === 'addHashtag') {
+    html = `<button class="modal-close" onclick="closeModal()">×</button>
+      <h3>${lang==='en' ? 'New search hashtag' : 'Nouveau hashtag de recherche'}</h3>
+      <div class="field"><label>Hashtag</label><input type="text" id="mHashtagName" placeholder="Ex: smartphone" maxlength="50" autocapitalize="off"></div>
+      <p style="font-size:11px;color:var(--text-muted)">${lang==='en' ? 'Only the Super Admin can create or delete these hashtags.' : 'Seul le Super Admin peut créer ou supprimer ces hashtags.'}</p>
+      <button class="btn btn-accent btn-block" onclick="adminAddHashtag()">${t('save')}</button>`;
+  }
   if (type === 'addCategory') {
     html = `<button class="modal-close" onclick="closeModal()">×</button>
       <h3>${t('adminAddCategory')}</h3>
@@ -11105,11 +11183,12 @@ async function addProduct(shopIdOverride) {
     const iconEl = document.getElementById('mIcon');
     const name = (nameEl?.value || '').trim();
     const catsArr = (typeof getSelectedCategoriesFromForm === 'function') ? getSelectedCategoriesFromForm() : [];
-    if (!catsArr.length) {
-      alert(lang === 'en' ? 'Choose at least one hashtag/category. The selected hashtags determine your commission rate.' : 'Choisissez au moins un hashtag/catégorie. Les hashtags sélectionnés déterminent le pourcentage de commission appliqué à votre vente.');
+    if (catsArr.length !== 1) {
+      alert(lang === 'en' ? 'Choose exactly one category.' : 'Choisissez exactement une catégorie.');
       return;
     }
     const cat = catsArr[0];
+    const hashtags = (typeof getProductHashtagsFromForm === 'function') ? getProductHashtagsFromForm() : [];
     const price = parseInt(priceEl?.value, 10) || 0;
     const stock = parseInt(stockEl?.value, 10) || 0;
     const icon = (iconEl?.value || '📦').trim() || '📦';
@@ -11227,17 +11306,13 @@ async function saveProduct(id) {
     if (!p) { alert(t('productNotFound')); return; }
     p.name = (document.getElementById('mName')?.value || '').trim() || p.name;
     const catsArr = (typeof getSelectedCategoriesFromForm === 'function') ? getSelectedCategoriesFromForm() : [];
-    if (!catsArr.length) {
-      alert(lang === 'en' ? 'Choose at least one hashtag/category. The selected hashtags determine your commission rate.' : 'Choisissez au moins un hashtag/catégorie. Les hashtags sélectionnés déterminent le pourcentage de commission appliqué à votre vente.');
+    if (catsArr.length !== 1) {
+      alert(lang === 'en' ? 'Choose exactly one category.' : 'Choisissez exactement une catégorie.');
       return;
     }
-    if (catsArr.length) {
-      p.cats = catsArr;
-      p.cat = catsArr[0];
-    } else {
-      p.cat = p.cat || 'Autres';
-      p.cats = [p.cat];
-    }
+    p.cat = catsArr[0];
+    p.cats = [p.cat];
+    p.hashtags = (typeof getProductHashtagsFromForm === 'function') ? getProductHashtagsFromForm() : [];
     p.price = parseInt(document.getElementById('mPrice')?.value, 10) || p.price;
     p.stock = parseInt(document.getElementById('mStock')?.value, 10);
     if (isNaN(p.stock)) p.stock = 0;
