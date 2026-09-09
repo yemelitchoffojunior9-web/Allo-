@@ -2357,6 +2357,18 @@ nav.bottom,
           <div class="field"><label>Confirmer</label><input type="password" id="adminNewPass2"></div>
           <button class="btn btn-accent btn-block" onclick="saveAdminCredentials()">Enregistrer</button>
         </div>
+        <div class="card" style="margin-top:12px;border-color:rgba(34,211,238,.3)">
+          <b>💵 Paiement à la livraison — Offre d’activation</b>
+          <p style="font-size:12px;color:var(--text-muted);line-height:1.45;margin:7px 0 10px">
+            Le Super Admin définit le prix de l’offre. Une boutique ou une entreprise doit la payer depuis son portefeuille pour permettre à ses clients de commander en espèces.
+          </p>
+          <div class="field">
+            <label>Prix de l’offre (FCFA)</label>
+            <input type="number" id="cashOfferPriceAdmin" min="0" step="100" value="5000">
+          </div>
+          <button class="btn btn-cyan btn-block" onclick="saveCashOfferPrice()">💾 Enregistrer le prix</button>
+          <p id="cashOfferPriceAdminHint" style="font-size:11px;color:var(--text-muted);margin-top:7px"></p>
+        </div>
       </div>
 
       
@@ -3304,6 +3316,25 @@ async function sbLoadAllIntoData() {
       scopeId: w.scope_id,
       balance: Number(w.balance || 0)
     }));
+    // Offre Paiement à la livraison : source de vérité Supabase.
+    try {
+      const cashOffersRes = await sb.from('cash_payment_offers').select('*');
+      if (!cashOffersRes.error) {
+        data.cashPaymentOffers = (cashOffersRes.data || []).map(o => ({
+          id:o.id, entityType:o.entity_type, entityId:o.entity_id,
+          ownerUserId:o.owner_user_id, enabled:o.enabled === true,
+          pricePaid:Number(o.price_paid || 0), activatedAt:o.activated_at, updatedAt:o.updated_at
+        }));
+      } else {
+        data.cashPaymentOffers = [];
+      }
+      const { data: cashPrice } = await sb.rpc('get_cash_on_delivery_offer_price');
+      data.cashOfferPrice = Number(cashPrice || 5000);
+    } catch (e) {
+      console.warn('[Allo] cash offer load', e);
+      data.cashPaymentOffers = data.cashPaymentOffers || [];
+      data.cashOfferPrice = Number(data.cashOfferPrice || 5000);
+    }
     data.topUpRequests = (topUps.data || []).map(r => {
       const note = alloParseRequestNote(r.admin_note);
       const user = (registeredUsers || []).find(u => String(u?.id) === String(r.user_id));
@@ -7811,7 +7842,7 @@ function renderCart() {
 }
 
 
-function validateCart() {
+async function validateCart() {
   if (!cart.length) return;
   if (currentUser.role !== 'user' && currentUser.role !== 'client') return;
   let total = 0;
@@ -7825,6 +7856,8 @@ function validateCart() {
   }
   window._checkoutTotal = total;
   window._payMethod = 'balance';
+  try { await refreshCashPaymentOffers(); } catch (e) { console.warn('[Allo] cash offer refresh', e); }
+  window._cashOfferAvailable = cashOfferAvailableForCart(groupCartByShop());
   openModal('checkout');
 }
 
@@ -7835,10 +7868,161 @@ function selectPayMethod(m) {
   });
 }
 
+function getCashOfferContext() {
+  if (!currentUser) return null;
+  const uid = String(currentUser.id || '');
+  if (currentUser.role === 'boutique') {
+    const shop = (data.shops || []).find(s =>
+      String(s.ownerId || '') === uid &&
+      !s.companyId &&
+      s.isCompanyCatalog !== true &&
+      s.private !== true
+    ) || ((currentUser.shopId && (data.shops || []).find(s => String(s.id) === String(currentUser.shopId))) || null);
+    return shop && shop.id ? { entityType: 'boutique', entityId: shop.id, ownerId: uid, name: shop.name } : null;
+  }
+  if (currentUser.role === 'entreprise') {
+    const company = (data.companies || []).find(c =>
+      String(c.ownerId || '') === uid
+    ) || ((currentUser.companyId && (data.companies || []).find(c => String(c.id) === String(currentUser.companyId))) || null);
+    return company && company.id ? { entityType: 'entreprise', entityId: company.id, ownerId: uid, name: company.name } : null;
+  }
+  return null;
+}
+
+function findCashOffer(entityType, entityId) {
+  return (data.cashPaymentOffers || []).find(o =>
+    String(o.entityType) === String(entityType) &&
+    String(o.entityId) === String(entityId) &&
+    o.enabled === true
+  ) || null;
+}
+
+async function refreshCashPaymentOffers() {
+  if (!USE_SUPABASE || !sb) return [];
+  const res = await sb.from('cash_payment_offers').select('*');
+  if (res.error) throw res.error;
+  data.cashPaymentOffers = (res.data || []).map(o => ({
+    id: o.id,
+    entityType: o.entity_type,
+    entityId: o.entity_id,
+    ownerUserId: o.owner_user_id,
+    enabled: o.enabled === true,
+    pricePaid: Number(o.price_paid || 0),
+    activatedAt: o.activated_at,
+    updatedAt: o.updated_at
+  }));
+  return data.cashPaymentOffers;
+}
+
+function cashOfferAvailableForCart(groups) {
+  const gs = groups || [];
+  if (!gs.length) return false;
+  return gs.every(g => {
+    const shop = (data.shops || []).find(s => String(s.id) === String(g.shopId));
+    if (!shop) return false;
+    const entityType = shop.isCompanyCatalog === true ? 'entreprise' : 'boutique';
+    const entityId = shop.isCompanyCatalog === true ? shop.companyId : shop.id;
+    return !!findCashOffer(entityType, entityId);
+  });
+}
+
+function renderCashOfferCard() {
+  const ctx = getCashOfferContext();
+  if (!ctx) return '';
+  const active = !!findCashOffer(ctx.entityType, ctx.entityId);
+  const price = Number(data.cashOfferPrice || 5000);
+  return `<div class="card" style="margin-top:10px;border-color:${active ? 'rgba(52,211,153,.35)' : 'rgba(251,191,36,.3)'}">
+    <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
+      <div>
+        <b>💵 Paiement à la livraison</b>
+        <p style="font-size:12px;color:var(--text-muted);line-height:1.45;margin-top:5px">
+          ${active
+            ? 'Activé pour cet espace. Vos clients peuvent commander sans solde Allo et vous règlent en espèces à la livraison.'
+            : 'Permettez à vos clients de commander sans solde Allo et d’être payés directement en espèces à la livraison.'}
+        </p>
+      </div>
+      <span class="status-pill ${active ? 'status-ok' : 'status-pending'}">${active ? 'ACTIF' : 'INACTIF'}</span>
+    </div>
+    <div style="margin-top:10px;font-size:12px;color:var(--text-muted)">
+      Offre d’activation : <b style="color:var(--accent-bright);font-family:'JetBrains Mono'">${formatMoney(price)}</b>
+    </div>
+    ${active
+      ? `<div style="margin-top:8px;font-size:11px;color:var(--green)">✓ Offre déjà payée. Aucun frais ni commission n’est prélevé sur les commandes en espèces.</div>`
+      : `<button class="btn btn-accent btn-block" style="margin-top:10px" onclick="openCashOfferModal()">Activer avec mon portefeuille</button>`}
+  </div>`;
+}
+
+async function openCashOfferModal() {
+  const ctx = getCashOfferContext();
+  if (!ctx) return;
+  let price = Number(data.cashOfferPrice || 0);
+  try {
+    const { data: remotePrice, error } = await sb.rpc('get_cash_on_delivery_offer_price');
+    if (!error && Number.isFinite(Number(remotePrice))) price = Number(remotePrice);
+  } catch (_) {}
+  data.cashOfferPrice = price || 5000;
+  openModal('cashOffer');
+}
+
+async function activateCashOnDelivery() {
+  if (!currentUser || (currentUser.role !== 'boutique' && currentUser.role !== 'entreprise')) return;
+  const ctx = getCashOfferContext();
+  if (!ctx) { alert('Espace vendeur introuvable.'); return; }
+  const price = Number(data.cashOfferPrice || 0);
+  if (!confirm('Activer le paiement à la livraison pour ' + formatMoney(price) + ' ?')) return;
+  try {
+    const { data: result, error } = await sb.rpc('activate_cash_on_delivery', {
+      p_entity_type: ctx.entityType,
+      p_entity_id: ctx.entityId
+    });
+    if (error) throw error;
+    if (!result || !result.ok) throw new Error('Activation non confirmée');
+    await sbLoadAllIntoData();
+    await refreshCashPaymentOffers();
+    closeModal();
+    renderAccount();
+    renderCart();
+    alert(lang === 'en'
+      ? 'Cash on delivery activated successfully.'
+      : 'Paiement à la livraison activé avec succès.');
+  } catch (e) {
+    console.error('[Allo] activate cash on delivery', e);
+    alert((lang === 'en' ? 'Activation failed: ' : 'Activation impossible : ') + (e.message || e));
+  }
+}
+
+async function saveCashOfferPrice() {
+  if (!currentUser || currentUser.role !== 'admin') return;
+  const input = document.getElementById('cashOfferPriceAdmin');
+  const amount = Math.max(0, Math.round(Number(input?.value || 0)));
+  if (!Number.isFinite(amount)) return;
+  try {
+    const { data: saved, error } = await sb.rpc('set_cash_on_delivery_offer_price', { p_amount: amount });
+    if (error) throw error;
+    data.cashOfferPrice = Number(saved || 0);
+    const hint = document.getElementById('cashOfferPriceAdminHint');
+    if (hint) hint.textContent = 'Prix enregistré : ' + formatMoney(data.cashOfferPrice);
+    alert('Prix de l’offre enregistré : ' + formatMoney(data.cashOfferPrice));
+  } catch (e) {
+    console.error('[Allo] save cash offer price', e);
+    alert('Impossible d’enregistrer le prix : ' + (e.message || e));
+  }
+}
+
 async function confirmCheckout() {
   if (!cart.length) return;
-  const method = 'balance'; // Achats uniquement via solde Allo
-  window._payMethod = 'balance';
+  const method = window._payMethod || 'balance';
+  if (method === 'cod') {
+    try { await refreshCashPaymentOffers(); } catch (_) {}
+    if (!cashOfferAvailableForCart(groupCartByShop())) {
+      alert(lang === 'en' ? 'Cash on delivery is not available for all shops in this order.' : 'Le paiement à la livraison n’est pas disponible pour toutes les boutiques de cette commande.');
+      window._payMethod = 'balance';
+      openModal('checkout');
+      return;
+    }
+  } else {
+    window._payMethod = 'balance';
+  }
   const groups = groupCartByShop();
   if (!groups.length) return;
 
@@ -7854,26 +8038,28 @@ async function confirmCheckout() {
   const grandRaw = groups.reduce((s, g) => s + g.subtotal, 0);
   const discount = getPromoDiscount(grandRaw);
   const grand = Math.max(0, grandRaw - discount);
-  if ((currentUser.balance || 0) < grand) {
-    alert(t('balanceInsufficient') + '\n' + (lang==='en'?'Top up from Account.':'Rechargez depuis Compte.'));
-    return;
-  }
-  currentUser.balance -= grand;
-  if (currentUser.role === 'client') {
-    const cl = data.clients.find(c => c.id === currentUser.id);
-    if (cl) cl.balance = currentUser.balance;
-  }
-  const reg = registeredUsers.find(u => u.id === currentUser.id);
-  if (reg) { reg.balance = currentUser.balance; saveRegisteredUsers(); }
+  if (method !== 'cod') {
+    if ((currentUser.balance || 0) < grand) {
+      alert(t('balanceInsufficient') + '\n' + (lang==='en'?'Top up from Account.':'Rechargez depuis Compte.'));
+      return;
+    }
+    currentUser.balance -= grand;
+    if (currentUser.role === 'client') {
+      const cl = data.clients.find(c => c.id === currentUser.id);
+      if (cl) cl.balance = currentUser.balance;
+    }
+    const reg = registeredUsers.find(u => u.id === currentUser.id);
+    if (reg) { reg.balance = currentUser.balance; saveRegisteredUsers(); }
 
-  // Sync solde profil immédiatement (national)
-  if (alloIsSupabaseMode() && alloUuid(currentUser.id)) {
-    try {
-      await sb.from('profiles').update({
-        balance: Number(currentUser.balance || 0),
-        updated_at: new Date().toISOString()
-      }).eq('id', currentUser.id);
-    } catch (e) { console.warn('[Allo] balance sync checkout', e); }
+    // Sync solde profil immédiatement (national)
+    if (alloIsSupabaseMode() && alloUuid(currentUser.id)) {
+      try {
+        await sb.from('profiles').update({
+          balance: Number(currentUser.balance || 0),
+          updated_at: new Date().toISOString()
+        }).eq('id', currentUser.id);
+      } catch (e) { console.warn('[Allo] balance sync checkout', e); }
+    }
   }
 
   const created = [];
@@ -7909,8 +8095,9 @@ async function confirmCheckout() {
       })),
       total: orderTotal,
       promo: window._appliedPromo ? window._appliedPromo.code : null,
-      escrow: true,
-      paidHeld: true,
+      escrow: method !== 'cod',
+      paidHeld: method !== 'cod',
+      commissionTotal: method === 'cod' ? 0 : 0,
       payment: method,
       deliveryCode,
       deliveryHours: hours,
@@ -7966,7 +8153,9 @@ async function confirmCheckout() {
   );
   closeModal();
   alert(
-    t('paymentOk') + ' · ' +
+    (method === 'cod'
+      ? (lang === 'en' ? 'Order placed — pay in cash at delivery' : 'Commande enregistrée — paiement en espèces à la livraison')
+      : t('paymentOk')) + ' · ' +
     (lang === 'en'
       ? (created.length + ' separate order(s) created')
       : (created.length + ' commande(s) séparée(s) créée(s)'))
@@ -8195,7 +8384,9 @@ async function confirmDeliveryByBuyer() {
 
   window._lastOrdersRefresh = Date.now();
   closeModal();
-  alert(lang==='en' ? 'Delivery confirmed. Seller has been paid.' : 'Livraison confirmée. Le vendeur a été payé.');
+  alert(o.payment === 'cod'
+    ? (lang==='en' ? 'Delivery confirmed. Cash payment remains outside Allo.' : 'Livraison confirmée. Le paiement en espèces reste hors portefeuille Allo.')
+    : (lang==='en' ? 'Delivery confirmed. Seller has been paid.' : 'Livraison confirmée. Le vendeur a été payé.'));
   renderOrders();
   try { renderWallet(); } catch (e) {}
   try { updateWalletChip(); } catch (e) {}
@@ -8373,6 +8564,9 @@ function _paintOrdersList() {
     const statusIsDelivery = (displayStatus === 'livraison' || o.status === 'livraison');
     const canConfirmDelivery = isBuyer && statusIsDelivery && o.status !== 'livré' && o.status !== 'annulé';
     const payLabel = o.payment ? ({ balance: t('payBalance'), wave: t('payWave'), orange: t('payOrange'), mtn: t('payMtn'), cod: t('payCod') }[o.payment] || o.payment) : '';
+    const cashOrderHint = o.payment === 'cod'
+      ? `<div style="font-size:11px;color:var(--green);margin-top:5px">💵 ${lang==='en' ? 'Cash order: no Allo balance is charged and no Allo commission is released.' : 'Commande espèces : aucun solde Allo n’est débité et aucune commission Allo n’est libérée.'}</div>`
+      : '';
     const totalShow = seller ? subtotal : o.total;
     const deadlineStr = o.deadlineAt ? new Date(o.deadlineAt).toLocaleString(locale) : '';
     const buyerProfileBlock = seller ? (() => {
@@ -8424,6 +8618,7 @@ function _paintOrdersList() {
         <div>
           <div style="font-weight:700;font-size:14px">${t('order')} #${String(o.id).slice(-6)}</div>
           <div style="font-size:11px;color:var(--text-muted)">${new Date(o.date).toLocaleString(locale)}${payLabel ? ' · ' + payLabel : ''}</div>
+          ${cashOrderHint}
           ${deadlineStr ? `<div style="font-size:11px;color:var(--cyan);margin-top:2px">⏱ ${t('deliveryDeadline')} : ${deadlineStr}</div>` : ''}
           ${seller ? `<div style="font-size:11px;color:var(--cyan);margin-top:2px">${t('onlyYourItems')}</div>` : ''}
         </div>
@@ -9822,6 +10017,10 @@ async function openClientCompanySpace(companyId) {
 
 function renderAccount() {
   const balCard = document.getElementById('balanceCard');
+  if (currentUser && currentUser.role === 'admin') {
+    const priceInput = document.getElementById('cashOfferPriceAdmin');
+    if (priceInput && data.cashOfferPrice != null) priceInput.value = Number(data.cashOfferPrice || 0);
+  }
   // Super Admin: hide personal top-up / withdraw (not needed)
   try {
     const fin = document.getElementById('accountFinanceActions');
@@ -9980,6 +10179,11 @@ function renderAccount() {
       </div>`;
   } else {
     extra.innerHTML = '';
+  }
+
+  // Paiement à la livraison : offre payante, activée par espace vendeur.
+  if (extra && (currentUser.role === 'boutique' || currentUser.role === 'entreprise')) {
+    extra.innerHTML += renderCashOfferCard();
   }
 
   // Delivery delay settings for sellers
@@ -10397,6 +10601,29 @@ function openModal(type, extra) {
     <p class="error-msg" id="profileError"></p>
     <button class="btn btn-accent btn-block" id="btnSaveCompleteProfile" onclick="saveCompleteProfile()">${lang==='en'?'Save and continue':'Enregistrer et continuer'}</button>`;
   }
+  if (type === 'cashOffer') {
+    const ctx = getCashOfferContext();
+    const price = Number(data.cashOfferPrice || 5000);
+    const active = ctx && findCashOffer(ctx.entityType, ctx.entityId);
+    html = `<button class="modal-close" onclick="closeModal()">×</button>
+      <h3>💵 Paiement à la livraison</h3>
+      <p class="sub">Offre d’activation pour ${ctx ? ctx.name : 'cet espace'}</p>
+      <div class="card" style="border-color:rgba(34,211,153,.3);background:rgba(52,211,153,.06)">
+        <b>${active ? 'Option déjà active' : 'Activez cette option'}</b>
+        <p style="font-size:12px;color:var(--text-muted);line-height:1.5;margin-top:7px">
+          ${active
+            ? 'Vos clients peuvent commander sans argent sur leur solde Allo et vous règlent directement en espèces à la livraison.'
+            : 'Après paiement de l’offre, vos clients pourront passer des commandes sans solde Allo. Aucun portefeuille Allo ne sera crédité à la livraison et aucune commission de commande ne sera prélevée.'}
+        </p>
+      </div>
+      <div class="card" style="margin-top:10px;text-align:center">
+        <div style="font-size:11px;color:var(--text-muted)">Prix de l’offre</div>
+        <div style="font-family:'JetBrains Mono';font-size:24px;font-weight:800;color:var(--accent-bright);margin-top:4px">${formatMoney(price)}</div>
+      </div>
+      ${active
+        ? `<button class="btn btn-ghost btn-block" onclick="closeModal()">Fermer</button>`
+        : `<button class="btn btn-accent btn-block" onclick="activateCashOnDelivery()">💳 Payer et activer</button>`}`;
+  }
   if (type === 'checkout') {
     const groups = groupCartByShop();
     const total = groups.reduce((s, g) => s + g.subtotal, 0);
@@ -10404,6 +10631,7 @@ function openModal(type, extra) {
     const finalT = Math.max(0, total - discount);
     window._checkoutTotal = finalT;
     window._payMethod = 'balance';
+    window._cashOfferAvailable = !!cashOfferAvailableForCart(groups);
     let invHtml = groups.map((g, i) =>
       `<div style="display:flex;justify-content:space-between;font-size:12.5px;padding:4px 0;border-bottom:1px solid var(--border)">
         <span>🏪 ${getShopName(g.shopId)}</span>
@@ -10423,6 +10651,19 @@ function openModal(type, extra) {
         <div style="font-family:'JetBrains Mono';font-size:18px;font-weight:800;color:var(--accent-bright);margin-top:4px">${formatMoney(currentUser.balance||0)}</div>
         <p style="font-size:11px;color:var(--text-muted);margin-top:8px">${lang==='en'?'Top up your balance from Account / Wallet with Wave, Orange Money or MTN.':'Rechargez votre solde depuis Compte / Portefeuille via Wave, Orange Money ou MTN.'}</p>
       </div>
+      <div class="pay-methods" style="margin-bottom:12px">
+        <button type="button" class="pay-method active" data-m="balance" onclick="selectPayMethod('balance')">
+          <span class="pm-ico">💳</span>${t('payBalance')}
+        </button>
+        ${window._cashOfferAvailable ? `
+        <button type="button" class="pay-method" data-m="cod" onclick="selectPayMethod('cod')">
+          <span class="pm-ico">💵</span>${t('payCod')}
+        </button>` : ''}
+      </div>
+      ${window._cashOfferAvailable ? `<div class="card" style="padding:10px;margin-bottom:12px;border-color:rgba(52,211,153,.3);background:rgba(52,211,153,.06)">
+        <div style="font-size:12px;font-weight:700;color:var(--green)">💵 ${lang==='en'?'Cash on delivery is available':'Paiement en espèces à la livraison disponible'}</div>
+        <p style="font-size:11px;color:var(--text-muted);margin-top:5px">${lang==='en'?'You pay the seller directly when the order is delivered. Your Allo balance is not charged.':'Vous payez directement le vendeur à la livraison. Votre solde Allo ne sera pas débité.'}</p>
+      </div>` : ''}
       <button class="btn btn-accent btn-block" onclick="confirmCheckout()">${t('payConfirm')}</button>`;
   }
   if (type === 'review') {
