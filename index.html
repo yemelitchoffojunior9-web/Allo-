@@ -2358,16 +2358,32 @@ nav.bottom,
           <button class="btn btn-accent btn-block" onclick="saveAdminCredentials()">Enregistrer</button>
         </div>
         <div class="card" style="margin-top:12px;border-color:rgba(34,211,238,.3)">
-          <b>💵 Paiement à la livraison — Offre d’activation</b>
-          <p style="font-size:12px;color:var(--text-muted);line-height:1.45;margin:7px 0 10px">
-            Le Super Admin définit le prix de l’offre. Une boutique ou une entreprise doit la payer depuis son portefeuille pour permettre à ses clients de commander en espèces.
-          </p>
-          <div class="field">
-            <label>Prix de l’offre (FCFA)</label>
-            <input type="number" id="cashOfferPriceAdmin" min="0" step="100" value="5000">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+            <b>💵 Paiement à la livraison</b>
+            <span class="status-pill status-ok">TARIFS</span>
           </div>
-          <button class="btn btn-cyan btn-block" onclick="saveCashOfferPrice()">💾 Enregistrer le prix</button>
-          <p id="cashOfferPriceAdminHint" style="font-size:11px;color:var(--text-muted);margin-top:7px"></p>
+          <p style="font-size:12px;color:var(--text-muted);line-height:1.45;margin:7px 0 14px">
+            Définissez séparément les tarifs des boutiques et des entreprises. Chaque espace choisit ensuite une durée : jour, semaine, mois ou année.
+          </p>
+
+          <div style="font-weight:800;margin:8px 0 8px">🏪 Boutiques</div>
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px">
+            <div class="field" style="margin:0"><label>1 jour</label><input type="number" id="cashPlan_boutique_day" min="1" step="100" placeholder="—"></div>
+            <div class="field" style="margin:0"><label>7 jours</label><input type="number" id="cashPlan_boutique_week" min="1" step="100" placeholder="—"></div>
+            <div class="field" style="margin:0"><label>1 mois</label><input type="number" id="cashPlan_boutique_month" min="1" step="100" placeholder="—"></div>
+            <div class="field" style="margin:0"><label>1 an</label><input type="number" id="cashPlan_boutique_year" min="1" step="100" placeholder="—"></div>
+          </div>
+
+          <div style="font-weight:800;margin:16px 0 8px">🏢 Entreprises</div>
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px">
+            <div class="field" style="margin:0"><label>1 jour</label><input type="number" id="cashPlan_entreprise_day" min="1" step="100" placeholder="—"></div>
+            <div class="field" style="margin:0"><label>7 jours</label><input type="number" id="cashPlan_entreprise_week" min="1" step="100" placeholder="—"></div>
+            <div class="field" style="margin:0"><label>1 mois</label><input type="number" id="cashPlan_entreprise_month" min="1" step="100" placeholder="—"></div>
+            <div class="field" style="margin:0"><label>1 an</label><input type="number" id="cashPlan_entreprise_year" min="1" step="100" placeholder="—"></div>
+          </div>
+
+          <button class="btn btn-cyan btn-block" style="margin-top:14px" onclick="saveCashOfferPlans()">💾 Enregistrer les tarifs</button>
+          <p id="cashOfferPlanAdminHint" style="font-size:11px;color:var(--text-muted);margin-top:7px"></p>
         </div>
       </div>
 
@@ -3316,24 +3332,27 @@ async function sbLoadAllIntoData() {
       scopeId: w.scope_id,
       balance: Number(w.balance || 0)
     }));
-    // Offre Paiement à la livraison : source de vérité Supabase.
+    // Paiement à la livraison : offres, prix et expiration viennent exclusivement de Supabase.
     try {
       const cashOffersRes = await sb.from('cash_payment_offers').select('*');
-      if (!cashOffersRes.error) {
-        data.cashPaymentOffers = (cashOffersRes.data || []).map(o => ({
-          id:o.id, entityType:o.entity_type, entityId:o.entity_id,
-          ownerUserId:o.owner_user_id, enabled:o.enabled === true,
-          pricePaid:Number(o.price_paid || 0), activatedAt:o.activated_at, updatedAt:o.updated_at
-        }));
-      } else {
-        data.cashPaymentOffers = [];
-      }
-      const { data: cashPrice } = await sb.rpc('get_cash_on_delivery_offer_price');
-      data.cashOfferPrice = Number(cashPrice || 5000);
+      if (cashOffersRes.error) throw cashOffersRes.error;
+      data.cashPaymentOffers = (cashOffersRes.data || []).map(o => ({
+        id:o.id, entityType:o.entity_type, entityId:o.entity_id,
+        ownerUserId:o.owner_user_id, enabled:o.enabled === true,
+        pricePaid:Number(o.price_paid || 0), activatedAt:o.activated_at, updatedAt:o.updated_at,
+        planId:o.plan_id || null, durationKey:o.duration_key || null,
+        startsAt:o.starts_at || null, expiresAt:o.expires_at || null
+      }));
+      const plansRes = await sb.rpc('get_cash_on_delivery_offer_plans');
+      if (plansRes.error) throw plansRes.error;
+      data.cashOfferPlans = (plansRes.data || []).map(p => ({
+        id:p.id, entityType:p.entity_type, durationKey:p.duration_key,
+        price:Number(p.price || 0), enabled:p.enabled === true
+      }));
     } catch (e) {
       console.warn('[Allo] cash offer load', e);
       data.cashPaymentOffers = data.cashPaymentOffers || [];
-      data.cashOfferPrice = Number(data.cashOfferPrice || 5000);
+      data.cashOfferPlans = data.cashOfferPlans || [];
     }
     data.topUpRequests = (topUps.data || []).map(r => {
       const note = alloParseRequestNote(r.admin_note);
@@ -4409,6 +4428,8 @@ let data = {
   topUpRequests: [],
   withdrawRequests: [],
   paymentMethods: [],
+  cashPaymentOffers: [],
+  cashOfferPlans: [],
   depositInfo: { number: '653199986', name: 'Junior Yemeli Tchoffo' }
 };
 
@@ -7872,29 +7893,55 @@ function getCashOfferContext() {
   if (!currentUser) return null;
   const uid = String(currentUser.id || '');
   if (currentUser.role === 'boutique') {
-    const shop = (data.shops || []).find(s =>
-      String(s.ownerId || '') === uid &&
-      !s.companyId &&
-      s.isCompanyCatalog !== true &&
-      s.private !== true
-    ) || ((currentUser.shopId && (data.shops || []).find(s => String(s.id) === String(currentUser.shopId))) || null);
-    return shop && shop.id ? { entityType: 'boutique', entityId: shop.id, ownerId: uid, name: shop.name } : null;
+    // IMPORTANT : le contexte boutique est celui de currentUser.shopId.
+    // Un même propriétaire peut aussi avoir une entreprise : on ne mélange jamais les deux espaces.
+    let shop = currentUser.shopId
+      ? (data.shops || []).find(s => String(s.id) === String(currentUser.shopId))
+      : null;
+    if (!shop || String(shop.ownerId || '') !== uid || shop.isCompanyCatalog === true) {
+      shop = (data.shops || []).find(s =>
+        String(s.ownerId || '') === uid &&
+        s.isCompanyCatalog !== true &&
+        s.private !== true
+      ) || null;
+    }
+    return shop && shop.id && String(shop.ownerId || '') === uid && shop.isCompanyCatalog !== true
+      ? { entityType:'boutique', entityId:shop.id, ownerId:uid, name:shop.name } : null;
   }
   if (currentUser.role === 'entreprise') {
-    const company = (data.companies || []).find(c =>
-      String(c.ownerId || '') === uid
-    ) || ((currentUser.companyId && (data.companies || []).find(c => String(c.id) === String(currentUser.companyId))) || null);
-    return company && company.id ? { entityType: 'entreprise', entityId: company.id, ownerId: uid, name: company.name } : null;
+    const company = currentUser.companyId
+      ? (data.companies || []).find(c => String(c.id) === String(currentUser.companyId))
+      : null;
+    const resolved = (company && String(company.ownerId || '') === uid) ? company :
+      (data.companies || []).find(c => String(c.ownerId || '') === uid) || null;
+    return resolved && resolved.id && String(resolved.ownerId || '') === uid
+      ? { entityType:'entreprise', entityId:resolved.id, ownerId:uid, name:resolved.name } : null;
   }
   return null;
 }
 
+function getCashOfferPlans(entityType) {
+  return (data.cashOfferPlans || []).filter(p =>
+    String(p.entityType) === String(entityType) && p.enabled === true
+  );
+}
+
+function getCashPlan(entityType, durationKey) {
+  return getCashOfferPlans(entityType).find(p => String(p.durationKey) === String(durationKey)) || null;
+}
+
+function formatCashDuration(key) {
+  return ({day:'1 jour',week:'7 jours',month:'1 mois',year:'1 an'})[key] || key;
+}
+
 function findCashOffer(entityType, entityId) {
-  return (data.cashPaymentOffers || []).find(o =>
-    String(o.entityType) === String(entityType) &&
-    String(o.entityId) === String(entityId) &&
-    o.enabled === true
-  ) || null;
+  const now = Date.now();
+  return (data.cashPaymentOffers || []).find(o => {
+    if (String(o.entityType) !== String(entityType) || String(o.entityId) !== String(entityId) || o.enabled !== true) return false;
+    const starts = o.startsAt ? Date.parse(o.startsAt) : NaN;
+    const expires = o.expiresAt ? Date.parse(o.expiresAt) : NaN;
+    return Number.isFinite(starts) && Number.isFinite(expires) && starts <= now && expires > now;
+  }) || null;
 }
 
 async function refreshCashPaymentOffers() {
@@ -7902,14 +7949,15 @@ async function refreshCashPaymentOffers() {
   const res = await sb.from('cash_payment_offers').select('*');
   if (res.error) throw res.error;
   data.cashPaymentOffers = (res.data || []).map(o => ({
-    id: o.id,
-    entityType: o.entity_type,
-    entityId: o.entity_id,
-    ownerUserId: o.owner_user_id,
-    enabled: o.enabled === true,
-    pricePaid: Number(o.price_paid || 0),
-    activatedAt: o.activated_at,
-    updatedAt: o.updated_at
+    id:o.id, entityType:o.entity_type, entityId:o.entity_id, ownerUserId:o.owner_user_id,
+    enabled:o.enabled === true, pricePaid:Number(o.price_paid || 0), activatedAt:o.activated_at,
+    updatedAt:o.updated_at, planId:o.plan_id || null, durationKey:o.duration_key || null,
+    startsAt:o.starts_at || null, expiresAt:o.expires_at || null
+  }));
+  const plans = await sb.rpc('get_cash_on_delivery_offer_plans');
+  if (plans.error) throw plans.error;
+  data.cashOfferPlans = (plans.data || []).map(p => ({
+    id:p.id, entityType:p.entity_type, durationKey:p.duration_key, price:Number(p.price || 0), enabled:p.enabled === true
   }));
   return data.cashPaymentOffers;
 }
@@ -7929,38 +7977,39 @@ function cashOfferAvailableForCart(groups) {
 function renderCashOfferCard() {
   const ctx = getCashOfferContext();
   if (!ctx) return '';
-  const active = !!findCashOffer(ctx.entityType, ctx.entityId);
-  const price = Number(data.cashOfferPrice || 5000);
+  const active = findCashOffer(ctx.entityType, ctx.entityId);
+  const plans = getCashOfferPlans(ctx.entityType);
+  const entityLabel = ctx.entityType === 'entreprise' ? 'entreprise' : 'boutique';
+  if (!plans.length) {
+    return `<div class="card" style="margin-top:10px;border-color:rgba(251,191,36,.3)">
+      <b>💵 Paiement à la livraison</b>
+      <p style="font-size:12px;color:var(--text-muted);margin-top:6px">Aucune offre n’est actuellement disponible pour cette ${entityLabel}.</p>
+    </div>`;
+  }
+  const activeUntil = active?.expiresAt ? new Date(active.expiresAt).toLocaleString(lang === 'en' ? 'en-GB' : 'fr-FR') : '';
   return `<div class="card" style="margin-top:10px;border-color:${active ? 'rgba(52,211,153,.35)' : 'rgba(251,191,36,.3)'}">
     <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
-      <div>
-        <b>💵 Paiement à la livraison</b>
-        <p style="font-size:12px;color:var(--text-muted);line-height:1.45;margin-top:5px">
-          ${active
-            ? 'Activé pour cet espace. Vos clients peuvent commander sans solde Allo et vous règlent en espèces à la livraison.'
-            : 'Permettez à vos clients de commander sans solde Allo et d’être payés directement en espèces à la livraison.'}
-        </p>
+      <div><b>💵 Paiement à la livraison</b>
+        <p style="font-size:12px;color:var(--text-muted);line-height:1.45;margin-top:5px">${active ? 'Activé pour cet espace.' : 'Choisissez une durée et payez l’offre depuis votre portefeuille Allo.'}</p>
       </div>
       <span class="status-pill ${active ? 'status-ok' : 'status-pending'}">${active ? 'ACTIF' : 'INACTIF'}</span>
     </div>
-    <div style="margin-top:10px;font-size:12px;color:var(--text-muted)">
-      Offre d’activation : <b style="color:var(--accent-bright);font-family:'JetBrains Mono'">${formatMoney(price)}</b>
-    </div>
-    ${active
-      ? `<div style="margin-top:8px;font-size:11px;color:var(--green)">✓ Offre déjà payée. Aucun frais ni commission n’est prélevé sur les commandes en espèces.</div>`
-      : `<button class="btn btn-accent btn-block" style="margin-top:10px" onclick="openCashOfferModal()">Activer avec mon portefeuille</button>`}
+    ${active ? `<div style="margin-top:8px;font-size:11px;color:var(--green)">✓ ${formatCashDuration(active.durationKey)} · valable jusqu’au ${activeUntil}.<br>Aucune commission sur les commandes en espèces.</div>` : ''}
+    ${!active ? `<div style="margin-top:10px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px">${plans.map(p => `<button type="button" class="btn btn-ghost" style="padding:10px 8px;text-align:center" onclick="openCashOfferModal('${p.durationKey}')"><b>${formatCashDuration(p.durationKey)}</b><br><span style="font-size:11px;color:var(--accent-bright)">${formatMoney(p.price)}</span></button>`).join('')}</div>` : ''}
   </div>`;
 }
 
-async function openCashOfferModal() {
+async function openCashOfferModal(durationKey) {
   const ctx = getCashOfferContext();
   if (!ctx) return;
-  let price = Number(data.cashOfferPrice || 0);
-  try {
-    const { data: remotePrice, error } = await sb.rpc('get_cash_on_delivery_offer_price');
-    if (!error && Number.isFinite(Number(remotePrice))) price = Number(remotePrice);
-  } catch (_) {}
-  data.cashOfferPrice = price || 5000;
+  try { await refreshCashPaymentOffers(); } catch (e) { console.warn('[Allo] cash plans refresh', e); }
+  const active = findCashOffer(ctx.entityType, ctx.entityId);
+  const plans = getCashOfferPlans(ctx.entityType);
+  if (active) {
+    openModal('cashOffer');
+    return;
+  }
+  window._cashOfferSelectedDuration = durationKey || (plans[0] && plans[0].durationKey) || null;
   openModal('cashOffer');
 }
 
@@ -7968,45 +8017,67 @@ async function activateCashOnDelivery() {
   if (!currentUser || (currentUser.role !== 'boutique' && currentUser.role !== 'entreprise')) return;
   const ctx = getCashOfferContext();
   if (!ctx) { alert('Espace vendeur introuvable.'); return; }
-  const price = Number(data.cashOfferPrice || 0);
-  if (!confirm('Activer le paiement à la livraison pour ' + formatMoney(price) + ' ?')) return;
+  const durationKey = window._cashOfferSelectedDuration;
+  const plan = getCashPlan(ctx.entityType, durationKey);
+  if (!plan) { alert('Veuillez choisir une durée valide.'); return; }
+  if (!confirm('Activer le paiement à la livraison pour ' + formatCashDuration(plan.durationKey) + ' — ' + formatMoney(plan.price) + ' ?')) return;
   try {
     const { data: result, error } = await sb.rpc('activate_cash_on_delivery', {
-      p_entity_type: ctx.entityType,
-      p_entity_id: ctx.entityId
+      p_entity_type: ctx.entityType, p_entity_id: ctx.entityId, p_duration_key: plan.durationKey
     });
     if (error) throw error;
     if (!result || !result.ok) throw new Error('Activation non confirmée');
     await sbLoadAllIntoData();
     await refreshCashPaymentOffers();
     closeModal();
-    renderAccount();
-    renderCart();
-    alert(lang === 'en'
-      ? 'Cash on delivery activated successfully.'
-      : 'Paiement à la livraison activé avec succès.');
+    renderAccount(); renderCart();
+    alert(lang === 'en' ? 'Cash on delivery activated successfully.' : 'Paiement à la livraison activé avec succès.');
   } catch (e) {
     console.error('[Allo] activate cash on delivery', e);
     alert((lang === 'en' ? 'Activation failed: ' : 'Activation impossible : ') + (e.message || e));
   }
 }
 
-async function saveCashOfferPrice() {
-  if (!currentUser || currentUser.role !== 'admin') return;
-  const input = document.getElementById('cashOfferPriceAdmin');
+async function saveCashOfferPlanPrice(entityType, durationKey, silent=false) {
+  if (!currentUser || currentUser.role !== 'admin') throw new Error('Accès Super Admin requis');
+  const input = document.getElementById('cashPlan_' + entityType + '_' + durationKey);
   const amount = Math.max(0, Math.round(Number(input?.value || 0)));
-  if (!Number.isFinite(amount)) return;
-  try {
-    const { data: saved, error } = await sb.rpc('set_cash_on_delivery_offer_price', { p_amount: amount });
-    if (error) throw error;
-    data.cashOfferPrice = Number(saved || 0);
-    const hint = document.getElementById('cashOfferPriceAdminHint');
-    if (hint) hint.textContent = 'Prix enregistré : ' + formatMoney(data.cashOfferPrice);
-    alert('Prix de l’offre enregistré : ' + formatMoney(data.cashOfferPrice));
-  } catch (e) {
-    console.error('[Allo] save cash offer price', e);
-    alert('Impossible d’enregistrer le prix : ' + (e.message || e));
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error('Le prix de ' + entityType + ' / ' + formatCashDuration(durationKey) + ' doit être supérieur à 0.');
+  const { data: saved, error } = await sb.rpc('set_cash_on_delivery_offer_plan_price', { p_entity_type:entityType, p_duration_key:durationKey, p_amount:amount });
+  if (error) throw error;
+  const plan = getCashPlan(entityType, durationKey);
+  if (plan) plan.price = Number(saved || amount);
+  if (!silent) {
+    const hint = document.getElementById('cashOfferPlanAdminHint');
+    if (hint) hint.textContent = 'Prix enregistré.';
   }
+  return Number(saved || amount);
+}
+
+async function saveCashOfferPlans() {
+  if (!currentUser || currentUser.role !== 'admin') return;
+  const keys = ['boutique','entreprise'].flatMap(t => ['day','week','month','year'].map(d => [t,d]));
+  try {
+    for (const [entityType,durationKey] of keys) await saveCashOfferPlanPrice(entityType,durationKey,true);
+    await refreshCashPaymentOffers();
+    syncCashAdminPlanInputs();
+    const hint = document.getElementById('cashOfferPlanAdminHint');
+    if (hint) hint.textContent = 'Les 8 tarifs sont enregistrés.';
+    alert('Tarifs des offres enregistrés.');
+  } catch (e) {
+    const hint = document.getElementById('cashOfferPlanAdminHint');
+    if (hint) hint.textContent = 'Échec : ' + (e.message || e);
+    alert('Enregistrement interrompu : ' + (e.message || e));
+  }
+}
+
+function syncCashAdminPlanInputs() {
+  const keys = ['boutique','entreprise'].flatMap(t => ['day','week','month','year'].map(d => [t,d]));
+  keys.forEach(([entityType,durationKey]) => {
+    const input = document.getElementById('cashPlan_' + entityType + '_' + durationKey);
+    const plan = getCashPlan(entityType,durationKey);
+    if (input && plan) input.value = Number(plan.price || 0);
+  });
 }
 
 async function confirmCheckout() {
@@ -10018,8 +10089,7 @@ async function openClientCompanySpace(companyId) {
 function renderAccount() {
   const balCard = document.getElementById('balanceCard');
   if (currentUser && currentUser.role === 'admin') {
-    const priceInput = document.getElementById('cashOfferPriceAdmin');
-    if (priceInput && data.cashOfferPrice != null) priceInput.value = Number(data.cashOfferPrice || 0);
+    syncCashAdminPlanInputs();
   }
   // Super Admin: hide personal top-up / withdraw (not needed)
   try {
@@ -10603,26 +10673,21 @@ function openModal(type, extra) {
   }
   if (type === 'cashOffer') {
     const ctx = getCashOfferContext();
-    const price = Number(data.cashOfferPrice || 5000);
-    const active = ctx && findCashOffer(ctx.entityType, ctx.entityId);
+    if (!ctx) { alert('Espace vendeur introuvable.'); return; }
+    const active = findCashOffer(ctx.entityType, ctx.entityId);
+    const plans = getCashOfferPlans(ctx.entityType);
+    const selected = window._cashOfferSelectedDuration || (plans[0] && plans[0].durationKey);
+    const selectedPlan = getCashPlan(ctx.entityType, selected);
     html = `<button class="modal-close" onclick="closeModal()">×</button>
       <h3>💵 Paiement à la livraison</h3>
-      <p class="sub">Offre d’activation pour ${ctx ? ctx.name : 'cet espace'}</p>
+      <p class="sub">Offre pour ${ctx.name}</p>
       <div class="card" style="border-color:rgba(34,211,153,.3);background:rgba(52,211,153,.06)">
-        <b>${active ? 'Option déjà active' : 'Activez cette option'}</b>
-        <p style="font-size:12px;color:var(--text-muted);line-height:1.5;margin-top:7px">
-          ${active
-            ? 'Vos clients peuvent commander sans argent sur leur solde Allo et vous règlent directement en espèces à la livraison.'
-            : 'Après paiement de l’offre, vos clients pourront passer des commandes sans solde Allo. Aucun portefeuille Allo ne sera crédité à la livraison et aucune commission de commande ne sera prélevée.'}
-        </p>
+        <b>${active ? 'Option active' : 'Choisissez votre durée'}</b>
+        <p style="font-size:12px;color:var(--text-muted);line-height:1.5;margin-top:7px">${active ? 'Vos clients peuvent commander sans solde Allo et vous règlent directement en espèces à la livraison.' : 'Choisissez une durée pour permettre à vos clients de payer en espèces à la livraison. Aucun portefeuille Allo ne sera crédité à la livraison et aucune commission de commande ne sera prélevée.'}</p>
       </div>
-      <div class="card" style="margin-top:10px;text-align:center">
-        <div style="font-size:11px;color:var(--text-muted)">Prix de l’offre</div>
-        <div style="font-family:'JetBrains Mono';font-size:24px;font-weight:800;color:var(--accent-bright);margin-top:4px">${formatMoney(price)}</div>
-      </div>
-      ${active
-        ? `<button class="btn btn-ghost btn-block" onclick="closeModal()">Fermer</button>`
-        : `<button class="btn btn-accent btn-block" onclick="activateCashOnDelivery()">💳 Payer et activer</button>`}`;
+      ${active ? `<div class="card" style="margin-top:10px;text-align:center"><div style="font-size:12px;color:var(--text-muted)">${formatCashDuration(active.durationKey)}</div><div style="font-family:'JetBrains Mono';font-size:23px;font-weight:800;color:var(--accent-bright);margin-top:4px">${formatMoney(active.pricePaid)}</div><div style="font-size:11px;color:var(--text-muted);margin-top:5px">Expire le ${new Date(active.expiresAt).toLocaleString(lang==='en'?'en-GB':'fr-FR')}</div></div>` : `<div style="margin-top:10px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px">${plans.map(p => `<button type="button" class="btn ${p.durationKey===selected?'btn-accent':'btn-ghost'}" style="padding:10px 7px" onclick="window._cashOfferSelectedDuration='${p.durationKey}';openModal('cashOffer')"><b>${formatCashDuration(p.durationKey)}</b><br><span style="font-size:11px">${formatMoney(p.price)}</span></button>`).join('')}</div>
+      <div class="card" style="margin-top:10px;text-align:center"><div style="font-size:11px;color:var(--text-muted)">Offre sélectionnée</div><div style="font-family:'JetBrains Mono';font-size:24px;font-weight:800;color:var(--accent-bright);margin-top:4px">${selectedPlan ? formatMoney(selectedPlan.price) : '—'}</div></div>`}
+      ${active ? `<button class="btn btn-ghost btn-block" style="margin-top:10px" onclick="closeModal()">Fermer</button>` : `<button class="btn btn-accent btn-block" style="margin-top:10px" onclick="activateCashOnDelivery()">💳 Payer et activer</button>`}`;
   }
   if (type === 'checkout') {
     const groups = groupCartByShop();
