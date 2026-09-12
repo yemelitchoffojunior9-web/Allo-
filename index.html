@@ -356,7 +356,7 @@ header.top {
 
 /* ===== MAIN ===== */
 main {
-  flex: 1; overflow-y: auto; padding: 6px 16px 20px;
+  flex: 1; overflow-y: auto; padding: 6px 10px 20px;
   scrollbar-width: none; position: relative; z-index: 1; min-height: 0;
 }
 main::-webkit-scrollbar { display: none; }
@@ -417,7 +417,7 @@ main::-webkit-scrollbar { display: none; }
 }
 .products-grid {
   display: grid; grid-template-columns: repeat(2, minmax(0,1fr));
-  gap: 12px; align-items: stretch;
+  gap: 8px; align-items: stretch;
 }
 .product-card {
   background: linear-gradient(165deg, var(--surface), var(--surface-2));
@@ -1131,34 +1131,7 @@ nav.bottom {
 }
 .card:active, .list-row:active { transform: scale(.99); }
 
-/* 2. Cartes produits premium */
-.product-card {
-  border-radius: 18px !important;
-  overflow: hidden;
-  background: linear-gradient(180deg, #161622, #101018) !important;
-  border: 1px solid rgba(255,255,255,.07) !important;
-  box-shadow: 0 6px 20px rgba(0,0,0,.28);
-  transition: transform .22s cubic-bezier(.2,.8,.2,1), box-shadow .22s, border-color .22s;
-}
-.product-card:hover {
-  transform: translateY(-3px) !important;
-  border-color: rgba(180,160,255,.4) !important;
-  box-shadow: 0 12px 32px rgba(139,92,246,.18), 0 4px 12px rgba(0,0,0,.3) !important;
-}
-.product-card.in-cart {
-  border-color: rgba(52,211,153,.5) !important;
-  box-shadow: 0 0 0 1px rgba(52,211,153,.25), 0 8px 24px rgba(52,211,153,.1) !important;
-}
-.product-img {
-  background: linear-gradient(145deg, #1a1a2a, #0e0e16) !important;
-  position: relative;
-}
-.product-img::after {
-  content: '';
-  position: absolute; inset: 0;
-  background: linear-gradient(to top, rgba(10,10,16,.5), transparent 40%);
-  pointer-events: none;
-}
+/* 2. Cartes produits — styles de base laissés aux cartes DLS (voir bloc DLS-STYLE) */
 .product-body b {
   font-size: 13.5px;
   letter-spacing: -.2px;
@@ -1728,6 +1701,1067 @@ nav.bottom, #bottomNav {
 .variant-card .v-body { padding: 12px; }
 .status-wait { background: rgba(251,191,36,.16); color: var(--gold); }
 .status-refused { background: rgba(248,113,113,.16); color: var(--red); }
+
+/* ===== DLS-STYLE PRODUCT CARDS ===== */
+.products-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 8px;
+  align-items: stretch;
+}
+.product-card {
+  background: linear-gradient(165deg, #1a2744 0%, #0f1a2e 55%, #0a1220 100%) !important;
+  border: 1.5px solid rgba(100, 140, 200, .35) !important;
+  border-radius: 11px !important;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  min-width: 0;
+  height: 100%;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,.05) inset,
+    0 4px 14px rgba(0,0,0,.4),
+    0 0 14px rgba(40,80,160,.1);
+  transition:
+    transform .28s cubic-bezier(.2,.8,.2,1),
+    box-shadow .28s ease,
+    border-color .28s ease;
+  animation: dlsCardIn .55s cubic-bezier(.2,.85,.2,1) both;
+  will-change: transform, box-shadow;
+}
+/* Stagger entrance in the grid */
+.products-grid .product-card:nth-child(1) { animation-delay: .02s; }
+.products-grid .product-card:nth-child(2) { animation-delay: .07s; }
+.products-grid .product-card:nth-child(3) { animation-delay: .12s; }
+.products-grid .product-card:nth-child(4) { animation-delay: .17s; }
+.products-grid .product-card:nth-child(5) { animation-delay: .22s; }
+.products-grid .product-card:nth-child(6) { animation-delay: .27s; }
+.products-grid .product-card:nth-child(7) { animation-delay: .32s; }
+.products-grid .product-card:nth-child(8) { animation-delay: .37s; }
+.products-grid .product-card:nth-child(9) { animation-delay: .42s; }
+.products-grid .product-card:nth-child(10) { animation-delay: .47s; }
+.products-grid .product-card:nth-child(n+11) { animation-delay: .5s; }
+
+@keyframes dlsCardIn {
+  0% {
+    opacity: 0;
+    transform: translateY(18px) scale(.92);
+    filter: blur(2px);
+  }
+  60% {
+    opacity: 1;
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+/* Soft glass highlight */
+.product-card::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,.08) 0%, transparent 38%, transparent 62%, rgba(255,255,255,.04) 100%);
+  pointer-events: none; z-index: 1; border-radius: 12px;
+}
+
+/* Shine sweep (DLS foil effect) */
+.product-card::after {
+  content: '';
+  position: absolute;
+  top: -40%;
+  left: -60%;
+  width: 45%;
+  height: 180%;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    rgba(255,255,255,.0) 35%,
+    rgba(255,255,255,.18) 48%,
+    rgba(255,255,255,.35) 50%,
+    rgba(255,255,255,.12) 52%,
+    transparent 70%
+  );
+  transform: skewX(-18deg) translateX(0);
+  pointer-events: none;
+  z-index: 4;
+  opacity: 0;
+  transition: opacity .15s;
+}
+.product-card:hover::after {
+  opacity: 1;
+  animation: dlsShineSweep 1.1s ease-in-out;
+}
+@keyframes dlsShineSweep {
+  0%   { transform: skewX(-18deg) translateX(-30%); opacity: 0; }
+  15%  { opacity: 1; }
+  100% { transform: skewX(-18deg) translateX(320%); opacity: 0; }
+}
+
+.product-card:hover {
+  transform: translateY(-6px) scale(1.02) !important;
+  border-color: rgba(180, 200, 255, .6) !important;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,.12) inset,
+    0 18px 40px rgba(0,0,0,.55),
+    0 0 32px rgba(80,120,220,.3) !important;
+}
+.product-card:active {
+  transform: translateY(-2px) scale(.99) !important;
+  transition-duration: .1s !important;
+}
+.product-card.in-cart {
+  border-color: rgba(52,211,153,.55) !important;
+  box-shadow: 0 0 0 1px rgba(52,211,153,.3), 0 8px 28px rgba(52,211,153,.15) !important;
+  animation: dlsCardIn .55s cubic-bezier(.2,.85,.2,1) both, dlsInCartPulse 2.4s ease-in-out infinite;
+}
+@keyframes dlsInCartPulse {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(52,211,153,.3), 0 8px 28px rgba(52,211,153,.12); }
+  50%      { box-shadow: 0 0 0 1px rgba(52,211,153,.55), 0 8px 32px rgba(52,211,153,.28); }
+}
+
+.product-card.is-promo,
+.product-card.is-legendary {
+  border-color: rgba(251,191,36,.65) !important;
+  background: linear-gradient(165deg, #2a2210 0%, #1a1508 50%, #0f0c05 100%) !important;
+  box-shadow:
+    0 0 0 1px rgba(251,191,36,.25) inset,
+    0 8px 28px rgba(0,0,0,.5),
+    0 0 24px rgba(251,191,36,.22) !important;
+  animation: dlsCardIn .55s cubic-bezier(.2,.85,.2,1) both, dlsGoldGlow 2.8s ease-in-out infinite;
+}
+/* Carte faible note (VAL < 50) */
+.product-card.is-low {
+  border-color: rgba(248,113,113,.45) !important;
+  background: linear-gradient(165deg, #2a1518 0%, #1a0e12 55%, #0f080a 100%) !important;
+  box-shadow:
+    0 0 0 1px rgba(248,113,113,.15) inset,
+    0 6px 20px rgba(0,0,0,.45),
+    0 0 16px rgba(248,113,113,.12) !important;
+}
+.product-card.is-low:hover {
+  border-color: rgba(248,113,113,.7) !important;
+  box-shadow:
+    0 0 0 1px rgba(248,113,113,.25) inset,
+    0 14px 36px rgba(0,0,0,.5),
+    0 0 28px rgba(248,113,113,.2) !important;
+}
+.product-card.is-low .dls-rating-badge {
+  background: linear-gradient(160deg, #6a3038 0%, #3a181e 45%, #201014 100%) !important;
+  border-color: rgba(248,113,113,.45) !important;
+}
+.product-card.is-low .dls-card-name { color: #ffc8c8; }
+.dls-fav-btn {
+  cursor: pointer;
+  font-family: inherit;
+  padding: 0;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.dls-fav-btn .val {
+  font-size: 12px !important;
+  line-height: 1;
+}
+.dls-fav-btn.high .val { color: #F472B6 !important; text-shadow: 0 0 8px rgba(244,114,182,.5); }
+.dls-shop-btn {
+  cursor: pointer;
+  font-family: 'Outfit', sans-serif;
+  border: 1px solid rgba(100,140,200,.4) !important;
+  background: rgba(40,80,160,.25) !important;
+  color: #9EC5FF !important;
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dls-shop-btn:hover {
+  border-color: rgba(140,180,255,.6) !important;
+  background: rgba(40,90,180,.4) !important;
+}
+.dls-stat .val {
+  font-size: 8.5px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+@keyframes dlsGoldGlow {
+  0%, 100% {
+    box-shadow:
+      0 0 0 1px rgba(251,191,36,.22) inset,
+      0 8px 28px rgba(0,0,0,.5),
+      0 0 18px rgba(251,191,36,.18);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(251,191,36,.4) inset,
+      0 10px 32px rgba(0,0,0,.55),
+      0 0 34px rgba(251,191,36,.38);
+  }
+}
+.product-card.is-promo:hover,
+.product-card.is-legendary:hover {
+  border-color: rgba(251,191,36,.95) !important;
+  box-shadow:
+    0 0 0 1px rgba(251,191,36,.4) inset,
+    0 18px 44px rgba(0,0,0,.55),
+    0 0 42px rgba(251,191,36,.4) !important;
+  animation: dlsCardIn .55s cubic-bezier(.2,.85,.2,1) both; /* stop pulse while hovering */
+}
+/* Stronger shine on gold cards */
+.product-card.is-promo::after,
+.product-card.is-legendary::after {
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    rgba(255,230,150,.0) 30%,
+    rgba(255,230,150,.25) 45%,
+    rgba(255,255,220,.55) 50%,
+    rgba(255,230,150,.2) 55%,
+    transparent 75%
+  );
+}
+.product-card.is-promo:hover::after,
+.product-card.is-legendary:hover::after {
+  animation: dlsShineSweep .9s ease-in-out;
+}
+
+/* Header strip like DLS card top — compact */
+.dls-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 6px 2px;
+  position: relative;
+  z-index: 2;
+}
+.dls-card-name {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .15px;
+  text-transform: uppercase;
+  color: #e8f0ff;
+  line-height: 1.15;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+}
+.product-card.is-promo .dls-card-name,
+.product-card.is-legendary .dls-card-name {
+  color: #ffe9a8;
+  text-shadow: 0 0 12px rgba(251,191,36,.35);
+}
+
+/* Main body: stats left + image/rating right — compact for 4 visible */
+.dls-card-main {
+  display: flex;
+  gap: 4px;
+  padding: 1px 5px 3px;
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  min-height: 0;
+}
+.dls-stats-col {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex-shrink: 0;
+  width: 40%;
+  justify-content: center;
+}
+.dls-stat-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+}
+.dls-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 1;
+  max-width: 28px;
+  margin: 0 auto;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #2a3a55, #121a28);
+  border: 1.5px solid rgba(100,140,200,.4);
+  box-shadow: 0 1px 4px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.12);
+  position: relative;
+  transition: transform .25s cubic-bezier(.2,.8,.2,1), box-shadow .25s, border-color .25s;
+}
+.product-card:hover .dls-stat {
+  transform: scale(1.08);
+  box-shadow: 0 3px 10px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.18), 0 0 10px rgba(100,160,255,.2);
+}
+.product-card:hover .dls-stat:nth-child(1) { transition-delay: .02s; }
+.product-card:hover .dls-stat:nth-child(2) { transition-delay: .06s; }
+.dls-stat-row:nth-child(2) .dls-stat:nth-child(1) { transition-delay: .1s; }
+.dls-stat-row:nth-child(2) .dls-stat:nth-child(2) { transition-delay: .14s; }
+.dls-stat .val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  color: #7CFC9A;
+  transition: color .2s, text-shadow .2s;
+}
+.dls-stat .lbl {
+  font-size: 5.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .2px;
+  color: rgba(200,220,255,.7);
+  margin-top: 0;
+  line-height: 1;
+}
+.dls-stat.high .val { color: #7CFC9A; }
+.dls-stat.mid .val { color: #FBBF24; }
+.dls-stat.low .val { color: #F87171; }
+.product-card:hover .dls-stat.high .val { text-shadow: 0 0 8px rgba(124,252,154,.5); }
+.product-card:hover .dls-stat.mid .val { text-shadow: 0 0 8px rgba(251,191,36,.5); }
+.product-card:hover .dls-stat.low .val { text-shadow: 0 0 8px rgba(248,113,113,.45); }
+.product-card.is-promo .dls-stat,
+.product-card.is-legendary .dls-stat {
+  background: radial-gradient(circle at 35% 30%, #3a3018, #1a1408);
+  border-color: rgba(251,191,36,.5);
+}
+.product-card.is-promo .dls-stat .val,
+.product-card.is-legendary .dls-stat .val {
+  color: #FBBF24;
+}
+.product-card.is-promo:hover .dls-stat,
+.product-card.is-legendary:hover .dls-stat {
+  box-shadow: 0 3px 10px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.15), 0 0 12px rgba(251,191,36,.35);
+}
+
+/* Rating badge + image like DLS gold card */
+.dls-rating-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  min-width: 0;
+  position: relative;
+}
+.dls-rating-badge {
+  width: 100%;
+  max-width: 72px;
+  background: linear-gradient(160deg, #3a5a9a 0%, #1e3a6e 40%, #152a50 100%);
+  border-radius: 8px 8px 10px 10px;
+  border: 1.5px solid rgba(140,180,255,.45);
+  box-shadow:
+    0 3px 10px rgba(0,0,0,.4),
+    inset 0 1px 0 rgba(255,255,255,.15);
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: transform .3s cubic-bezier(.2,.8,.2,1), box-shadow .3s;
+}
+.product-card:hover .dls-rating-badge {
+  transform: translateY(-3px) scale(1.04);
+  box-shadow:
+    0 8px 20px rgba(0,0,0,.5),
+    0 0 16px rgba(100,150,255,.25),
+    inset 0 1px 0 rgba(255,255,255,.2);
+}
+.product-card.is-promo .dls-rating-badge,
+.product-card.is-legendary .dls-rating-badge {
+  background: linear-gradient(160deg, #c9a227 0%, #8a6b12 45%, #5c4708 100%);
+  border-color: rgba(255,220,100,.7);
+  box-shadow:
+    0 4px 16px rgba(0,0,0,.45),
+    0 0 18px rgba(251,191,36,.25),
+    inset 0 1px 0 rgba(255,255,255,.25);
+  animation: dlsBadgeFloat 3s ease-in-out infinite;
+}
+@keyframes dlsBadgeFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+.product-card.is-promo:hover .dls-rating-badge,
+.product-card.is-legendary:hover .dls-rating-badge {
+  animation: none;
+  transform: translateY(-4px) scale(1.06);
+  box-shadow:
+    0 10px 24px rgba(0,0,0,.5),
+    0 0 22px rgba(251,191,36,.4),
+    inset 0 1px 0 rgba(255,255,255,.3);
+}
+.dls-ovr {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 16px;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1;
+  padding: 4px 0 1px;
+  text-shadow: 0 2px 4px rgba(0,0,0,.5);
+  letter-spacing: -0.5px;
+  transition: transform .25s cubic-bezier(.34,1.4,.64,1);
+}
+.product-card:hover .dls-ovr {
+  transform: scale(1.12);
+}
+.product-card.is-promo .dls-ovr,
+.product-card.is-legendary .dls-ovr {
+  color: #1a1200;
+  text-shadow: 0 1px 0 rgba(255,255,255,.3);
+}
+.dls-card-img {
+  width: 100%;
+  height: 48px;
+  background: linear-gradient(180deg, rgba(0,0,0,.15), rgba(0,0,0,.35));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+}
+.dls-card-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform .4s cubic-bezier(.2,.8,.2,1);
+}
+.product-card:hover .dls-card-img img {
+  transform: scale(1.08);
+}
+.dls-card-img .emoji-fallback {
+  font-size: 26px;
+  line-height: 1;
+  transition: transform .3s cubic-bezier(.34,1.4,.64,1);
+}
+.product-card:hover .dls-card-img .emoji-fallback {
+  transform: scale(1.15) rotate(-4deg);
+}
+.dls-pos-flag {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 2px 4px 3px;
+  width: 100%;
+  background: rgba(0,0,0,.25);
+  font-size: 7.5px;
+  font-weight: 800;
+  color: #c8d8f0;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+}
+.product-card.is-promo .dls-pos-flag,
+.product-card.is-legendary .dls-pos-flag {
+  background: rgba(0,0,0,.35);
+  color: #1a1200;
+}
+
+/* Footer: price + stock — compact */
+.dls-card-foot {
+  padding: 3px 6px 6px;
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: auto;
+}
+.dls-price-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+.dls-price {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 800;
+  color: #FBBF24;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  text-shadow: 0 0 10px rgba(251,191,36,.3);
+}
+.dls-price .coin {
+  width: 11px; height: 11px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #FBBF24, #D97706);
+  box-shadow: 0 1px 2px rgba(0,0,0,.4);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 6px;
+  color: #1a1200;
+  font-weight: 900;
+}
+.dls-price.promo {
+  color: #F472B6;
+  text-shadow: 0 0 10px rgba(244,114,182,.3);
+}
+.dls-price .old {
+  font-size: 8px;
+  color: var(--text-muted);
+  text-decoration: line-through;
+  font-weight: 600;
+  margin-right: 2px;
+}
+.dls-stock-pill {
+  font-size: 8px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  padding: 2px 5px;
+  border-radius: 100px;
+  background: rgba(0,0,0,.4);
+  color: #a0b8d8;
+  border: 1px solid rgba(100,140,200,.3);
+  white-space: nowrap;
+}
+.dls-stock-pill.out {
+  color: #F87171;
+  border-color: rgba(248,113,113,.4);
+}
+.dls-shop-line {
+  font-size: 8.5px;
+  color: rgba(180,200,230,.75);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.dls-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 1px;
+}
+.dls-actions .qty-row {
+  justify-content: center;
+  gap: 3px;
+}
+.dls-actions .qty-btn {
+  width: 24px !important;
+  height: 24px !important;
+  font-size: 13px !important;
+  border-radius: 6px !important;
+}
+.dls-actions .qty-input {
+  width: 32px !important;
+  padding: 3px 2px !important;
+  font-size: 11px !important;
+}
+.dls-actions .add-btn,
+.dls-actions .btn {
+  width: 100%;
+  padding: 6px 8px !important;
+  font-size: 10.5px !important;
+  border-radius: 7px !important;
+  font-weight: 800 !important;
+}
+/* Secondary actions: hide in compact grid to keep 4 cards visible */
+.product-card .dls-secondary {
+  display: none !important;
+}
+.product-card .promo-countdown {
+  font-size: 8px !important;
+  margin-top: 0 !important;
+}
+/* Badge PROMO retiré des cartes : il masquait le nom du produit.
+   La promo reste visible via la carte dorée + prix barré + countdown. */
+
+/* ===== Modal détail produit style DLS « Signer » ===== */
+.product-card { cursor: pointer; }
+.dls-sign-title {
+  text-align: center !important;
+  font-size: 15px !important;
+  margin-bottom: 14px !important;
+  padding-right: 28px;
+  color: #e8f0ff !important;
+  background: none !important;
+  -webkit-background-clip: unset !important;
+  background-clip: unset !important;
+}
+.dls-sign-x {
+  background: #e11d48 !important;
+  color: #fff !important;
+  font-weight: 800;
+}
+.dls-sign-body {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+  margin-bottom: 14px;
+}
+.dls-sign-left {
+  flex: 1.05;
+  min-width: 0;
+  background: linear-gradient(165deg, #1a2a44, #0e1828);
+  border: 1.5px solid rgba(100,140,200,.35);
+  border-radius: 14px;
+  padding: 10px;
+}
+.dls-sign-name {
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+  color: #e8f0ff;
+  margin-bottom: 8px;
+  line-height: 1.2;
+}
+.dls-sign-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.dls-sign-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  max-width: 44px;
+  margin: 0 auto;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #2a3a55, #121a28);
+  border: 2px solid rgba(100,140,200,.4);
+  box-shadow: 0 2px 6px rgba(0,0,0,.4);
+}
+.dls-sign-stat b {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: #7CFC9A;
+  line-height: 1;
+}
+.dls-sign-stat span {
+  font-size: 7px;
+  font-weight: 700;
+  color: rgba(200,220,255,.75);
+  text-transform: uppercase;
+  margin-top: 1px;
+}
+.dls-sign-badge {
+  width: 100%;
+  max-width: 120px;
+  margin: 0 auto 8px;
+  border-radius: 12px 12px 14px 14px;
+  border: 2px solid rgba(140,180,255,.45);
+  background: linear-gradient(160deg, #3a5a9a 0%, #1e3a6e 40%, #152a50 100%);
+  overflow: hidden;
+  box-shadow: 0 6px 18px rgba(0,0,0,.4);
+  text-align: center;
+}
+.dls-sign-badge.gold {
+  background: linear-gradient(160deg, #c9a227 0%, #8a6b12 45%, #5c4708 100%);
+  border-color: rgba(255,220,100,.7);
+}
+.dls-sign-badge.low {
+  background: linear-gradient(160deg, #6a3038 0%, #3a181e 45%, #201014 100%);
+  border-color: rgba(248,113,113,.45);
+}
+.dls-sign-ovr {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 26px;
+  font-weight: 800;
+  color: #fff;
+  padding: 6px 0 2px;
+  line-height: 1;
+  text-shadow: 0 2px 4px rgba(0,0,0,.45);
+}
+.dls-sign-badge.gold .dls-sign-ovr { color: #1a1200; text-shadow: none; }
+.dls-sign-photo {
+  height: 88px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,.2);
+  overflow: hidden;
+}
+.dls-sign-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.dls-sign-pos {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  padding: 4px 6px 6px;
+  background: rgba(0,0,0,.28);
+  color: #c8d8f0;
+}
+.dls-sign-badge.gold .dls-sign-pos { color: #1a1200; }
+.dls-sign-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: rgba(180,200,230,.85);
+  margin-top: 4px;
+}
+.dls-sign-price {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 800;
+  color: #FBBF24;
+  font-size: 14px;
+}
+.dls-sign-old {
+  text-decoration: line-through;
+  color: var(--text-muted);
+  font-size: 11px;
+  margin-right: 4px;
+}
+.dls-sign-right {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.dls-sign-section {
+  background: rgba(0,0,0,.22);
+  border: 1px solid rgba(100,140,200,.25);
+  border-radius: 12px;
+  padding: 10px;
+}
+.dls-sign-lbl {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: #7EB6FF;
+  margin-bottom: 6px;
+}
+.dls-sign-desc {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: rgba(230,238,255,.9);
+  word-break: break-word;
+}
+.dls-sign-actions { margin-top: 4px; }
+.dls-sign-buy {
+  background: linear-gradient(135deg, #FBBF24, #D97706) !important;
+  color: #1a1200 !important;
+  font-weight: 800 !important;
+  box-shadow: 0 6px 20px rgba(251,191,36,.35) !important;
+  border: none !important;
+}
+@media (max-width: 380px) {
+  .dls-sign-body { flex-direction: column; }
+  .dls-sign-badge { max-width: 140px; }
+}
+.dls-price .coin {
+  animation: dlsCoinSpin 4s ease-in-out infinite;
+}
+@keyframes dlsCoinSpin {
+  0%, 90%, 100% { transform: rotateY(0deg); }
+  95% { transform: rotateY(180deg); }
+}
+.product-card:hover .dls-price {
+  animation: dlsPriceGlow .6s ease;
+}
+@keyframes dlsPriceGlow {
+  0%, 100% { filter: brightness(1); }
+  40% { filter: brightness(1.25); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .product-card,
+  .product-card.is-promo,
+  .product-card.is-legendary,
+  .product-card.in-cart,
+  .promo-badge.dls,
+  .dls-price .coin,
+  .product-card.is-promo .dls-rating-badge,
+  .product-card.is-legendary .dls-rating-badge {
+    animation: none !important;
+  }
+  .product-card::after { display: none; }
+  .product-card:hover { transform: none !important; }
+}
+.product-img-multi-badge {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  z-index: 3;
+  background: rgba(0,0,0,.65);
+  color: #fff;
+  font-size: 8px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* ===== GLOBAL DLS THEME — whole app ===== */
+:root {
+  --dls-panel: linear-gradient(165deg, #152238 0%, #0e1828 55%, #0a1220 100%);
+  --dls-panel-gold: linear-gradient(165deg, #2a2210 0%, #1a1508 50%, #0f0c05 100%);
+  --dls-border: rgba(100, 140, 200, .35);
+  --dls-border-gold: rgba(251, 191, 36, .55);
+  --dls-glow: 0 0 20px rgba(40, 80, 160, .15);
+}
+
+body {
+  background:
+    radial-gradient(ellipse 900px 500px at 50% -10%, rgba(40,90,180,.22), transparent 55%),
+    radial-gradient(ellipse 500px 400px at 95% 50%, rgba(34,211,238,.06), transparent 50%),
+    radial-gradient(ellipse 400px 300px at 5% 85%, rgba(251,191,36,.05), transparent 50%),
+    #050a14 !important;
+}
+
+.app-shell {
+  background: linear-gradient(180deg, #0a1424 0%, #070e1a 100%) !important;
+  box-shadow: 0 0 120px rgba(40,90,180,.2), 0 0 0 1px rgba(100,140,200,.2) !important;
+}
+
+header.top {
+  background: linear-gradient(180deg, rgba(15,28,48,.92), rgba(10,18,32,.85)) !important;
+  border-bottom: 1px solid rgba(100,140,200,.2) !important;
+  backdrop-filter: blur(12px);
+}
+
+.logo {
+  background: linear-gradient(135deg, #7EB6FF, #22D3EE, #FBBF24) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  color: transparent !important;
+}
+
+.wallet-chip {
+  background: linear-gradient(135deg, rgba(52,211,153,.15), rgba(40,90,180,.15)) !important;
+  border: 1px solid rgba(52,211,153,.4) !important;
+  box-shadow: 0 0 12px rgba(52,211,153,.12);
+}
+
+.role-chip {
+  background: linear-gradient(160deg, #1a2a44, #0e1828) !important;
+  border: 1px solid var(--dls-border) !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,.3);
+}
+
+.menu-btn, .header-icon-btn {
+  background: linear-gradient(160deg, #1a2a44, #0e1828) !important;
+  border: 1px solid var(--dls-border) !important;
+}
+
+.sidebar {
+  background: linear-gradient(180deg, #122038 0%, #0a1424 100%) !important;
+  border-right: 1px solid rgba(100,140,200,.25) !important;
+}
+.sidebar-item.active {
+  background: linear-gradient(135deg, rgba(40,90,180,.35), rgba(34,211,238,.12)) !important;
+  color: #9EC5FF !important;
+  border: 1px solid rgba(100,160,255,.3);
+  box-shadow: 0 0 16px rgba(60,120,220,.15);
+}
+.sidebar-item:hover {
+  background: rgba(40,80,160,.2) !important;
+}
+
+/* Generic panels */
+.card,
+.login-card,
+.stat-card,
+.admin-cert-card,
+.balance-card,
+.account-role-card,
+.profile-completion-card,
+.client-company-card,
+.variant-card,
+.cart-invoice {
+  background: var(--dls-panel) !important;
+  border: 1.5px solid var(--dls-border) !important;
+  border-radius: 14px !important;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,.04) inset,
+    0 6px 20px rgba(0,0,0,.35),
+    var(--dls-glow) !important;
+}
+
+.list-row {
+  background: linear-gradient(90deg, rgba(20,36,60,.6), rgba(12,20,36,.4)) !important;
+  border: 1px solid rgba(100,140,200,.2) !important;
+  border-radius: 12px !important;
+  margin-bottom: 6px;
+  transition: border-color .2s, box-shadow .2s, transform .15s;
+}
+.list-row:hover {
+  border-color: rgba(140,180,255,.4) !important;
+  box-shadow: 0 4px 16px rgba(40,80,160,.2);
+}
+
+/* Hero / career panel */
+.hero {
+  background:
+    radial-gradient(circle at 12% 0%, rgba(40,100,200,.28), transparent 55%),
+    linear-gradient(180deg, #1a3050, #0e1a30) !important;
+  border: 1.5px solid rgba(100,150,220,.35) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 8px 28px rgba(0,0,0,.35), 0 0 24px rgba(40,90,180,.12) !important;
+}
+.hero-stat {
+  background: linear-gradient(160deg, rgba(0,0,0,.35), rgba(20,40,70,.4)) !important;
+  border: 1px solid rgba(100,140,200,.25);
+  border-radius: 10px !important;
+}
+.hero-stat b {
+  color: #FBBF24 !important;
+  text-shadow: 0 0 10px rgba(251,191,36,.3);
+}
+
+.section-head h2 .bar {
+  background: linear-gradient(180deg, #FBBF24, #22D3EE) !important;
+}
+.section-head button.link {
+  color: #7EB6FF !important;
+}
+
+/* Shop cards — DLS panel style */
+.shop-card {
+  background: var(--dls-panel) !important;
+  border: 1.5px solid var(--dls-border) !important;
+  border-radius: 14px !important;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,.04) inset,
+    0 6px 20px rgba(0,0,0,.35),
+    var(--dls-glow) !important;
+  transition: transform .22s cubic-bezier(.2,.8,.2,1), border-color .22s, box-shadow .22s !important;
+}
+.shop-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(140,180,255,.55) !important;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,.08) inset,
+    0 12px 32px rgba(0,0,0,.45),
+    0 0 28px rgba(60,120,220,.25) !important;
+}
+.shop-cover {
+  height: 88px !important;
+  background: linear-gradient(135deg, rgba(40,90,180,.35), rgba(34,211,238,.12)) !important;
+}
+.shop-card-body { padding: 10px 12px !important; }
+.shop-card-body h3 { font-size: 14px !important; color: #e8f0ff; }
+.shop-meta span {
+  background: rgba(0,0,0,.35) !important;
+  border: 1px solid rgba(100,140,200,.25);
+  color: #a0b8d8 !important;
+}
+
+/* Category chips */
+.cat-chip {
+  background: linear-gradient(160deg, #1a2a44, #0e1828) !important;
+  border: 1px solid var(--dls-border) !important;
+  color: #a0b8d8 !important;
+}
+.cat-chip.active {
+  background: linear-gradient(135deg, #3a6ab8 0%, #1e4a8a 100%) !important;
+  color: #fff !important;
+  border-color: rgba(140,180,255,.5) !important;
+  box-shadow: 0 4px 14px rgba(40,90,180,.35) !important;
+}
+
+/* Buttons */
+.btn-accent {
+  background: linear-gradient(135deg, #4a7fd4 0%, #2a5aaa 50%, #1a4080 100%) !important;
+  box-shadow: 0 6px 18px rgba(40,90,180,.4), inset 0 1px 0 rgba(255,255,255,.2) !important;
+  border: 1px solid rgba(140,180,255,.3) !important;
+}
+.btn-accent:hover {
+  filter: brightness(1.1);
+  box-shadow: 0 8px 24px rgba(40,90,180,.5), inset 0 1px 0 rgba(255,255,255,.25) !important;
+}
+.btn-ghost {
+  background: rgba(20,40,70,.4) !important;
+  border: 1px solid var(--dls-border) !important;
+  color: #c8d8f0 !important;
+}
+.btn-ghost:hover {
+  background: rgba(40,80,140,.35) !important;
+  border-color: rgba(140,180,255,.45) !important;
+}
+
+/* Login */
+.login-card {
+  background: var(--dls-panel) !important;
+  border: 1.5px solid var(--dls-border) !important;
+}
+.login-logo .brand {
+  background: linear-gradient(135deg, #7EB6FF, #22D3EE, #FBBF24) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+}
+.auth-tab.active {
+  background: linear-gradient(135deg, #4a7fd4, #1a4080) !important;
+  box-shadow: 0 4px 12px rgba(40,90,180,.35) !important;
+}
+.demo-btn {
+  background: linear-gradient(160deg, #1a2a44, #0e1828) !important;
+  border: 1px solid var(--dls-border) !important;
+}
+.demo-btn:hover {
+  border-color: rgba(140,180,255,.5) !important;
+  background: rgba(40,80,160,.2) !important;
+}
+.demo-btn b { color: #7EB6FF !important; }
+
+/* Stats / analytics */
+.stat-grid .stat-card b {
+  color: #FBBF24 !important;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Status pills */
+.status-pill, .status-ok {
+  border-radius: 6px !important;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 800;
+}
+
+/* Modal panels */
+.modal-sheet, .modal-card, [class*="modal"] .sheet {
+  background: linear-gradient(180deg, #152238, #0a1424) !important;
+  border: 1.5px solid var(--dls-border) !important;
+}
+
+/* Bottom nav if present */
+.bottom-nav, nav.bottom, #bottomNav {
+  background: linear-gradient(180deg, rgba(15,28,48,.95), rgba(8,14,26,.98)) !important;
+  border-top: 1px solid rgba(100,140,200,.25) !important;
+  backdrop-filter: blur(14px);
+}
+
+/* Inputs */
+.field input, .field select, .field textarea,
+input[type="text"], input[type="number"], input[type="password"], input[type="email"], select, textarea {
+  background: rgba(8,14,26,.8) !important;
+  border: 1px solid var(--dls-border) !important;
+  color: #e8f0ff !important;
+}
+.field input:focus, .field select:focus, .field textarea:focus {
+  border-color: rgba(140,180,255,.55) !important;
+  box-shadow: 0 0 0 3px rgba(40,90,180,.2) !important;
+}
+
+/* Empty states */
+.empty {
+  color: #7a90b0 !important;
+}
+
+/* Splash keep gradient coherent */
+.splash {
+  background: radial-gradient(ellipse 80% 60% at 50% 40%, #152238 0%, #070e1a 70%) !important;
+}
 </style>
 
 <style id="allora-nav-fix-v2">
@@ -2712,6 +3746,7 @@ function mapProductRow(r) {
     private: !!r.private,
     hidden: !!r.hidden,
     available: r.available !== false,
+    deliveryZones: Array.isArray(r.delivery_zones) ? r.delivery_zones : (Array.isArray(r.deliveryZones) ? r.deliveryZones : []),
     promo: (r.promo_pct || r.promo_price) ? {
       pct: Number(r.promo_pct || 0),
       promoPrice: Number(r.promo_price || 0),
@@ -3123,11 +4158,272 @@ function startOrderRealtime() {
   }, 2000);
 }
 
+// ===== STOCK TEMPS RÉEL (Supabase postgres_changes + filet de sécurité) =====
+let _stockRealtimeChannel = null;
+let _stockRealtimeStarted = false;
+let _stockPoll = null;
+let _stockLastPaint = 0;
+
+function applyProductRowToLocal(row) {
+  if (!row || !row.id) return false;
+  if (!data.products) data.products = [];
+  const idx = data.products.findIndex(p => String(p.id) === String(row.id));
+  const mapped = typeof mapProductRow === 'function' ? mapProductRow(row) : null;
+  if (!mapped) return false;
+  if (idx >= 0) {
+    // Préserver variants / images locales non renvoyées par le row brut
+    const prev = data.products[idx];
+    mapped.variants = Array.isArray(prev.variants) ? prev.variants : (mapped.variants || []);
+    if ((!mapped.images || !mapped.images.length) && prev.images) mapped.images = prev.images;
+    if (!mapped.image && prev.image) mapped.image = prev.image;
+    if ((!mapped.hashtags || !mapped.hashtags.length) && prev.hashtags) mapped.hashtags = prev.hashtags;
+    if ((!mapped.cats || !mapped.cats.length) && prev.cats) mapped.cats = prev.cats;
+    data.products[idx] = Object.assign({}, prev, mapped, {
+      stock: Number(row.stock != null ? row.stock : mapped.stock) || 0,
+      price: Number(row.price != null ? row.price : mapped.price) || 0,
+      available: row.available !== false,
+      hidden: !!row.hidden,
+      name: row.name != null ? row.name : prev.name
+    });
+  } else {
+    data.products.push(mapped);
+  }
+  return true;
+}
+
+function applyVariantStockRow(row) {
+  if (!row || !row.id) return false;
+  const productId = row.product_id;
+  if (!productId) return false;
+  const p = (data.products || []).find(x => String(x.id) === String(productId));
+  if (!p) return false;
+  if (!Array.isArray(p.variants)) p.variants = [];
+  const vi = p.variants.findIndex(v => String(v.id) === String(row.id));
+  const stockVal = row.stock != null ? Number(row.stock) : null;
+  if (vi >= 0) {
+    if (stockVal != null && !isNaN(stockVal)) p.variants[vi].stock = stockVal;
+    if (row.name != null) p.variants[vi].name = row.name;
+    if (row.price != null) p.variants[vi].price = Number(row.price);
+    if (row.available != null) p.variants[vi].available = row.available !== false;
+  } else {
+    p.variants.push({
+      id: row.id,
+      name: row.name || 'Modèle',
+      price: Number(row.price || p.price || 0),
+      stock: stockVal,
+      available: row.available !== false
+    });
+  }
+  return true;
+}
+
+async function refreshProductFromSupabase(productId) {
+  if (!alloIsSupabaseMode() || !sb || !productId) return false;
+  try {
+    const res = await sb.from('products').select('*').eq('id', productId).maybeSingle();
+    if (res.error) throw res.error;
+    if (!res.data) {
+      data.products = (data.products || []).filter(p => String(p.id) !== String(productId));
+      return true;
+    }
+    applyProductRowToLocal(res.data);
+    // Variantes liées
+    try {
+      const vr = await sb.from('product_variants').select('*').eq('product_id', productId);
+      if (!vr.error && Array.isArray(vr.data)) {
+        const p = (data.products || []).find(x => String(x.id) === String(productId));
+        if (p) {
+          p.variants = vr.data.map(v => ({
+            id: v.id,
+            name: v.name,
+            price: Number(v.price || 0),
+            stock: v.stock != null ? Number(v.stock) : null,
+            available: v.available !== false,
+            image: v.image_url || null
+          }));
+        }
+      }
+    } catch (_) {}
+    return true;
+  } catch (e) {
+    console.warn('[Allo] refresh product stock', e);
+    return false;
+  }
+}
+
+function repaintStockUI(force) {
+  const now = Date.now();
+  if (!force && now - _stockLastPaint < 350) return;
+  _stockLastPaint = now;
+  try {
+    // Mettre à jour les max qty visibles sans tout redessiner si possible
+    document.querySelectorAll('input.qty-input[data-product-id]').forEach(inp => {
+      const id = inp.getAttribute('data-product-id');
+      const p = (data.products || []).find(x => String(x.id) === String(id));
+      if (!p) return;
+      const max = Math.max(0, Number(p.stock) || 0);
+      inp.max = max;
+      if (parseInt(inp.value, 10) > max) inp.value = max || 1;
+    });
+  } catch (_) {}
+  try {
+    const active = document.querySelector('.view.active');
+    const aid = active && active.id;
+    if (aid === 'view-home' || aid === 'view-accueil' || !aid) {
+      if (typeof renderHomeProductsOnly === 'function') renderHomeProductsOnly();
+      else if (typeof renderHome === 'function') renderHome();
+    } else if (aid === 'view-search' && typeof doSearch === 'function') {
+      doSearch();
+    } else if (aid === 'view-stock' && typeof renderStock === 'function') {
+      renderStock();
+    } else if (aid === 'view-wishlist' && typeof renderWishlist === 'function') {
+      renderWishlist();
+    } else if (aid === 'view-variants' && typeof renderVariantsPage === 'function') {
+      try { renderVariantsPage(); } catch (_) {}
+    } else if (typeof renderHomeProductsOnly === 'function') {
+      // Toujours rafraîchir la grille accueil en cache pour le prochain affichage
+      renderHomeProductsOnly();
+    }
+  } catch (e) {
+    console.warn('[Allo] repaintStockUI', e);
+  }
+  try { if (typeof updateAllBadges === 'function') updateAllBadges(); } catch (_) {}
+}
+
+function stopStockRealtime() {
+  try {
+    if (_stockRealtimeChannel && sb) sb.removeChannel(_stockRealtimeChannel);
+  } catch (e) {}
+  _stockRealtimeChannel = null;
+  _stockRealtimeStarted = false;
+  if (_stockPoll) { clearInterval(_stockPoll); _stockPoll = null; }
+}
+
+function startStockRealtime() {
+  if (!alloIsSupabaseMode() || !sb || !currentUser) return;
+  if (_stockRealtimeStarted && _stockRealtimeChannel) return;
+  stopStockRealtime();
+
+  try {
+    _stockRealtimeChannel = sb.channel('allo-stock-sync-' + Date.now())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, async function(payload) {
+        try {
+          if (payload.eventType === 'DELETE' && payload.old && payload.old.id) {
+            data.products = (data.products || []).filter(p => String(p.id) !== String(payload.old.id));
+            repaintStockUI(true);
+            return;
+          }
+          const row = payload.new;
+          if (!row || !row.id) return;
+          // Mise à jour optimiste immédiate du stock
+          applyProductRowToLocal(row);
+          repaintStockUI(false);
+          // Relecture complète pour rester aligné (variants, images…)
+          await refreshProductFromSupabase(row.id);
+          repaintStockUI(true);
+        } catch (e) {
+          console.warn('[Allo] stock realtime products', e);
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'product_variants' }, async function(payload) {
+        try {
+          if (payload.eventType === 'DELETE' && payload.old) {
+            const pid = payload.old.product_id;
+            const vid = payload.old.id;
+            const p = (data.products || []).find(x => String(x.id) === String(pid));
+            if (p && Array.isArray(p.variants)) {
+              p.variants = p.variants.filter(v => String(v.id) !== String(vid));
+              repaintStockUI(true);
+            }
+            return;
+          }
+          const row = payload.new;
+          if (!row) return;
+          applyVariantStockRow(row);
+          if (row.product_id) await refreshProductFromSupabase(row.product_id);
+          repaintStockUI(true);
+        } catch (e) {
+          console.warn('[Allo] stock realtime variants', e);
+        }
+      })
+      .subscribe(function(status) {
+        if (status === 'SUBSCRIBED') {
+          _stockRealtimeStarted = true;
+          console.log('[Allo] Sync stock temps réel active');
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.warn('[Allo] Realtime stock indisponible:', status);
+        }
+      });
+  } catch (e) {
+    console.warn('[Allo] startStockRealtime', e);
+  }
+
+  // Filet : recharger les stocks visibles toutes les 4 s si une vue catalogue est ouverte
+  _stockPoll = setInterval(async function() {
+    if (!currentUser || !alloIsSupabaseMode() || !sb) return;
+    const active = document.querySelector('.view.active');
+    const aid = active && active.id;
+    const catalogViews = ['view-home', 'view-accueil', 'view-search', 'view-stock', 'view-wishlist', 'view-variants', 'view-boutiques'];
+    if (aid && catalogViews.indexOf(aid) < 0 && aid !== 'view-cart') return;
+    try {
+      const ids = new Set();
+      (data.products || []).slice(0, 80).forEach(p => { if (p && p.id) ids.add(p.id); });
+      document.querySelectorAll('[data-product-id]').forEach(el => {
+        const id = el.getAttribute('data-product-id');
+        if (id) ids.add(id);
+      });
+      if (!ids.size) return;
+      const idList = Array.from(ids).slice(0, 60);
+      const res = await sb.from('products').select('id,stock,price,available,hidden,name').in('id', idList);
+      if (res.error || !res.data) return;
+      let changed = false;
+      res.data.forEach(row => {
+        const p = (data.products || []).find(x => String(x.id) === String(row.id));
+        if (!p) return;
+        const newStock = Number(row.stock || 0);
+        if (Number(p.stock) !== newStock || p.available !== (row.available !== false) || Number(p.price) !== Number(row.price || 0)) {
+          p.stock = newStock;
+          p.price = Number(row.price || 0);
+          p.available = row.available !== false;
+          p.hidden = !!row.hidden;
+          if (row.name) p.name = row.name;
+          changed = true;
+        }
+      });
+      if (changed) repaintStockUI(true);
+    } catch (e) {
+      console.warn('[Allo] stock poll', e);
+    }
+  }, 4000);
+}
+
+/** Pousse le stock local d'un produit vers Supabase (vendeur / checkout). */
+async function syncProductStockToSupabase(productOrId) {
+  if (!alloIsSupabaseMode() || !sb) return false;
+  const p = typeof productOrId === 'object' && productOrId
+    ? productOrId
+    : (data.products || []).find(x => String(x.id) === String(productOrId));
+  if (!p || !p.id) return false;
+  if (typeof alloUuid === 'function' && !alloUuid(p.id)) return false;
+  try {
+    const res = await sb.from('products').update({
+      stock: Math.max(0, Math.round(Number(p.stock) || 0)),
+      updated_at: new Date().toISOString()
+    }).eq('id', p.id).select('id,stock').maybeSingle();
+    if (res.error) throw res.error;
+    if (res.data && res.data.stock != null) p.stock = Number(res.data.stock);
+    return true;
+  } catch (e) {
+    console.warn('[Allo] syncProductStockToSupabase', e);
+    return false;
+  }
+}
+
 async function sbLoadAllIntoData() {
   if (!USE_SUPABASE || !sb) return false;
   try {
     const [
-      companies, shops, products, clients, employeeMemberships, orders, messages,
+      companies, shops, products, clients, clientPrices, employeeMemberships, orders, messages,
       feedback, notifications, reviews, userNotifs, wishlist,
       promoCodes, returns, walletTx, walletAccounts, topUps, withdraws, payMethods,
       categories, zones, settings, variants, pimgs, appRecords, hashtags, productHashtags
@@ -3136,6 +4432,7 @@ async function sbLoadAllIntoData() {
       sb.from('shops').select('*'),
       sb.from('products').select('*'),
       sb.from('company_clients').select('*'),
+      sb.from('company_client_product_prices').select('*'),
       sb.from('company_employees').select('*'),
       sb.from('orders').select('*'),
       sb.from('messages').select('*'),
@@ -3213,6 +4510,11 @@ async function sbLoadAllIntoData() {
       companyId: c.company_id,
       name: c.name,
       identifiant: c.identifier, phone: c.phone, balance: Number(c.balance || 0)
+    }));
+    data.companyClientPrices = (clientPrices.data || []).map(r => ({
+      id: r.id, companyId: r.company_id, clientId: r.client_id,
+      productId: r.product_id, price: Number(r.price || 0),
+      createdAt: r.created_at, updatedAt: r.updated_at
     }));
     // Les employés sont des adhésions entreprise, jamais un changement de rôle du compte principal.
     data.employeeMemberships = (employeeMemberships.data || []).map(e => ({
@@ -3480,6 +4782,7 @@ async function sbUpsertProduct(p) {
     private: !!p.private,
     hidden: !!p.hidden,
     available: p.available !== false,
+    delivery_zones: Array.isArray(p.deliveryZones) ? p.deliveryZones : [],
     promo_pct: p.promo && p.promo.pct ? p.promo.pct : null,
     promo_price: p.promo && p.promo.promoPrice ? p.promo.promoPrice : null,
     promo_starts_at: p.promo && p.promo.startsAt ? p.promo.startsAt : null,
@@ -3492,6 +4795,16 @@ async function sbUpsertProduct(p) {
     res = await sb.from('products').update(row).eq('id', p.id).select().single();
   } else {
     res = await sb.from('products').insert(row).select().single();
+  }
+  // Colonne delivery_zones optionnelle : si absente en base, réessayer sans
+  if (res.error && /delivery_zones/i.test(String(res.error.message || res.error.details || ''))) {
+    const row2 = Object.assign({}, row);
+    delete row2.delivery_zones;
+    if (isUuid) {
+      res = await sb.from('products').update(row2).eq('id', p.id).select().single();
+    } else {
+      res = await sb.from('products').insert(row2).select().single();
+    }
   }
   if (res.error) {
     console.warn('sbUpsertProduct', res.error);
@@ -4493,6 +5806,7 @@ function init() {
         if (currentUser) {
     try { enterApp(); } catch (e) { console.warn('[Allo] enterApp', e); }
     try { startOrderRealtime(); } catch (e) { console.warn('[Allo] order realtime init', e); }
+    try { startStockRealtime(); } catch (e) { console.warn('[Allo] stock realtime init', e); }
   }
       }).catch(function(e){ console.warn('[Allo] session', e); });
     } catch (e) { console.warn('[Allo] session init', e); }
@@ -6390,6 +7704,8 @@ async function creditAdminCommission(amount, orderId) {
 
 async function doLogout() {
   try { if (typeof USE_SUPABASE !== 'undefined' && USE_SUPABASE && sb) { sb.auth.signOut(); } } catch (e) {}
+  try { stopOrderRealtime(); } catch (e) {}
+  try { stopStockRealtime(); } catch (e) {}
 
   try { stopAutoSave(true); } catch (e) {}
   try { saveAppData(); } catch (e) {}
@@ -6517,6 +7833,8 @@ function enterApp() {
   switchView('home');
   try { updateAllBadges(); } catch(e) {}
   try { ensureProfileCompletion(false); } catch(e) {}
+  try { startOrderRealtime(); } catch (e) {}
+  try { startStockRealtime(); } catch (e) {}
 }
 
 function updateWalletChip() {
@@ -7596,72 +8914,136 @@ document.addEventListener('keydown', function (e) {
 function productCardHTML(p, showAdd, manage) {
   const inCart = cart.find(c => c.productId === p.id);
   const promoOn = typeof isProductPromoActive === 'function' && isProductPromoActive(p);
-  const eff = typeof getEffectivePrice === 'function' ? getEffectivePrice(p) : p.price;
+  const eff = typeof getEffectivePriceForBuyer === 'function' ? getEffectivePriceForBuyer(p) : p.price;
   const variantsList = (p && Array.isArray(p.variants)) ? p.variants.filter(Boolean) : [];
   const hasVariants = variantsList.length > 0;
   let addPart = '';
   if (manage) {
     addPart = `
-      <div class="stock">${t('stockLabel')} : ${p.stock}</div>
-      ${promoOn ? `<div style="font-size:11px;color:var(--pink)">🏷 Promo active − prix ${formatMoney(eff)}</div>` : ''}
-      <button class="btn btn-sm btn-ghost add-btn" style="margin-top:6px" onclick="openModal('editProduct','${p.id}')">✏️ ${t('edit')}</button>
-      <button class="btn btn-sm btn-accent add-btn" style="margin-top:6px" onclick="openModal('createPromo','${p.id}')">🏷 Promo</button>
-      <button class="btn btn-sm btn-ghost add-btn" style="margin-top:6px" onclick="openModal('manageVariants','${p.id}')">🧩 Modèles</button>`;
+      <div class="dls-actions">
+        <button class="btn btn-sm btn-ghost add-btn" onclick="openModal('editProduct','${p.id}')">✏️ ${t('edit')}</button>
+        <button class="btn btn-sm btn-accent add-btn" onclick="openModal('createPromo','${p.id}')">🏷 Promo</button>
+        <button class="btn btn-sm btn-ghost add-btn" onclick="openModal('manageVariants','${p.id}')">🧩 Modèles</button>
+      </div>`;
   } else if (showAdd) {
     const qtyVal = inCart ? inCart.qty : 1;
     const btnLabel = inCart ? t('edit') : t('add');
     const btnClass = inCart ? 'btn btn-ghost add-btn' : 'btn btn-accent add-btn';
     addPart = `
-      <div class="qty-row" data-product-id="${p.id}">
-        <button type="button" class="qty-btn" onclick="changeQty(this,-1)">−</button>
-        <input type="number" class="qty-input" data-product-id="${p.id}" value="${qtyVal}" min="1" max="${p.stock}" inputmode="numeric">
-        <button type="button" class="qty-btn" onclick="changeQty(this,1)">+</button>
-      </div>
-      <button type="button" class="${btnClass}" onclick="addToCart('${p.id}', this)">${btnLabel}</button>`;
+      <div class="dls-actions">
+        <div class="qty-row" data-product-id="${p.id}">
+          <button type="button" class="qty-btn" onclick="changeQty(this,-1)">−</button>
+          <input type="number" class="qty-input" data-product-id="${p.id}" value="${qtyVal}" min="1" max="${p.stock}" inputmode="numeric">
+          <button type="button" class="qty-btn" onclick="changeQty(this,1)">+</button>
+        </div>
+        <button type="button" class="${btnClass}" onclick="addToCart('${p.id}', this)">${btnLabel}</button>
+      </div>`;
   } else {
-    addPart = `<div class="stock">${t('stockLabel')} : ${p.stock}</div>`;
+    addPart = '';
   }
 
   const allImgs = (typeof getProductImages === 'function') ? getProductImages(p) : (p.image ? [p.image] : []);
   const coverImg = allImgs[0] || p.image || null;
   const imgInner = coverImg
     ? `<img class="img-clickable" src="${coverImg}" alt="${(p.name||'').replace(/"/g,'')}" onclick="event.stopPropagation();openProductGallery('${p.id}')">`
-    : `<span style="font-size:42px">${p.icon || '📦'}</span>`;
+    : `<span class="emoji-fallback">${p.icon || '📦'}</span>`;
   const multiBadge = allImgs.length > 1
     ? `<span class="product-img-multi-badge">1/${allImgs.length}</span>`
     : '';
 
-  const priceHtml = promoOn
-    ? `<div class="price price-promo"><span class="price-old">${formatMoney(p.price)}</span>${formatMoney(eff)}</div>
-       <div class="promo-countdown" data-promo-end="${p.promo.endsAt||''}">Expire dans : ${typeof formatCountdown==='function'?formatCountdown(p.promo.endsAt):''}</div>`
-    : `<div class="price">${formatMoney(p.price)}</div>`;
+  // Stats réelles
+  const revs = (data.reviews || []).filter(r => String(r.productId) === String(p.id));
+  const avgStars = revs.length ? (revs.reduce((s, r) => s + (Number(r.stars) || 0), 0) / revs.length) : 0;
+  // VAL = note moyenne clients sur 100
+  const valScore = revs.length ? Math.min(100, Math.round(avgStars * 20)) : 0;
+  const valClass = valScore >= 80 ? 'high' : (valScore >= 50 ? 'mid' : (revs.length ? 'low' : 'mid'));
 
-  // Hashtags : masqués pour utilisateur & client
+  // Gros chiffre = stock réel
+  const stockReal = Math.max(0, Number(p.stock) || 0);
+  const stockDisplay = stockReal > 999 ? '999+' : String(stockReal);
+
+  // FAV = nombre de favoris (wishlist) pour ce produit + clic pour basculer
+  const favCount = (data.wishlist || []).filter(w => String(w.productId) === String(p.id)).length;
+  const isFav = currentUser && typeof isInWishlist === 'function' && isInWishlist(p.id);
+  const favClass = isFav ? 'high' : (favCount > 0 ? 'mid' : 'low');
+
+  // CMD = nombre de commandes livrées contenant ce produit
+  const deliveredCount = (data.orders || []).filter(o => {
+    const st = String(o.status || '').toLowerCase();
+    if (st !== 'livré' && st !== 'livre' && st !== 'delivered') return false;
+    return (o.items || []).some(it => String(it.productId) === String(p.id));
+  }).length;
+  const cmdClass = deliveredCount >= 20 ? 'high' : (deliveredCount >= 5 ? 'mid' : 'low');
+
+  // LIV = délai de couverture fixé par le boutiquier (heures)
+  const livHours = typeof getShopDeliveryHours === 'function' ? getShopDeliveryHours(p.shopId) : 48;
+  const livDisplay = livHours < 24 ? livHours : Math.round(livHours / 24);
+  const livUnit = livHours < 24 ? 'h' : 'j';
+  const livClass = livHours <= 24 ? 'high' : (livHours <= 72 ? 'mid' : 'low');
+
   const role = currentUser && currentUser.role;
-  const showHashtags = role && role !== 'user' && role !== 'client';
-  // « Voir la boutique » : masqué pour boutique & entreprise
   const showViewShop = !manage && p.shopId && role && role !== 'boutique' && role !== 'entreprise';
-  const catsHtml = showHashtags
-    ? (() => { const cs = getProductCats(p); return cs.length ? `<div class="product-cats-row">${cs.map(c => `<span class="product-cat-tag">#${tCat(c)}</span>`).join('')}</div>` : ''; })()
-    : '';
+  // Couleur de carte selon VAL (note /100)
+  const tierClass = promoOn
+    ? 'is-promo is-legendary'
+    : (valScore >= 80 ? 'is-legendary' : (valScore > 0 && valScore < 50 ? 'is-low' : ''));
+  const cardClass = [
+    'product-card',
+    inCart && showAdd ? 'in-cart' : '',
+    tierClass
+  ].filter(Boolean).join(' ');
 
-  return `<div class="product-card ${inCart && showAdd ? 'in-cart' : ''}">
-    <div class="product-img">
-      ${promoOn ? '<span class="promo-badge">PROMO</span>' : ''}
-      ${imgInner}
-      ${multiBadge}
-      <span class="badge-stock">${p.stock > 0 ? p.stock + ' ' + t('inStock') : t('outOfStock')}</span>
+  const priceBlock = promoOn
+    ? `<div class="dls-price promo"><span class="old">${formatMoney(p.price)}</span><span class="coin">●</span>${formatMoney(eff)}</div>`
+    : `<div class="dls-price"><span class="coin">●</span>${formatMoney(p.price)}</div>`;
+
+  // Ancien "en stock" → Voir la boutique
+  const shopPill = showViewShop
+    ? `<button type="button" class="dls-stock-pill dls-shop-btn" onclick="event.stopPropagation();openShopPage('${p.shopId}')">🏪 ${t('viewShop')}</button>`
+    : `<span class="dls-stock-pill">🏪 ${getShopName(p.shopId)}</span>`;
+
+  const cats = (typeof getProductCats === 'function') ? getProductCats(p) : (p.cat ? [p.cat] : []);
+  const posLabel = cats.length ? (typeof tCat === 'function' ? tCat(cats[0]) : cats[0]) : (p.icon || 'ITEM');
+
+  const canFav = currentUser && (currentUser.role === 'user' || currentUser.role === 'client');
+  const favCircle = canFav
+    ? `<button type="button" class="dls-stat ${favClass} dls-fav-btn" onclick="event.stopPropagation();toggleWishlist('${p.id}')" title="${isFav ? t('removeWishlist') : t('addWishlist')}"><span class="val">${isFav ? '♥' : '♡'}</span><span class="lbl">FAV</span></button>`
+    : `<div class="dls-stat ${favClass}"><span class="val">${favCount > 99 ? 99 : favCount}</span><span class="lbl">FAV</span></div>`;
+
+  return `<div class="${cardClass}" data-product-id="${p.id}" onclick="onProductCardClick(event,'${p.id}')">
+    <div class="dls-card-head">
+      <div class="dls-card-name">${displayProductName(p.name)}</div>
     </div>
-    <div class="product-body">
-      <b>${displayProductName(p.name)}</b>
-      ${priceHtml}
-      ${catsHtml}
-      <div class="shop-tag">🏪 ${getShopName(p.shopId)}${(typeof isShopCertified === 'function' && isShopCertified(p.shopId)) ? ' ' + certBadgeHTML() : ''}</div>
-      <div class="delivery-badge">⏱ ${getShopDeliveryLabel(p.shopId)}</div>
-      ${productRatingHTML(p.id)}
-      ${(!manage && hasVariants) ? `<button type="button" class="btn btn-sm btn-accent" style="width:100%;margin-top:6px;font-size:12px;font-weight:700" onclick="event.stopPropagation();openVariantsPage('${p.id}')">🧩 Voir tous les modèles (${variantsList.length})</button>` : ''}
-      ${showViewShop ? `<button type="button" class="btn btn-sm btn-ghost" style="width:100%;margin-top:6px;font-size:12px" onclick="event.stopPropagation();openShopPage('${p.shopId}')">🏪 ${t('viewShop')}</button>` : ''}
-      ${(showAdd && currentUser && (currentUser.role==='user'||currentUser.role==='client')) ? `<button type="button" class="btn btn-sm btn-ghost" style="width:100%;margin-top:4px;font-size:12px" onclick="event.stopPropagation();toggleWishlist('${p.id}')">${isInWishlist(p.id)?'❤️ '+t('removeWishlist'):'🤍 '+t('addWishlist')}</button>` : ''}
+    <div class="dls-card-main">
+      <div class="dls-stats-col">
+        <div class="dls-stat-row">
+          ${favCircle}
+          <div class="dls-stat ${cmdClass}"><span class="val">${deliveredCount > 99 ? 99 : deliveredCount}</span><span class="lbl">CMD</span></div>
+        </div>
+        <div class="dls-stat-row">
+          <div class="dls-stat ${livClass}"><span class="val">${livDisplay}${livUnit}</span><span class="lbl">LIV</span></div>
+          <div class="dls-stat ${valClass}"><span class="val">${valScore}</span><span class="lbl">VAL</span></div>
+        </div>
+      </div>
+      <div class="dls-rating-wrap">
+        <div class="dls-rating-badge">
+          <div class="dls-ovr" title="${t('stockLabel')}">${stockDisplay}</div>
+          <div class="dls-card-img">
+            ${imgInner}
+            ${multiBadge}
+          </div>
+          <div class="dls-pos-flag">${String(posLabel).slice(0, 10)}</div>
+        </div>
+      </div>
+    </div>
+    <div class="dls-card-foot">
+      <div class="dls-price-row">
+        ${priceBlock}
+        ${shopPill}
+      </div>
+      <div class="dls-shop-line">${(typeof isShopCertified === 'function' && isShopCertified(p.shopId)) ? '✓ ' : ''}${getShopName(p.shopId)} · VAL ${valScore}/100</div>
+      ${promoOn && p.promo && p.promo.endsAt ? `<div class="promo-countdown" data-promo-end="${p.promo.endsAt||''}">⏱ ${typeof formatCountdown==='function'?formatCountdown(p.promo.endsAt):''}</div>` : ''}
+      ${(!manage && hasVariants) ? `<button type="button" class="btn btn-sm btn-accent dls-secondary" onclick="event.stopPropagation();openVariantsPage('${p.id}')">🧩 ${variantsList.length}</button>` : ''}
       ${addPart}
     </div>
   </div>`;
@@ -7669,6 +9051,121 @@ function productCardHTML(p, showAdd, manage) {
 
 
 
+
+function getProductZonesCheckboxesHTML(selected) {
+  const sel = new Set((selected || []).map(String));
+  let zones = [];
+  try { zones = typeof getAdminDeliveryZones === 'function' ? getAdminDeliveryZones() : []; } catch (_) {}
+  if (!zones.length) {
+    return `<p style="font-size:12px;color:var(--text-muted)">${lang==='en'?'No delivery zones configured by admin':'Aucune zone définie par l’admin'}</p>`;
+  }
+  return `<div class="zone-check-grid" id="mProductZones">${zones.map(z => {
+    const v = String(z).replace(/"/g, '&quot;');
+    const on = sel.has(String(z));
+    return `<label class="zone-check ${on ? 'on' : ''}"><input type="checkbox" value="${v}" ${on ? 'checked' : ''} onchange="this.parentElement.classList.toggle('on',this.checked)">📍 ${String(z).replace(/</g,'')}</label>`;
+  }).join('')}</div>`;
+}
+
+function getSelectedProductZonesFromForm() {
+  return Array.from(document.querySelectorAll('#mProductZones input[type="checkbox"]:checked')).map(i => i.value);
+}
+
+function onProductCardClick(ev, productId) {
+  if (!ev || !productId) return;
+  const t = ev.target;
+  if (!t) return;
+  // Clic sur bouton / input / lien → ne pas ouvrir le détail
+  if (t.closest('button, a, input, select, textarea, .qty-row, .dls-fav-btn, .dls-shop-btn, .dls-actions, .add-btn')) return;
+  openProductDetail(productId);
+}
+
+function openProductDetail(productId) {
+  openModal('productDetail', productId);
+}
+
+function buildProductDetailModalHTML(productId) {
+  const p = (data.products || []).find(x => String(x.id) === String(productId));
+  if (!p) {
+    return `<button class="modal-close" onclick="closeModal()">×</button>
+      <h3>${lang==='en'?'Product':'Produit'}</h3>
+      <div class="empty">${t('productNotFound')}</div>`;
+  }
+  const promoOn = typeof isProductPromoActive === 'function' && isProductPromoActive(p);
+  const eff = typeof getEffectivePriceForBuyer === 'function' ? getEffectivePriceForBuyer(p) : p.price;
+  const revs = (data.reviews || []).filter(r => String(r.productId) === String(p.id));
+  const avgStars = revs.length ? (revs.reduce((s, r) => s + (Number(r.stars) || 0), 0) / revs.length) : 0;
+  const valScore = revs.length ? Math.min(100, Math.round(avgStars * 20)) : 0;
+  const stockReal = Math.max(0, Number(p.stock) || 0);
+  const stockDisplay = stockReal > 999 ? '999+' : String(stockReal);
+  const favCount = (data.wishlist || []).filter(w => String(w.productId) === String(p.id)).length;
+  const isFav = currentUser && typeof isInWishlist === 'function' && isInWishlist(p.id);
+  const deliveredCount = (data.orders || []).filter(o => {
+    const st = String(o.status || '').toLowerCase();
+    if (st !== 'livré' && st !== 'livre' && st !== 'delivered') return false;
+    return (o.items || []).some(it => String(it.productId) === String(p.id));
+  }).length;
+  const livHours = typeof getShopDeliveryHours === 'function' ? getShopDeliveryHours(p.shopId) : 48;
+  const livDisplay = livHours < 24 ? livHours + 'h' : Math.round(livHours / 24) + 'j';
+  const allImgs = (typeof getProductImages === 'function') ? getProductImages(p) : (p.image ? [p.image] : []);
+  const coverImg = allImgs[0] || p.image || null;
+  const imgHtml = coverImg
+    ? `<img src="${coverImg}" alt="">`
+    : `<span style="font-size:48px">${p.icon || '📦'}</span>`;
+  const cats = (typeof getProductCats === 'function') ? getProductCats(p) : (p.cat ? [p.cat] : []);
+  const posLabel = cats.length ? (typeof tCat === 'function' ? tCat(cats[0]) : cats[0]) : 'ITEM';
+  const desc = String(p.description || '').trim();
+  let zones = Array.isArray(p.deliveryZones) ? p.deliveryZones.slice() : [];
+  if (!zones.length) {
+    const shop = (data.shops || []).find(s => String(s.id) === String(p.shopId));
+    if (shop && Array.isArray(shop.deliveryZones)) zones = shop.deliveryZones.slice();
+  }
+  const canBuy = currentUser && (currentUser.role === 'user' || currentUser.role === 'client') && stockReal > 0;
+  const priceLine = promoOn
+    ? `<span class="dls-sign-old">${formatMoney(p.price)}</span> <span class="dls-sign-price">${formatMoney(eff)}</span>`
+    : `<span class="dls-sign-price">${formatMoney(p.price)}</span>`;
+  const tier = promoOn || valScore >= 80 ? 'gold' : (valScore > 0 && valScore < 50 ? 'low' : 'blue');
+
+  return `<button class="modal-close dls-sign-x" onclick="closeModal()">×</button>
+    <h3 class="dls-sign-title">${lang==='en'?'Product details':'Détail du produit'}</h3>
+    <div class="dls-sign-body">
+      <div class="dls-sign-left">
+        <div class="dls-sign-name">${displayProductName(p.name)}</div>
+        <div class="dls-sign-stats">
+          <div class="dls-sign-stat"><b>${isFav ? '♥' : favCount}</b><span>FAV</span></div>
+          <div class="dls-sign-stat"><b>${deliveredCount}</b><span>CMD</span></div>
+          <div class="dls-sign-stat"><b>${livDisplay}</b><span>LIV</span></div>
+          <div class="dls-sign-stat"><b>${valScore}</b><span>VAL</span></div>
+        </div>
+        <div class="dls-sign-badge ${tier}">
+          <div class="dls-sign-ovr">${stockDisplay}</div>
+          <div class="dls-sign-photo">${imgHtml}</div>
+          <div class="dls-sign-pos">${String(posLabel).slice(0, 12)}</div>
+        </div>
+        <div class="dls-sign-meta">
+          <span>🏪 ${getShopName(p.shopId)}</span>
+          <span>${priceLine}</span>
+        </div>
+      </div>
+      <div class="dls-sign-right">
+        <div class="dls-sign-section">
+          <div class="dls-sign-lbl">${lang==='en'?'Description':'Description'}</div>
+          <p class="dls-sign-desc">${desc ? desc.replace(/</g,'&lt;').replace(/\n/g,'<br>') : (lang==='en'?'No description yet.':'Aucune description pour le moment.')}</p>
+        </div>
+        <div class="dls-sign-section">
+          <div class="dls-sign-lbl">${lang==='en'?'Delivery zones':'Zones de livraison'}</div>
+          ${zones.length
+            ? `<div class="shop-zones-row">${zones.map(z => `<span class="shop-zone-tag">📍 ${String(z).replace(/</g,'')}</span>`).join('')}</div>`
+            : `<p class="dls-sign-desc">${lang==='en'?'No zones specified for this product.':'Aucune zone indiquée pour ce produit.'}</p>`}
+        </div>
+        ${promoOn && p.promo && p.promo.endsAt ? `<div class="dls-sign-section"><div class="dls-sign-lbl">Promo</div><p class="dls-sign-desc" style="color:var(--gold)">⏱ ${typeof formatCountdown==='function'?formatCountdown(p.promo.endsAt):''}</p></div>` : ''}
+      </div>
+    </div>
+    <div class="dls-sign-actions">
+      ${canBuy ? `<button type="button" class="btn btn-accent btn-block dls-sign-buy" onclick="event.stopPropagation();closeModal();addToCart('${p.id}')">${lang==='en'?'Add to cart':'Ajouter au panier'} · ${formatMoney(eff)}</button>` : ''}
+      ${p.shopId && currentUser && currentUser.role !== 'boutique' && currentUser.role !== 'entreprise' ? `<button type="button" class="btn btn-ghost btn-block" style="margin-top:8px" onclick="event.stopPropagation();closeModal();openShopPage('${p.shopId}')">🏪 ${t('viewShop')}</button>` : ''}
+      ${currentUser && (currentUser.role==='user'||currentUser.role==='client') ? `<button type="button" class="btn btn-ghost btn-block" style="margin-top:8px" onclick="event.stopPropagation();toggleWishlist('${p.id}');openProductDetail('${p.id}')">${isFav ? '❤️ '+t('removeWishlist') : '🤍 '+t('addWishlist')}</button>` : ''}
+    </div>`;
+}
 
 function changeQty(btnOrId, delta) {
   // Support: changeQty(this, ±1) depuis le bouton, ou changeQty(productId, ±1) legacy
@@ -7780,7 +9277,7 @@ function groupCartByShop() {
     const sid = p.shopId || 'unknown';
     if (!groups[sid]) groups[sid] = { shopId: sid, items: [], subtotal: 0 };
     const variant = item.variantId && p.variants ? p.variants.find(v => v.id === item.variantId) : null;
-    const unit = typeof getEffectivePrice === 'function' ? getEffectivePrice(p, variant) : (variant ? variant.price : p.price);
+    const unit = typeof getEffectivePriceForBuyer === 'function' ? getEffectivePriceForBuyer(p, variant) : (variant ? variant.price : p.price);
     const line = unit * item.qty;
     groups[sid].items.push({ item, p, line, unit, variant });
     groups[sid].subtotal += line;
@@ -7873,7 +9370,7 @@ async function validateCart() {
       alert(t('stockInsufficient') + ' : ' + (p?.name || ''));
       return;
     }
-    total += (typeof getEffectivePrice==='function'?getEffectivePrice(p,(item.variantId&&p.variants)?p.variants.find(v=>v.id===item.variantId):null):p.price) * item.qty;
+    total += (typeof getEffectivePriceForBuyer==='function'?getEffectivePriceForBuyer(p,(item.variantId&&p.variants)?p.variants.find(v=>v.id===item.variantId):null):p.price) * item.qty;
   }
   window._checkoutTotal = total;
   window._payMethod = 'balance';
@@ -8161,7 +9658,7 @@ async function confirmCheckout() {
       shopId: g.shopId,
       items: g.items.map(({ item, p }) => ({
         productId: p.id, qty: item.qty,
-        price: (typeof getEffectivePrice==='function'?getEffectivePrice(p,item.variantId&&p.variants?p.variants.find(v=>v.id===item.variantId):null):p.price),
+        price: (typeof getEffectivePriceForBuyer==='function'?getEffectivePriceForBuyer(p,item.variantId&&p.variants?p.variants.find(v=>v.id===item.variantId):null):p.price),
         basePrice: p.price, variantId: item.variantId||null, shopId: g.shopId
       })),
       total: orderTotal,
@@ -8184,11 +9681,9 @@ async function confirmCheckout() {
     if (alloIsSupabaseMode()) {
       try {
         await sbUpsertOrder(order);
-        // Mettre à jour stock produits côté serveur si possible
+        // Pousser le stock vers Supabase (les autres clients le reçoivent en temps réel)
         for (const { item, p } of g.items) {
-          if (alloUuid(p.id)) {
-            try { await sb.from('products').update({ stock: Number(p.stock) }).eq('id', p.id); } catch (_) {}
-          }
+          try { await syncProductStockToSupabase(p); } catch (_) {}
         }
       } catch (e) {
         console.error('[Allo] checkout order sync', e);
@@ -9070,7 +10565,7 @@ function renderClients() {
       </div>
       <div class="c-action" style="flex-wrap:wrap">
         <button class="btn btn-sm btn-ghost" onclick="openModal('msgClient','${c.id}')" title="Message">✉</button>
-        ${canManage ? `<button class="btn btn-sm btn-danger" onclick="deleteClient('${c.id}')" title="Supprimer">✕</button>` : ''}
+        ${canManage ? `<button class="btn btn-sm btn-ghost" onclick="openModal('clientPrices','${c.id}')" title="Prix personnalisés">💰</button><button class="btn btn-sm btn-danger" onclick="deleteClient('${c.id}')" title="Supprimer">✕</button>` : ''}
       </div>
     </div>
   `).join('');
@@ -9880,7 +11375,23 @@ function renderSearch() {
 async function openAccountRoleCard(kind) {
   if (!currentUser) return;
 
-  // Un seul compte Allo : on change uniquement l'espace actif en mémoire.
+  // Un compte ne peut posséder qu'une seule activité commerciale : boutique OU entreprise.
+  // Le choix est verrouillé par shop_id / company_id dans profiles.
+  const hasShop = !!currentUser.shopId;
+  const hasCompany = !!currentUser.companyId;
+  if (kind === 'shop' && hasCompany && !hasShop) {
+    alert(lang === 'en'
+      ? 'This account is already configured as an enterprise. A single Allo account cannot own both a shop and an enterprise.'
+      : 'Ce compte est déjà configuré comme entreprise. Un même compte Allo ne peut pas posséder à la fois une boutique et une entreprise.');
+    return;
+  }
+  if (kind === 'company' && hasShop && !hasCompany) {
+    alert(lang === 'en'
+      ? 'This account is already configured as a shop. A single Allo account cannot own both a shop and an enterprise.'
+      : 'Ce compte est déjà configuré comme boutique. Un même compte Allo ne peut pas posséder à la fois une boutique et une entreprise.');
+    return;
+  }
+
   // Le rôle du profil principal reste « user » dans Supabase.
   if (kind === 'shop') {
     let shop = (data.shops || []).find(s => String(s.ownerId || '') === String(currentUser.id))
@@ -9918,8 +11429,14 @@ async function openAccountRoleCard(kind) {
     }
 
     currentUser.shopId = shop.id;
+    // Choix exclusif : une fois boutique choisie, le lien entreprise est supprimé du profil.
+    currentUser.companyId = null;
     const reg = (registeredUsers || []).find(u => String(u.id) === String(currentUser.id));
-    if (reg) reg.shopId = shop.id;
+    if (reg) { reg.shopId = shop.id; reg.companyId = null; }
+    if (USE_SUPABASE && sb && alloUuid(currentUser.id)) {
+      try { await sb.from('profiles').update({ shop_id: shop.id, company_id: null, updated_at: new Date().toISOString() }).eq('id', currentUser.id); }
+      catch (e) { console.warn('[Allo] business type lock (shop)', e); }
+    }
     window._alloBaseRole = window._alloBaseRole || currentUser.role;
     currentUser.role = 'boutique';
     try { await saveAppDataAsync(); } catch (e) { console.warn('[Allo] shop space sync', e); }
@@ -9942,11 +11459,24 @@ async function openAccountRoleCard(kind) {
       if (!data.companies) data.companies = [];
       data.companies.push(company);
       currentUser.companyId = company.id;
+      // Choix exclusif : une fois entreprise choisie, le lien boutique est supprimé du profil.
+      currentUser.shopId = null;
       const reg = (registeredUsers || []).find(u => String(u.id) === String(currentUser.id));
-      if (reg) reg.companyId = company.id;
+      if (reg) { reg.companyId = company.id; reg.shopId = null; }
+      if (USE_SUPABASE && sb && alloUuid(currentUser.id)) {
+        try { await sb.from('profiles').update({ company_id: company.id, shop_id: null, updated_at: new Date().toISOString() }).eq('id', currentUser.id); }
+        catch (e) { console.warn('[Allo] business type lock (company)', e); }
+      }
       try { await saveAppDataAsync(); } catch (e) { console.warn('[Allo] company creation sync', e); }
     } else {
       currentUser.companyId = company.id;
+      currentUser.shopId = null;
+      const reg = (registeredUsers || []).find(u => String(u.id) === String(currentUser.id));
+      if (reg) { reg.companyId = company.id; reg.shopId = null; }
+      if (USE_SUPABASE && sb && alloUuid(currentUser.id)) {
+        try { await sb.from('profiles').update({ company_id: company.id, shop_id: null, updated_at: new Date().toISOString() }).eq('id', currentUser.id); }
+        catch (e) { console.warn('[Allo] business type lock (company existing)', e); }
+      }
     }
 
     window._alloBaseRole = window._alloBaseRole || currentUser.role;
@@ -10110,39 +11640,46 @@ function renderAccount() {
   const btnLogout = document.getElementById('btnLogout');
   if (btnLogout) btnLogout.textContent = t('logout');
 
-  // Trois espaces liés au même compte : boutique, entreprise et clients.
-  // Aucun nouveau identifiant / mot de passe n'est créé ici.
+  // Un compte propriétaire choisit UNE SEULE activité commerciale : boutique OU entreprise.
+  // Le choix est persisté via shop_id / company_id dans profiles.
+  // L'espace client et les espaces employés restent indépendants de ce choix.
   const roleCards = document.getElementById('accountRoleCards');
   if (roleCards) {
-    const ownedShop = (data.shops || []).find(s =>
-      String(s.ownerId || '') === String(currentUser.id)
-    ) || ((currentUser.shopId && (data.shops || []).find(s =>
-      String(s.id) === String(currentUser.shopId)
-    )) || null);
-    const ownedCompany = (data.companies || []).find(c =>
-      String(c.ownerId || '') === String(currentUser.id)
-    ) || ((currentUser.companyId && (data.companies || []).find(c =>
-      String(c.id) === String(currentUser.companyId)
-    )) || null);
-    const myClients = ownedCompany
-      ? (data.clients || []).filter(c => String(c.companyId || '') === String(ownedCompany.id))
-      : [];
-    const clientCompanies = getCompaniesForCurrentClient();
+    const uid = String(currentUser.id || '');
+    const linkedShop = currentUser.shopId
+      ? (data.shops || []).find(s => String(s.id) === String(currentUser.shopId))
+      : null;
+    const linkedCompany = currentUser.companyId
+      ? (data.companies || []).find(c => String(c.id) === String(currentUser.companyId))
+      : null;
 
+    // Compatibilité avec les anciennes données : si les deux liens existent,
+    // on conserve le lien déjà porté par le profil et on masque l'autre option.
+    let businessType = currentUser.shopId ? 'shop' : (currentUser.companyId ? 'company' : null);
+    if (businessType === 'shop' && currentUser.companyId) currentUser.companyId = null;
+    if (businessType === 'company' && currentUser.shopId) currentUser.shopId = null;
+
+    const ownedShop = linkedShop || (businessType === 'shop'
+      ? (data.shops || []).find(s => String(s.ownerId || '') === uid)
+      : null);
+    const ownedCompany = linkedCompany || (businessType === 'company'
+      ? (data.companies || []).find(c => String(c.ownerId || '') === uid)
+      : null);
+
+    const clientCompanies = getCompaniesForCurrentClient();
     const shopTitle = lang === 'en' ? 'My shop' : 'Ma boutique';
     const companyTitle = lang === 'en' ? 'My company' : 'Mon entreprise';
     const clientsTitle = lang === 'en' ? 'My client space' : 'Mon espace client';
     const shopSub = ownedShop
-      ? (lang === 'en' ? ownedShop.name : ownedShop.name)
-      : (lang === 'en' ? 'Create and manage your shop' : 'Créer et gérer votre boutique');
+      ? ownedShop.name
+      : (lang === 'en' ? 'Choose this business type: shop' : 'Choisir cette activité : boutique');
     const companySub = ownedCompany
-      ? (lang === 'en' ? ownedCompany.name : ownedCompany.name)
-      : (lang === 'en' ? 'Create and manage your company' : 'Créer et gérer votre entreprise');
+      ? ownedCompany.name
+      : (lang === 'en' ? 'Choose this business type: company' : 'Choisir cette activité : entreprise');
     const clientsSub = clientCompanies.length
       ? (lang === 'en' ? String(clientCompanies.length) + ' company relationship(s)' : String(clientCompanies.length) + ' entreprise(s) dont vous êtes client')
       : (lang === 'en' ? 'Open your client space and join a company' : 'Ouvrir votre espace client et rejoindre une entreprise');
     const employeeMemberships = getEmployeeMembershipsForCurrentUser();
-    const employeeProfile = employeeMemberships[0] || null;
     const employeeTitle = lang === 'en' ? 'My employee spaces' : 'Mes espaces employés';
     const employeeSub = employeeMemberships.length
       ? (lang === 'en'
@@ -10150,38 +11687,24 @@ function renderAccount() {
           : String(employeeMemberships.length) + ' entreprise(s) où vous travaillez')
       : (lang === 'en' ? 'You are not linked as an employee yet' : 'Vous n’êtes pas encore rattaché comme employé');
 
-    roleCards.innerHTML = `
-      <button class="account-role-card" type="button" onclick="openAccountRoleCard('shop')">
-        <span class="arc-ico">🏪</span>
-        <span class="arc-info">
-          <span class="arc-title">${shopTitle}</span>
-          <span class="arc-sub">${shopSub}</span>
-        </span>
-        <span class="arc-arrow">›</span>
-      </button>
-      <button class="account-role-card" type="button" onclick="openAccountRoleCard('company')">
-        <span class="arc-ico">🏢</span>
-        <span class="arc-info">
-          <span class="arc-title">${companyTitle}</span>
-          <span class="arc-sub">${companySub}</span>
-        </span>
-        <span class="arc-arrow">›</span>
-      </button>
+    const businessCards = !businessType
+      ? `
+        <button class="account-role-card" type="button" onclick="openAccountRoleCard('shop')">
+          <span class="arc-ico">🏪</span><span class="arc-info"><span class="arc-title">${shopTitle}</span><span class="arc-sub">${shopSub}</span></span><span class="arc-arrow">›</span>
+        </button>
+        <button class="account-role-card" type="button" onclick="openAccountRoleCard('company')">
+          <span class="arc-ico">🏢</span><span class="arc-info"><span class="arc-title">${companyTitle}</span><span class="arc-sub">${companySub}</span></span><span class="arc-arrow">›</span>
+        </button>`
+      : businessType === 'shop'
+        ? `<button class="account-role-card" type="button" onclick="openAccountRoleCard('shop')"><span class="arc-ico">🏪</span><span class="arc-info"><span class="arc-title">${shopTitle}</span><span class="arc-sub">${ownedShop ? ownedShop.name : shopSub}</span></span><span class="arc-arrow">›</span></button>`
+        : `<button class="account-role-card" type="button" onclick="openAccountRoleCard('company')"><span class="arc-ico">🏢</span><span class="arc-info"><span class="arc-title">${companyTitle}</span><span class="arc-sub">${ownedCompany ? ownedCompany.name : companySub}</span></span><span class="arc-arrow">›</span></button>`;
+
+    roleCards.innerHTML = businessCards + `
       <button class="account-role-card" type="button" onclick="openAccountRoleCard('client')">
-        <span class="arc-ico">👥</span>
-        <span class="arc-info">
-          <span class="arc-title">${clientsTitle}</span>
-          <span class="arc-sub">${clientsSub}</span>
-        </span>
-        <span class="arc-arrow">›</span>
+        <span class="arc-ico">👥</span><span class="arc-info"><span class="arc-title">${clientsTitle}</span><span class="arc-sub">${clientsSub}</span></span><span class="arc-arrow">›</span>
       </button>
       <button class="account-role-card" type="button" onclick="openAccountRoleCard('employee')">
-        <span class="arc-ico">🧑‍💼</span>
-        <span class="arc-info">
-          <span class="arc-title">${employeeTitle}</span>
-          <span class="arc-sub">${employeeSub}</span>
-        </span>
-        <span class="arc-arrow">›</span>
+        <span class="arc-ico">🧑‍💼</span><span class="arc-info"><span class="arc-title">${employeeTitle}</span><span class="arc-sub">${employeeSub}</span></span><span class="arc-arrow">›</span>
       </button>`;
   }
 
@@ -10315,12 +11838,17 @@ function openModal(type, extra) {
       <h3>${t('newProduct')}</h3>
       <p class="sub">${t('addProductToShop')}</p>
       <div class="field"><label>${t('productName')}</label><input id="mName" placeholder="Ex: T-shirt Premium"></div>
+      <div class="field"><label>${lang==='en'?'Description':'Description'}</label><textarea id="mDesc" rows="3" placeholder="${lang==='en'?'Product details, condition, size…':'Détails, état, taille…'}"></textarea></div>
       <div class="field"><label>${t('category')}</label>
         ${getCategoryCheckboxesHTML([])}
       </div>
       <div class="field"><label>${t('price')}</label><input id="mPrice" type="number" value="10000"></div>
       <div class="field"><label>${t('stockLabel')}</label><input id="mStock" type="number" value="20"></div>
       <div class="field"><label>${t('iconEmoji')}</label><input id="mIcon" value="📦" maxlength="4"></div>
+      <div class="field"><label>${lang==='en'?'Delivery zones':'Zones de livraison'}</label>
+        <p style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${lang==='en'?'Where this product can be delivered':'Où ce produit peut être livré'}</p>
+        ${getProductZonesCheckboxesHTML([])}
+      </div>
       ${productImagesFieldHTML([])}
       <button class="btn btn-accent btn-block" onclick="addProduct('${shopId}')">${t('createProduct')}</button>`;
   }
@@ -10330,12 +11858,16 @@ function openModal(type, extra) {
       <h3>${t('newProduct')}</h3>
       <p class="sub">${t('addProductToThisShop')}</p>
       <div class="field"><label>${t('productName')}</label><input id="mName" placeholder="Ex: Carton Eau"></div>
+      <div class="field"><label>${lang==='en'?'Description':'Description'}</label><textarea id="mDesc" rows="3" placeholder="${lang==='en'?'Product details…':'Détails du produit…'}"></textarea></div>
       <div class="field"><label>${t('category')}</label>
         ${getCategoryCheckboxesHTML([])}
       </div>
       <div class="field"><label>${t('price')}</label><input id="mPrice" type="number" value="5000"></div>
       <div class="field"><label>${t('stockLabel')}</label><input id="mStock" type="number" value="50"></div>
       <div class="field"><label>${t('iconEmoji')}</label><input id="mIcon" value="📦" maxlength="4"></div>
+      <div class="field"><label>${lang==='en'?'Delivery zones':'Zones de livraison'}</label>
+        ${getProductZonesCheckboxesHTML([])}
+      </div>
       ${productImagesFieldHTML([])}
       <button class="btn btn-accent btn-block" onclick="addProduct('${extra}')">${t('createProduct')}</button>`;
   }
@@ -10344,19 +11876,28 @@ function openModal(type, extra) {
     const p = data.products.find(x => x.id === extra);
     if (!p) { alert(t('productNotFound')); return; }
     const safeName = (p.name || '').replace(/"/g, '&quot;');
+    const safeDesc = String(p.description || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     html = `<button class="modal-close" onclick="closeModal()">×</button>
       <h3>${t('editProduct')}</h3>
       <p class="sub">${safeName}</p>
       <div class="field"><label>${t('productName')}</label><input id="mName" value="${safeName}"></div>
+      <div class="field"><label>${lang==='en'?'Description':'Description'}</label><textarea id="mDesc" rows="3">${safeDesc}</textarea></div>
       <div class="field"><label>${t('category')}</label>
         ${getCategoryCheckboxesHTML(getProductCats(p), p.hashtags || [])}
       </div>
       <div class="field"><label>${t('price')}</label><input id="mPrice" type="number" value="${p.price}"></div>
       <div class="field"><label>${t('stockLabel')}</label><input id="mStock" type="number" value="${p.stock}"></div>
       <div class="field"><label>${t('iconEmoji')}</label><input id="mIcon" value="${p.icon||'📦'}" maxlength="4"></div>
+      <div class="field"><label>${lang==='en'?'Delivery zones':'Zones de livraison'}</label>
+        ${getProductZonesCheckboxesHTML(p.deliveryZones || [])}
+      </div>
       ${productImagesFieldHTML(getProductImages(p))}
       <button class="btn btn-accent btn-block" onclick="saveProduct('${p.id}')">${t('save')}</button>
       <button class="btn btn-danger btn-block" style="margin-top:8px" onclick="deleteProduct('${p.id}')">${t('deleteProduct')}</button>`;
+  }
+
+  if (type === 'productDetail') {
+    html = buildProductDetailModalHTML(extra);
   }
 
 
@@ -10429,6 +11970,25 @@ function openModal(type, extra) {
       <button class="btn btn-accent btn-block" onclick="saveEmployee('${emp.id}')">${t('save') || 'Enregistrer'}</button>`;
   }
 
+
+  if (type === 'clientPrices' && currentUser && currentUser.role === 'entreprise') {
+    const client = (data.clients || []).find(c => String(c.id) === String(extra) && String(c.companyId) === String(currentUser.companyId));
+    if (!client) { alert(lang === 'en' ? 'Client not found.' : 'Client introuvable.'); return; }
+    const products = getCompanyProductsForPricing();
+    const priceRows = products.length ? products.map(p => {
+      const row = (data.companyClientPrices || []).find(r => String(r.companyId) === String(currentUser.companyId) && String(r.clientId) === String(client.id) && String(r.productId) === String(p.id));
+      const value = row ? String(row.price) : '';
+      return `<div class="list-row" style="display:grid;grid-template-columns:1fr 120px;gap:10px;align-items:center">
+        <div><b>${displayProductName(p.name)}</b><div class="c-sub">Prix normal : ${formatMoney(getEffectivePrice(p))}</div></div>
+        <input class="price-client-input" data-product-id="${p.id}" type="number" min="0" step="1" value="${value}" placeholder="Prix client" style="width:100%;padding:9px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text)">
+      </div>`;
+    }).join('') : `<div class="empty">${lang === 'en' ? 'No company products yet.' : 'Aucun produit de l’entreprise pour le moment.'}</div>`;
+    html = `<button class="modal-close" onclick="closeModal()">×</button>
+      <h3>💰 ${lang === 'en' ? 'Personal prices' : 'Prix personnalisés'}</h3>
+      <p class="sub">${lang === 'en' ? `Prices for ${client.name}. Leave a field empty to use the normal price.` : `Prix appliqués uniquement à ${client.name}. Laissez vide pour utiliser le prix normal.`}</p>
+      <div style="display:grid;gap:8px;max-height:55vh;overflow:auto">${priceRows}</div>
+      <button class="btn btn-accent btn-block" style="margin-top:12px" onclick="saveClientPrices('${client.id}')">${t('save')}</button>`;
+  }
 
   if (type === 'editBalance') {
     if (!currentUser || currentUser.role !== 'admin') {
@@ -11550,6 +13110,8 @@ async function addProduct(shopIdOverride) {
     const imgs = (typeof getProductImagesFromForm === 'function') ? getProductImagesFromForm() : [];
     const cover = (imgs[0] || (image && String(image).startsWith('data:') ? image : null)) || null;
     const newId = 'p' + Date.now();
+    const description = (document.getElementById('mDesc')?.value || '').trim();
+    const deliveryZones = typeof getSelectedProductZonesFromForm === 'function' ? getSelectedProductZonesFromForm() : [];
     data.products.push({
       id: newId,
       shopId,
@@ -11559,6 +13121,8 @@ async function addProduct(shopIdOverride) {
         : (shop.companyId || null),
       private: isEnt ? true : false,
       name,
+      description,
+      deliveryZones,
       price,
       stock,
       icon,
@@ -11611,6 +13175,8 @@ async function saveProduct(id) {
     const p = data.products.find(x => x.id === id);
     if (!p) { alert(t('productNotFound')); return; }
     p.name = (document.getElementById('mName')?.value || '').trim() || p.name;
+    p.description = (document.getElementById('mDesc')?.value || '').trim();
+    p.deliveryZones = typeof getSelectedProductZonesFromForm === 'function' ? getSelectedProductZonesFromForm() : (p.deliveryZones || []);
     const catsArr = (typeof getSelectedCategoriesFromForm === 'function') ? getSelectedCategoriesFromForm() : [];
     if (catsArr.length !== 1) {
       alert(lang === 'en' ? 'Choose exactly one category.' : 'Choisissez exactement une catégorie.');
@@ -11639,6 +13205,22 @@ async function saveProduct(id) {
     // IndexedDB est désactivé : les images seront envoyées à Supabase
     // par sbUpsertProduct() lors de la synchronisation.
     await saveAppDataAsync();
+    // Sync stock + fiche vers Supabase pour diffusion temps réel aux autres clients
+    if (typeof USE_SUPABASE !== 'undefined' && USE_SUPABASE && typeof sbUpsertProduct === 'function') {
+      try {
+        const remote = await sbUpsertProduct(p);
+        if (remote && remote.id) {
+          const i = data.products.findIndex(x => String(x.id) === String(p.id));
+          if (i >= 0) data.products[i] = Object.assign({}, data.products[i], remote, { variants: data.products[i].variants || remote.variants });
+        }
+      } catch (e) {
+        console.warn('[Allo] saveProduct remote sync', e);
+        try { await syncProductStockToSupabase(p); } catch (_) {}
+      }
+    } else {
+      try { await syncProductStockToSupabase(p); } catch (_) {}
+    }
+    try { repaintStockUI(true); } catch (_) {}
 
     closeModal();
     renderAll();
@@ -11779,6 +13361,40 @@ function sendReply() {
   replyToMsgId = null;
   renderMessages();
   alert(t('replySent'));
+}
+
+async function saveClientPrices(clientId) {
+  if (!currentUser || currentUser.role !== 'entreprise' || !currentUser.companyId) return;
+  if (!(USE_SUPABASE && sb)) { alert(lang === 'en' ? 'Internet connection required.' : 'Une connexion Internet est nécessaire.'); return; }
+  const client = (data.clients || []).find(c => String(c.id) === String(clientId) && String(c.companyId) === String(currentUser.companyId));
+  if (!client) return;
+  const inputs = Array.from(document.querySelectorAll('.price-client-input'));
+  try {
+    for (const input of inputs) {
+      const productId = input.getAttribute('data-product-id');
+      const raw = String(input.value || '').trim();
+      if (!raw) {
+        const del = await sb.from('company_client_product_prices').delete()
+          .eq('company_id', currentUser.companyId).eq('client_id', clientId).eq('product_id', productId);
+        if (del.error) throw del.error;
+        continue;
+      }
+      const price = Math.max(0, Math.round(Number(raw)));
+      if (!Number.isFinite(price)) continue;
+      const up = await sb.from('company_client_product_prices').upsert({
+        company_id: currentUser.companyId, client_id: clientId, product_id: productId,
+        price, updated_at: new Date().toISOString()
+      }, { onConflict: 'company_id,client_id,product_id' }).select('*').single();
+      if (up.error) throw up.error;
+    }
+    await sbLoadAllIntoData();
+    closeModal();
+    renderAll();
+    alert(lang === 'en' ? 'Personal prices saved.' : 'Prix personnalisés enregistrés.');
+  } catch (e) {
+    console.error('[Allo] save client prices', e);
+    alert((lang === 'en' ? 'Could not save prices: ' : 'Impossible d’enregistrer les prix : ') + (e.message || e));
+  }
 }
 
 async function addClient() {
@@ -12303,6 +13919,29 @@ function isVariantPromoActive(v) {
   if (v.promo.endsAt && now > new Date(v.promo.endsAt).getTime()) return false;
   return true;
 }
+function getCompanyClientPrice(p, variant) {
+  if (!p || variant || !currentUser || !currentUser.companyId || !currentUser.id) return null;
+  const companyId = String(currentUser.companyId);
+  const clientId = String(currentUser.id);
+  const row = (data.companyClientPrices || []).find(r =>
+    String(r.companyId) === companyId &&
+    String(r.clientId) === clientId &&
+    String(r.productId) === String(p.id)
+  );
+  return row ? Math.max(0, Math.round(Number(row.price || 0))) : null;
+}
+
+function getEffectivePriceForBuyer(p, variant) {
+  const custom = getCompanyClientPrice(p, variant);
+  if (custom !== null) return custom;
+  return getEffectivePrice(p, variant);
+}
+
+function getCompanyProductsForPricing() {
+  if (!currentUser || currentUser.role !== 'entreprise' || !currentUser.companyId) return [];
+  return (data.products || []).filter(p => String(p.companyId || '') === String(currentUser.companyId));
+}
+
 function getEffectivePrice(p, variant) {
   if (variant) {
     if (isVariantPromoActive(variant)) {
