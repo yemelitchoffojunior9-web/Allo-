@@ -8019,9 +8019,6 @@ function buildSidebarNav() {
       { view: 'wishlist', label: t('wishlist'), ico: '❤️' },
       { view: 'orders', label: t('orders'), ico: '📦' },
       { view: 'cart', label: t('cart'), ico: '🛒' },
-      { view: 'topups', label: 'Recharges', ico: '➕' },
-      { view: 'withdraws', label: 'Retraits', ico: '📤' },
-      { view: 'transactions', label: 'Transactions', ico: '📜' },
       { view: 'returns', label: t('returns'), ico: '↩️' },
       { view: 'messages', label: t('messages'), ico: '💬' },
       { view: 'notifs', label: t('notifs'), ico: '🔔' },
@@ -8136,7 +8133,7 @@ function buildNav() {
       { view: 'home', label: t('catalog'), icon: icons.home },
       { view: 'orders', label: t('orders'), icon: icons.orders },
       { view: 'cart', label: t('cart'), icon: icons.cart },
-      { view: 'wallet', label: t('wallet'), icon: icons.cart },
+      { view: 'messages', label: t('messages'), icon: icons.messages },
       { view: 'account', label: t('account'), icon: icons.account }
     ];
   } else if (role === 'admin') {
@@ -8535,9 +8532,9 @@ function renderHome() {
     const myOrders = data.orders.filter(o => o.userId === currentUser.id);
     const products = getVisibleProducts();
     stats.innerHTML = `
-      <div class="hero-stat"><b>${formatMoney(currentUser.balance)}</b><span>${t('balance')}</span></div>
       <div class="hero-stat"><b>${products.length}</b><span>${t('productsCount')}</span></div>
-      <div class="hero-stat"><b>${myOrders.length}</b><span>${t('ordersCount')}</span></div>`;
+      <div class="hero-stat"><b>${myOrders.length}</b><span>${t('ordersCount')}</span></div>
+      <div class="hero-stat"><b>${cart.reduce((s,c)=>s+(c.qty||0),0)}</b><span>${t('cart')}</span></div>`;
   }
 
   // Dans les espaces boutique/entreprise, l'utilisateur garde un bouton clair
@@ -9102,7 +9099,7 @@ function productCardHTML(p, showAdd, manage) {
 
   const priceBlock = promoOn
     ? `<div class="dls-price promo"><span class="old">${formatMoney(p.price)}</span><span class="coin">●</span>${formatMoney(eff)}</div>`
-    : `<div class="dls-price"><span class="coin">●</span>${formatMoney(p.price)}</div>`;
+    : `<div class="dls-price"><span class="coin">●</span>${formatMoney(eff)}</div>`;
 
   // Ancien "en stock" → Voir la boutique
   const shopPill = showViewShop
@@ -9229,7 +9226,7 @@ function buildProductDetailModalHTML(productId) {
   const canBuy = currentUser && (currentUser.role === 'user' || currentUser.role === 'client') && stockReal > 0;
   const priceLine = promoOn
     ? `<span class="dls-sign-old">${formatMoney(p.price)}</span> <span class="dls-sign-price">${formatMoney(eff)}</span>`
-    : `<span class="dls-sign-price">${formatMoney(p.price)}</span>`;
+    : `<span class="dls-sign-price">${formatMoney(eff)}</span>`;
   const tier = promoOn || valScore >= 80 ? 'gold' : (valScore > 0 && valScore < 50 ? 'low' : 'blue');
 
   return `<button class="modal-close dls-sign-x" onclick="closeModal()">×</button>
@@ -9427,12 +9424,13 @@ function renderCart() {
         </div>
         <button class="btn btn-sm btn-ghost" onclick="removeShopFromCart('${g.shopId}')" title="${t('removeShopCart')}">🗑</button>
       </div>`;
-    g.items.forEach(({ item, p, line }) => {
+    g.items.forEach(({ item, p, line, unit }) => {
+      const unitPrice = (unit != null) ? unit : (typeof getEffectivePriceForBuyer === 'function' ? getEffectivePriceForBuyer(p) : p.price);
       html += `<div class="cart-item" style="padding:8px 0;border-bottom:1px solid var(--border)">
         <div class="emoji">${p.icon || '📦'}</div>
         <div class="cart-item-info">
           <b>${displayProductName(p.name)}</b>
-          <span>${item.qty} × ${formatMoney(p.price)}</span>
+          <span>${item.qty} × ${formatMoney(unitPrice)}</span>
         </div>
         <div style="text-align:right">
           <b style="font-family:'JetBrains Mono';font-size:13px">${formatMoney(line)}</b><br>
@@ -9460,7 +9458,11 @@ function renderCart() {
     <div class="amount">${formatMoney(finalTotal)}</div>
     ${discount ? `<div style="font-size:11px;color:var(--text-muted);text-decoration:line-through">${formatMoney(grand)}</div>` : ''}
   </div>`;
-  html += `<p style="font-size:11px;color:var(--text-muted);text-align:center;margin-bottom:8px">${t('escrowHold')}</p>`;
+  if (currentUser && currentUser.role !== 'client') {
+    html += `<p style="font-size:11px;color:var(--text-muted);text-align:center;margin-bottom:8px">${t('escrowHold')}</p>`;
+  } else {
+    html += `<p style="font-size:11px;color:var(--text-muted);text-align:center;margin-bottom:8px">${lang==='en'?'Company client order — no payment required':'Commande client entreprise — aucun paiement requis'}</p>`;
+  }
   html += `<button class="btn btn-accent btn-block" onclick="validateCart()">${groups.length > 1 ? t('payAllInvoices') : t('validateOrder')}</button>`;
   html += `<button class="btn btn-ghost btn-block" style="margin-top:8px" onclick="clearCart()">${lang==='en'?'Clear cart':'Vider le panier'}</button>`;
   el.innerHTML = html;
@@ -9487,6 +9489,8 @@ async function validateCart() {
   if (currentUser.role === 'client') {
     window._checkoutTotal = total;
     window._payMethod = 'company_free';
+    // Libérer le verrou avant confirmCheckout (qui gère son propre busy)
+    setModalActionBusy(false);
     await confirmCheckout();
     return;
   }
@@ -11847,13 +11851,18 @@ function renderAccount() {
     const wal = document.getElementById('btnAccountWallet');
     const isAdmin = currentUser && currentUser.role === 'admin';
     const isEntreprise = currentUser && currentUser.role === 'entreprise';
-    const hideFinance = isAdmin || isEntreprise;
+    const isClient = currentUser && currentUser.role === 'client';
+    // Client entreprise : pas de portefeuille / recharges / retraits (commandes sans paiement)
+    const hideFinance = isAdmin || isEntreprise || isClient;
     if (top) top.style.display = hideFinance ? 'none' : '';
     if (wit) wit.style.display = hideFinance ? 'none' : '';
     if (wal) wal.style.display = hideFinance ? 'none' : '';
-    if (fin && isEntreprise) fin.style.display = 'none';
+    if (fin && (isEntreprise || isClient)) fin.style.display = 'none';
     else if (fin && isAdmin) fin.style.display = '';
     else if (fin) fin.style.display = '';
+    // Masquer aussi la carte solde pour les clients entreprise
+    if (balCard && isClient) balCard.style.display = 'none';
+    else if (balCard) balCard.style.display = '';
   } catch (e) {}
 
   const balEl = document.getElementById('accountBalance');
