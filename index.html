@@ -8202,16 +8202,32 @@ function switchView(view) {
   updateAllBadges();
   // Commandes : toujours recharger depuis Supabase (source de vérité nationale)
   if (view === 'orders') {
-    try { markOrdersSeenBySeller(); } catch (e) {}
     if (alloIsSupabaseMode()) {
       try { startOrderRealtime(); } catch (e) {}
       refreshOrdersFromSupabase().then(function(ok){
         if (ok) {
-          try { markOrdersSeenBySeller(); } catch (e) {}
           renderOrders();
           try { updateAllBadges(); } catch(e) {}
         }
+        // Marquer "vu" APRÈS le premier paint, sans second re-render immédiat
+        // (évite que le bouton "Marquer comme livré" saute sous le doigt).
+        setTimeout(function(){
+          try {
+            markOrdersSeenBySeller({ silent: true });
+            updateAllBadges();
+            // Mise à jour douce des pastilles NOUVELLE → VU sans reconstruire toute la liste
+            try { softUpdateCompanyOrderSeenPills(); } catch (e2) {}
+          } catch (e) {}
+        }, 400);
       }).catch(function(e){ console.error('[Allo] refresh orders view', e); });
+    } else {
+      setTimeout(function(){
+        try {
+          markOrdersSeenBySeller({ silent: true });
+          updateAllBadges();
+          try { softUpdateCompanyOrderSeenPills(); } catch (e2) {}
+        } catch (e) {}
+      }, 400);
     }
   }
   // Les données sensibles de l'admin sont rechargées directement depuis Supabase.
@@ -9929,7 +9945,8 @@ function getSellerSeenAt(o) {
   const hit = tl.find(t => t && (t.status === 'seller_seen' || t.status === 'vu'));
   return hit ? (hit.date || null) : null;
 }
-function markOrdersSeenBySeller() {
+function markOrdersSeenBySeller(opts) {
+  opts = opts || {};
   if (!currentUser) return;
   if (currentUser.role !== 'entreprise' && currentUser.role !== 'employe') return;
   const sellerShopIds = (typeof getSellerShopIds === 'function' ? getSellerShopIds() : []).map(String);
@@ -9941,6 +9958,7 @@ function markOrdersSeenBySeller() {
     // Ne marque que les commandes entreprise / company_free (espace entreprise)
     const isCompany = !!(o.companyId || o.payment === 'company_free');
     if (!isCompany) return;
+    // Ne jamais passer en livré ici — uniquement "vu"
     o.sellerSeenAt = new Date().toISOString();
     if (!Array.isArray(o.timeline)) o.timeline = [];
     if (!o.timeline.some(t => t && t.status === 'seller_seen')) {
@@ -9950,12 +9968,32 @@ function markOrdersSeenBySeller() {
   });
   if (!toSync.length) return;
   try { saveAppData(); } catch (e) {}
-  try { updateAllBadges(); } catch (e) {}
+  if (!opts.silent) {
+    try { updateAllBadges(); } catch (e) {}
+  }
   if (typeof alloIsSupabaseMode === 'function' && alloIsSupabaseMode()) {
     toSync.forEach(o => {
       Promise.resolve().then(() => sbUpsertOrder(o)).catch(e => console.error('[Allo] mark seen', e));
     });
   }
+}
+
+/** Met à jour les pastilles NOUVELLE → VU sans reconstruire les cartes (bouton livré stable). */
+function softUpdateCompanyOrderSeenPills() {
+  const el = document.getElementById('ordersList');
+  if (!el) return;
+  el.querySelectorAll('[data-company-order-id]').forEach(card => {
+    const id = card.getAttribute('data-company-order-id');
+    const o = (data.orders || []).find(x => String(x.id) === String(id));
+    if (!o || !orderHasSellerSeen(o)) return;
+    const norm = (typeof normalizeOrderStatus === 'function') ? normalizeOrderStatus(o.status) : String(o.status || '');
+    if (norm === 'livré') return;
+    const pill = card.querySelector('[data-company-status-pill]');
+    if (pill) {
+      pill.className = 'status-pill status-ok';
+      pill.textContent = (typeof lang !== 'undefined' && lang === 'en') ? 'SEEN' : 'VU';
+    }
+  });
 }
 
 
@@ -9973,9 +10011,19 @@ async function markCompanyOrderDelivered(orderId) {
     try { renderOrders(); } catch (e) {}
     return;
   }
+  // Confirmation obligatoire — empêche un marquage accidentel si le bouton "saute"
+  const ok = confirm(lang === 'en'
+    ? 'Mark this order as delivered? This cannot be undone.'
+    : 'Marquer cette commande comme livrée ? Cette action est définitive.');
+  if (!ok) return;
   // Verrou anti double-clic
   if (o._deliveringLock) return;
   o._deliveringLock = true;
+  // Désactiver le bouton immédiatement dans le DOM
+  try {
+    const btn = document.querySelector('[data-deliver-btn="' + String(orderId).replace(/"/g, '') + '"]');
+    if (btn) { btn.disabled = true; btn.textContent = lang === 'en' ? 'Saving…' : 'Enregistrement…'; }
+  } catch (e) {}
   try {
     const now = new Date().toISOString();
     o.status = 'livré';
@@ -10551,7 +10599,14 @@ function _paintOrdersList() {
           ? `<div style="font-size:12px;color:var(--text-muted);margin:8px 0">⏳ ${lang==='en'?'Waiting for company to view':'En attente de consultation par l’entreprise'}</div>`
           : ''));
     const canMarkCompanyDelivered = isEnterpriseSpace && isCompanyOrder && !companyDelivered;
-    return `<div class="card">
+    // Pastille avec attribut stable pour mise à jour douce
+    if (isCompanyOrder) {
+      statusPillHtml = statusPillHtml.replace(
+        'class="status-pill',
+        'data-company-status-pill class="status-pill'
+      );
+    }
+    return `<div class="card"${isCompanyOrder ? ` data-company-order-id="${String(o.id).replace(/"/g,'&quot;')}"` : ''}>
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
         <div>
           <div style="font-weight:700;font-size:14px">${t('order')} #${String(o.id).slice(-6)}</div>
@@ -10574,7 +10629,7 @@ function _paintOrdersList() {
       ${(!isCompanyOrder) ? waitHint : ''}
       ${(!isCompanyOrder) ? (buyerConfirmBlock || '') : ''}
       ${canAdvance ? `<button class="btn btn-sm btn-accent" style="width:100%;margin-top:8px" onclick="advanceOrderStatus('${o.id}')">${t('advanceStatus')} → ${orderStatusLabel(nxtSeller)}</button>` : ''}
-      ${canMarkCompanyDelivered ? `<button class="btn btn-sm btn-accent" style="width:100%;margin-top:8px" onclick="markCompanyOrderDelivered('${o.id}')">${lang==='en'?'Mark as delivered':'Marquer comme livré'}</button>` : ''}
+      ${canMarkCompanyDelivered ? `<button type="button" class="btn btn-sm btn-accent" data-deliver-btn="${o.id}" style="width:100%;margin-top:10px;min-height:44px" onclick="event.preventDefault();event.stopPropagation();markCompanyOrderDelivered('${o.id}')">${lang==='en'?'Mark as delivered':'Marquer comme livré'}</button>` : ''}
       ${isBuyer ? `
         <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
           <button class="btn btn-sm btn-ghost" style="flex:1" onclick="reorderOrder('${o.id}')">↺ ${t('reorder')}</button>
