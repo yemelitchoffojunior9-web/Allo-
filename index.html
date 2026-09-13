@@ -3214,7 +3214,15 @@ nav.bottom,
         <div id="messagesList"></div>
       </div>
 
-      <!-- WALLET (Boutique + Entreprise) -->
+      <!-- ACTIVATION COMPTE ENTREPRISE -->
+      <div class="view" id="view-company-activation">
+        <div class="section-head">
+          <h2><span class="bar"></span> Activation compte</h2>
+        </div>
+        <div id="companyActivationContent"></div>
+      </div>
+
+      <!-- WALLET (Boutique uniquement) -->
       <div class="view" id="view-wallet">
         <div class="section-head">
           <h2><span class="bar"></span> Portefeuille</h2>
@@ -3316,6 +3324,15 @@ nav.bottom,
         </p>
         <div id="adminZonesList"></div>
       </div>
+      <div class="view" id="view-admin-company-activation">
+        <div class="section-head"><h2><span class="bar"></span> Activation entreprises</h2></div>
+        <div id="adminCompanyActivationConfig"></div>
+        <div class="section-head" style="margin-top:16px"><h2><span class="bar"></span> Demandes de réactivation</h2></div>
+        <div id="adminCompanyActivationList"></div>
+        <div class="section-head" style="margin-top:16px"><h2><span class="bar"></span> Statut des entreprises</h2></div>
+        <div id="adminCompaniesStatusList"></div>
+      </div>
+
       <div class="view" id="view-admin-commissions">
         <div class="section-head"><h2><span class="bar"></span> <span id="adminCommTitle">Commissions</span></h2></div>
 
@@ -3408,12 +3425,14 @@ nav.bottom,
             <div class="field" style="margin:0"><label>1 an</label><input type="number" id="cashPlan_boutique_year" min="1" step="100" placeholder="—"></div>
           </div>
 
-          <div style="font-weight:800;margin:16px 0 8px">🏢 Entreprises</div>
-          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px">
-            <div class="field" style="margin:0"><label>1 jour</label><input type="number" id="cashPlan_entreprise_day" min="1" step="100" placeholder="—"></div>
-            <div class="field" style="margin:0"><label>7 jours</label><input type="number" id="cashPlan_entreprise_week" min="1" step="100" placeholder="—"></div>
-            <div class="field" style="margin:0"><label>1 mois</label><input type="number" id="cashPlan_entreprise_month" min="1" step="100" placeholder="—"></div>
-            <div class="field" style="margin:0"><label>1 an</label><input type="number" id="cashPlan_entreprise_year" min="1" step="100" placeholder="—"></div>
+          <div style="font-weight:800;margin:16px 0 8px;opacity:.5;text-decoration:line-through">🏢 Entreprises (désactivé)</div>
+          <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px">Le paiement à la livraison n’est plus disponible pour les entreprises. Les revenus entreprise passent par l’activation de compte.</p>
+          <!-- champs conservés cachés pour compatibilité -->
+          <div style="display:none">
+            <input type="number" id="cashPlan_entreprise_day" value="0">
+            <input type="number" id="cashPlan_entreprise_week" value="0">
+            <input type="number" id="cashPlan_entreprise_month" value="0">
+            <input type="number" id="cashPlan_entreprise_year" value="0">
           </div>
 
           <button class="btn btn-cyan btn-block" style="margin-top:14px" onclick="saveCashOfferPlans()">💾 Enregistrer les tarifs</button>
@@ -4934,6 +4953,7 @@ const STAFF_FEATURES = {
 /** Permissions par défaut selon le poste */
 function defaultStaffFeatures(job) {
   const base = { products: false, clients: false, orders: true, messages: true, wallet: false, transactions: false, analytics: false, notifs: true };
+  // Entreprise: pas de portefeuille (ni pour le propriétaire ni pour les employés)
   const j = job || 'autre';
   if (j === 'magasinier') {
     return Object.assign({}, base, { products: true, orders: true });
@@ -4942,7 +4962,8 @@ function defaultStaffFeatures(job) {
     return Object.assign({}, base, { clients: true, messages: true });
   }
   if (j === 'comptable') {
-    return Object.assign({}, base, { wallet: true, transactions: true, analytics: true });
+    // Pas de portefeuille côté entreprise
+    return Object.assign({}, base, { wallet: false, transactions: false, analytics: true });
   }
   if (j === 'livreur') {
     return Object.assign({}, base, { orders: true });
@@ -4953,7 +4974,7 @@ function defaultStaffFeatures(job) {
   if (j === 'manager') {
     return Object.assign({}, base, {
       products: true, clients: true, orders: true, messages: true,
-      wallet: true, transactions: true, analytics: true, notifs: true
+      wallet: false, transactions: false, analytics: true, notifs: true
     });
   }
   return base;
@@ -5735,6 +5756,7 @@ let data = {
   kyc: {},
   wishlist: [],
   promoCodes: [],
+  companyActivationRequests: [],
   returns: [],
   escrow: [],
   walletTx: [],
@@ -6238,7 +6260,14 @@ function defaultAdminConfig() {
     commissions: { 'Mode': 5, 'Tech': 5, 'Alimentaire': 5, 'Boissons': 5, 'Frais': 5, 'Autres': 5 },
     categories: ['Mode', 'Tech', 'Alimentaire', 'Boissons', 'Frais', 'Autres'],
     deliveryZones: ['Douala', 'Yaoundé', 'Bafoussam', 'Bamenda', 'Garoua', 'Maroua', 'Ngaoundéré', 'Kribi', 'Limbe', 'Bertoua'],
-    commissionRevenue: 0
+    commissionRevenue: 0,
+    // Activation compte entreprise : 1ère ouverture gratuite (freeOrderQuota commandes),
+    // puis le Super Admin définit reactivationOrderQuota + reactivationPrice.
+    companyActivation: {
+      freeOrderQuota: 50,
+      reactivationOrderQuota: 100,
+      reactivationPrice: 20000
+    }
   };
 }
 function loadAdminConfig() {
@@ -7779,13 +7808,13 @@ function enterApp() {
   // reset
   [wChip, msgBtn, searchBtn, shopsBtn].forEach(el => el && el.classList.remove('show'));
 
-  if (currentUser.role === 'boutique' || currentUser.role === 'entreprise') {
+  // Portefeuille : boutiques uniquement (plus d'entreprise)
+  if (currentUser.role === 'boutique') {
     if (currentUser.wallet === undefined) currentUser.wallet = 0;
-    wChip.classList.add('show');
-    updateWalletChip();
+    if (wChip) { wChip.classList.add('show'); updateWalletChip(); }
   }
   if (currentUser.role === 'entreprise') {
-    msgBtn.classList.add('show');
+    if (msgBtn) msgBtn.classList.add('show');
   }
   if (currentUser.role === 'user') {
     shopsBtn.classList.add('show');
@@ -7916,10 +7945,7 @@ function buildSidebarNav() {
       { view: 'orders', label: 'Mes commandes', ico: '📋' },
       { view: 'promos', label: 'Faire une promo', ico: '🏷' },
       { view: 'promos', label: 'Mes promotions', ico: '🔥' },
-      { view: 'wallet', label: 'Solde / Portefeuille', ico: '💰' },
-      { view: 'topups', label: 'Recharges', ico: '➕' },
-      { view: 'withdraws', label: 'Retraits', ico: '📤' },
-      { view: 'transactions', label: 'Transactions', ico: '📜' },
+      { view: 'company-activation', label: 'Activation compte', ico: '🔑' },
       { view: 'analytics', label: t('analytics'), ico: '📊' },
       { view: 'messages', label: t('messages'), ico: '💬' },
       { view: 'notifs', label: t('notifs'), ico: '🔔' },
@@ -7961,6 +7987,7 @@ function buildSidebarNav() {
       { view: 'admin-categories', label: t('adminCategories'), ico: '🏷' },
       { view: 'admin-zones', label: lang==='en'?'Delivery zones':'Zones livraison', ico: '📍' },
       { view: 'admin-commissions', label: t('adminCommissions'), ico: '💸' },
+      { view: 'admin-company-activation', label: 'Activation entreprises', ico: '🔑' },
       { view: 'admin-topups', label: 'Recharges', ico: '➕' },
       { view: 'admin-withdraws', label: 'Retraits', ico: '📤' },
       { view: 'admin-paymethods', label: 'Modes de paiement', ico: '💳' },
@@ -8335,6 +8362,9 @@ function renderAll() {
   renderTransactions();
   renderPromos();
   renderVariantsPage();
+  if (currentUser && currentUser.role === 'entreprise') {
+    try { renderCompanyActivation(); } catch (e) {}
+  }
   if (currentUser && currentUser.role === 'admin') {
     renderAdminHome();
     renderAdminAccounts();
@@ -8342,6 +8372,7 @@ function renderAll() {
     renderAdminHashtags();
     renderAdminZones();
     renderAdminCommissions();
+    try { renderAdminCompanyActivations(); } catch (e) {}
     renderAdminNotifs();
     renderAdminFeedback();
     renderAdminTopups();
@@ -8412,10 +8443,19 @@ function renderHome() {
     const sellerShopIds = getSellerShopIds();
     const orders = data.orders.filter(o => orderBelongsToSeller(o, sellerShopIds));
     const staff = getCompanyEmployees();
+    const remaining = typeof getCompanyOrdersRemaining === 'function' ? getCompanyOrdersRemaining(currentUser.companyId) : '—';
+    const locked = typeof isCompanyAccountActive === 'function' && !isCompanyAccountActive(currentUser.companyId);
     stats.innerHTML = `
       <div class="hero-stat"><b>${clients.length}</b><span>${t('clientsCount')}</span></div>
       <div class="hero-stat"><b>${staff.length}</b><span>${t('employees')}</span></div>
-      <div class="hero-stat"><b>${orders.length}</b><span>${t('ordersCount')}</span></div>`;
+      <div class="hero-stat"><b>${orders.length}</b><span>${t('ordersCount')}</span></div>
+      <div class="hero-stat"><b style="color:${locked?'var(--red)':'var(--green)'}">${remaining}</b><span>Quota restant</span></div>`;
+    if (locked) {
+      banner.classList.remove('hidden');
+      banner.innerHTML = `<span style="font-size:22px">🔒</span>
+        <div><b>Compte entreprise verrouillé</b><br>
+        Votre quota de commandes est épuisé. <a href="#" onclick="switchView('company-activation');return false;" style="color:var(--accent-bright);font-weight:700">Réactiver le compte →</a></div>`;
+    }
   } else if (role === 'employe') {
     const sellerShopIds = getSellerShopIds();
     const orders = data.orders.filter(o => orderBelongsToSeller(o, sellerShopIds));
@@ -9372,6 +9412,13 @@ async function validateCart() {
     }
     total += (typeof getEffectivePriceForBuyer==='function'?getEffectivePriceForBuyer(p,(item.variantId&&p.variants)?p.variants.find(v=>v.id===item.variantId):null):p.price) * item.qty;
   }
+  // Client entreprise : commande gratuite, sans paiement ni code de validation
+  if (currentUser.role === 'client') {
+    window._checkoutTotal = total;
+    window._payMethod = 'company_free';
+    await confirmCheckout();
+    return;
+  }
   window._checkoutTotal = total;
   window._payMethod = 'balance';
   try { await refreshCashPaymentOffers(); } catch (e) { console.warn('[Allo] cash offer refresh', e); }
@@ -9405,14 +9452,9 @@ function getCashOfferContext() {
     return shop && shop.id && String(shop.ownerId || '') === uid && shop.isCompanyCatalog !== true
       ? { entityType:'boutique', entityId:shop.id, ownerId:uid, name:shop.name } : null;
   }
+  // Entreprise : plus d'option « paiement à la livraison »
   if (currentUser.role === 'entreprise') {
-    const company = currentUser.companyId
-      ? (data.companies || []).find(c => String(c.id) === String(currentUser.companyId))
-      : null;
-    const resolved = (company && String(company.ownerId || '') === uid) ? company :
-      (data.companies || []).find(c => String(c.ownerId || '') === uid) || null;
-    return resolved && resolved.id && String(resolved.ownerId || '') === uid
-      ? { entityType:'entreprise', entityId:resolved.id, ownerId:uid, name:resolved.name } : null;
+    return null;
   }
   return null;
 }
@@ -9462,12 +9504,12 @@ async function refreshCashPaymentOffers() {
 function cashOfferAvailableForCart(groups) {
   const gs = groups || [];
   if (!gs.length) return false;
+  // Les catalogues entreprise n'utilisent plus le paiement à la livraison
   return gs.every(g => {
     const shop = (data.shops || []).find(s => String(s.id) === String(g.shopId));
     if (!shop) return false;
-    const entityType = shop.isCompanyCatalog === true ? 'entreprise' : 'boutique';
-    const entityId = shop.isCompanyCatalog === true ? shop.companyId : shop.id;
-    return !!findCashOffer(entityType, entityId);
+    if (shop.isCompanyCatalog === true || shop.companyId) return false;
+    return !!findCashOffer('boutique', shop.id);
   });
 }
 
@@ -9579,7 +9621,9 @@ function syncCashAdminPlanInputs() {
 
 async function confirmCheckout() {
   if (!cart.length) return;
-  const method = window._payMethod || 'balance';
+  let method = window._payMethod || 'balance';
+  // Client entreprise : jamais de paiement
+  if (currentUser.role === 'client') method = 'company_free';
   if (method === 'cod') {
     try { await refreshCashPaymentOffers(); } catch (_) {}
     if (!cashOfferAvailableForCart(groupCartByShop())) {
@@ -9588,8 +9632,9 @@ async function confirmCheckout() {
       openModal('checkout');
       return;
     }
-  } else {
+  } else if (method !== 'company_free') {
     window._payMethod = 'balance';
+    method = 'balance';
   }
   const groups = groupCartByShop();
   if (!groups.length) return;
@@ -9603,19 +9648,29 @@ async function confirmCheckout() {
       }
     }
   }
+  // Quota activation entreprise : bloquer si le compte n'est plus actif
+  if (method === 'company_free' || currentUser.role === 'client') {
+    for (const g of groups) {
+      const shop = (data.shops || []).find(s => String(s.id) === String(g.shopId));
+      const cid = shop && (shop.companyId || (shop.isCompanyCatalog ? shop.companyId : null));
+      if (cid && typeof isCompanyAccountActive === 'function' && !isCompanyAccountActive(cid)) {
+        alert(lang === 'en'
+          ? 'This company account is locked. The company must reactivate its account to receive orders.'
+          : 'Le compte de cette entreprise est verrouillé. L’entreprise doit réactiver son compte pour recevoir des commandes.');
+        return;
+      }
+    }
+  }
   const grandRaw = groups.reduce((s, g) => s + g.subtotal, 0);
   const discount = getPromoDiscount(grandRaw);
   const grand = Math.max(0, grandRaw - discount);
-  if (method !== 'cod') {
+  // company_free = client entreprise : aucun débit de solde
+  if (method !== 'cod' && method !== 'company_free') {
     if ((currentUser.balance || 0) < grand) {
       alert(t('balanceInsufficient') + '\n' + (lang==='en'?'Top up from Account.':'Rechargez depuis Compte.'));
       return;
     }
     currentUser.balance -= grand;
-    if (currentUser.role === 'client') {
-      const cl = data.clients.find(c => c.id === currentUser.id);
-      if (cl) cl.balance = currentUser.balance;
-    }
     const reg = registeredUsers.find(u => u.id === currentUser.id);
     if (reg) { reg.balance = currentUser.balance; saveRegisteredUsers(); }
 
@@ -9639,7 +9694,9 @@ async function confirmCheckout() {
     const shop = data.shops.find(sh => sh.id === g.shopId);
     const orderTotal = Math.round(g.subtotal * ratio);
     const hours = (shop && shop.deliveryHours) ? Number(shop.deliveryHours) : 48;
-    const deliveryCode = String(Math.floor(100000 + Math.random() * 900000));
+    const isCompanyOrder = !!(shop && (shop.companyId || shop.isCompanyCatalog)) || method === 'company_free';
+    // Entreprise : pas de code de validation livraison
+    const deliveryCode = isCompanyOrder ? null : String(Math.floor(100000 + Math.random() * 900000));
     const order = {
       id: 'o' + Date.now() + Math.random().toString(36).slice(2, 5),
       userId: currentUser.id,
@@ -9663,9 +9720,9 @@ async function confirmCheckout() {
       })),
       total: orderTotal,
       promo: window._appliedPromo ? window._appliedPromo.code : null,
-      escrow: method !== 'cod',
-      paidHeld: method !== 'cod',
-      commissionTotal: method === 'cod' ? 0 : 0,
+      escrow: method !== 'cod' && method !== 'company_free',
+      paidHeld: method !== 'cod' && method !== 'company_free',
+      commissionTotal: 0, // plus de commission sur les commandes entreprise
       payment: method,
       deliveryCode,
       deliveryHours: hours,
@@ -9693,6 +9750,10 @@ async function confirmCheckout() {
     }
     created.push(order);
     notifySellersOfOrder(order);
+    // Compteur d'activation entreprise
+    if (order.companyId && typeof consumeCompanyOrderQuota === 'function') {
+      try { consumeCompanyOrderQuota(order.companyId); } catch (e) { console.warn('[Allo] company quota', e); }
+    }
   }
 
   try {
@@ -9714,12 +9775,14 @@ async function confirmCheckout() {
     currentUser.id,
     lang === 'en' ? 'Orders placed' : 'Commandes passées',
     (lang === 'en'
-      ? (created.length + ' invoice(s) · ' + formatMoney(grand))
-      : (created.length + ' facture(s) · ' + formatMoney(grand)))
+      ? (created.length + ' invoice(s)' + (method === 'company_free' ? '' : (' · ' + formatMoney(grand))))
+      : (created.length + ' facture(s)' + (method === 'company_free' ? '' : (' · ' + formatMoney(grand)))))
   );
   closeModal();
   alert(
-    (method === 'cod'
+    (method === 'company_free'
+      ? (lang === 'en' ? 'Order placed — no payment required' : 'Commande enregistrée — aucun paiement requis')
+      : method === 'cod'
       ? (lang === 'en' ? 'Order placed — pay in cash at delivery' : 'Commande enregistrée — paiement en espèces à la livraison')
       : t('paymentOk')) + ' · ' +
     (lang === 'en'
@@ -9810,6 +9873,12 @@ async function advanceOrderStatus(orderId) {
     if (role !== 'boutique' && role !== 'entreprise' && role !== 'employe') return;
     if (normalizeOrderStatus(o.status) === 'annulé' || normalizeOrderStatus(o.status) === 'livré') return;
     if (!o.shopStatus || typeof o.shopStatus !== 'object') o.shopStatus = {};
+    // Si déjà en livraison côté entreprise, le prochain clic marque livré
+    if ((role === 'entreprise' || role === 'employe' || o.companyId) &&
+        (normalizeOrderStatus(o.status) === 'livraison' ||
+         Object.values(o.shopStatus || {}).some(st => normalizeOrderStatus(st) === 'livraison'))) {
+      window._forceCompanyDelivered = true;
+    }
 
     const sellerShopIds = (typeof getSellerShopIds === 'function' ? getSellerShopIds() : []).map(String);
     if (!sellerShopIds.length) return;
@@ -9839,8 +9908,36 @@ async function advanceOrderStatus(orderId) {
       : (rank[normalizeOrderStatus(o.status)] ?? 0);
     o.status = Object.keys(rank).find(k => rank[k] === minRank) || 'en cours';
 
-    if (relevantShopIds.some(sid => normalizeOrderStatus(o.shopStatus[sid]) === 'livraison') && !o.deliveryCode) {
+    // Entreprise : pas de code de livraison. Boutique publique : générer le code.
+    const isCompanySeller = currentUser.role === 'entreprise' || currentUser.role === 'employe' || !!o.companyId;
+    if (!isCompanySeller && relevantShopIds.some(sid => normalizeOrderStatus(o.shopStatus[sid]) === 'livraison') && !o.deliveryCode) {
       o.deliveryCode = generateDeliveryCode();
+    }
+    // Entreprise : si le vendeur avance depuis « livraison », passer en « livré » sans code
+    if (isCompanySeller) {
+      for (const sid of relevantShopIds) {
+        // nextSellerStatus ne propose pas livré ; le bouton UI force nxt=livré
+        if (normalizeOrderStatus(o.shopStatus[sid]) === 'livraison' && window._forceCompanyDelivered) {
+          o.shopStatus[sid] = 'livré';
+        }
+      }
+      window._forceCompanyDelivered = false;
+      const allOrderShopIds2 = [...new Set(normalizeOrderItems(o.items || []).map(it => {
+        const sid = it.shopId || ((data.products || []).find(x => String(x.id) === String(it.productId)) || {}).shopId;
+        return sid ? String(sid) : null;
+      }).filter(Boolean))];
+      const statuses2 = allOrderShopIds2.map(sid => normalizeOrderStatus(o.shopStatus[sid] || o.status));
+      const rank2 = { 'en cours': 0, 'preparation': 1, 'livraison': 2, 'livré': 3, 'annulé': -1 };
+      const minRank2 = statuses2.length
+        ? Math.min(...statuses2.map(st => rank2[st] != null ? rank2[st] : 0))
+        : 0;
+      o.status = Object.keys(rank2).find(k => rank2[k] === minRank2) || o.status;
+      if (o.status === 'livré') {
+        o._walletDone = true;
+        o.commissionTotal = 0;
+        pushUserNotif(o.userId, lang==='en'?'Delivered':'Livré',
+          lang==='en'?'Your order has been delivered':'Votre commande a été livrée');
+      }
     }
     const advanced = relevantShopIds.map(sid => normalizeOrderStatus(o.shopStatus[sid]))
       .sort((a,b) => (rank[b] || 0) - (rank[a] || 0))[0] || o.status;
@@ -10124,15 +10221,24 @@ function _paintOrdersList() {
         <b style="font-family:'JetBrains Mono';font-size:12px">${formatMoney(it.qty * it.price)}</b>
       </div>`;
     }).join('');
-    const nxtSeller = nextSellerStatus(displayStatus);
+    const isCompanyOrderEarly = !!(o.companyId || o.payment === 'company_free');
+    let nxtSeller = nextSellerStatus(displayStatus);
+    // Entreprise : peut marquer livré sans code
+    if (!nxtSeller && isCompanyOrderEarly && displayStatus === 'livraison' && (currentUser.role === 'entreprise' || currentUser.role === 'employe')) {
+      nxtSeller = 'livré';
+    }
     const canAdvance = seller && nxtSeller;
     const isBuyer = currentUser.role === 'user' || currentUser.role === 'client';
     const statusIsDelivery = (displayStatus === 'livraison' || o.status === 'livraison');
-    const canConfirmDelivery = isBuyer && statusIsDelivery && o.status !== 'livré' && o.status !== 'annulé';
-    const payLabel = o.payment ? ({ balance: t('payBalance'), wave: t('payWave'), orange: t('payOrange'), mtn: t('payMtn'), cod: t('payCod') }[o.payment] || o.payment) : '';
+    const isCompanyOrder = !!(o.companyId || o.payment === 'company_free');
+    // Entreprise : pas de validation par code
+    const canConfirmDelivery = !isCompanyOrder && isBuyer && statusIsDelivery && o.status !== 'livré' && o.status !== 'annulé' && o.deliveryCode;
+    const payLabel = o.payment ? ({ balance: t('payBalance'), wave: t('payWave'), orange: t('payOrange'), mtn: t('payMtn'), cod: t('payCod'), company_free: (lang==='en'?'Company order (free)':'Commande entreprise (gratuite)') }[o.payment] || o.payment) : '';
     const cashOrderHint = o.payment === 'cod'
       ? `<div style="font-size:11px;color:var(--green);margin-top:5px">💵 ${lang==='en' ? 'Cash order: no Allo balance is charged and no Allo commission is released.' : 'Commande espèces : aucun solde Allo n’est débité et aucune commission Allo n’est libérée.'}</div>`
-      : '';
+      : (isCompanyOrder
+        ? `<div style="font-size:11px;color:var(--green);margin-top:5px">🏢 ${lang==='en' ? 'Company order: no payment and no delivery code required.' : 'Commande entreprise : aucun paiement ni code de livraison requis.'}</div>`
+        : '');
     const totalShow = seller ? subtotal : o.total;
     const deadlineStr = o.deadlineAt ? new Date(o.deadlineAt).toLocaleString(locale) : '';
     const buyerProfileBlock = seller ? (() => {
@@ -10160,7 +10266,7 @@ function _paintOrdersList() {
             : 'Présentez ce code à l’acheteur quand vous livrez. Il le saisit dans l’app pour libérer votre paiement.'}</div>
           <div style="font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:800;letter-spacing:6px;color:var(--cyan);text-align:center;padding:8px 0">${o.deliveryCode}</div>
         </div>` : '';
-    const waitHint = (seller && statusIsDelivery)
+    const waitHint = (seller && statusIsDelivery && !isCompanyOrder && o.deliveryCode)
       ? `<div style="font-size:11px;color:var(--gold);margin-top:6px">⏳ ${t('waitingBuyerConfirm')}</div>` : '';
     // Bloc visible pour l'acheteur : saisie du code inline (plus seulement un bouton discret)
     const buyerConfirmBlock = canConfirmDelivery ? `
@@ -10223,6 +10329,15 @@ function markDelivered(orderId, fromAdvance) {
   }
   pushUserNotif(o.userId, lang==='en'?'Delivered':'Livré',
     lang==='en'?'Your order has been delivered':'Votre commande a été livrée');
+
+  // Entreprise : pas de portefeuille ni de commission
+  if (o.companyId || o.payment === 'company_free') {
+    o._walletDone = true;
+    o.commissionTotal = 0;
+    renderOrders();
+    try { updateAllBadges(); } catch(e) {}
+    return;
+  }
 
   // Credit seller wallet(s) based on products sold
   const shopTotals = {};
@@ -10290,14 +10405,9 @@ function getActiveWalletContext() {
     }
     return shop && shop.id ? { scope: 'boutique', entityId: shop.id, ownerId: shop.ownerId || currentUser.id, name: shop.name } : null;
   }
+  // Entreprise : plus de portefeuille (revenus via activation de compte uniquement)
   if (currentUser.role === 'entreprise') {
-    let company = currentUser.companyId
-      ? (data.companies || []).find(c => String(c.id) === String(currentUser.companyId))
-      : null;
-    if (!company) {
-      company = (data.companies || []).find(c => String(c.ownerId || '') === uid) || null;
-    }
-    return company && company.id ? { scope: 'entreprise', entityId: company.id, ownerId: company.ownerId || currentUser.id, name: company.name } : null;
+    return null;
   }
   return null;
 }
@@ -11454,7 +11564,13 @@ async function openAccountRoleCard(kind) {
         : ('00000000-0000-4000-8000-' + String(Date.now()).padStart(12, '0')).slice(-36);
       company = {
         id, name: currentUser.name || (lang === 'en' ? 'My company' : 'Mon entreprise'),
-        ownerId: currentUser.id, description: lang === 'en' ? 'Company on Allo' : 'Entreprise sur Allo'
+        ownerId: currentUser.id, description: lang === 'en' ? 'Company on Allo' : 'Entreprise sur Allo',
+        // Première ouverture gratuite
+        ordersUsed: 0,
+        orderQuotaTotal: (typeof getCompanyActivationConfig === 'function' ? getCompanyActivationConfig().freeOrderQuota : 50),
+        activationLocked: false,
+        activationPhase: 'free',
+        activationInitialized: true
       };
       if (!data.companies) data.companies = [];
       data.companies.push(company);
@@ -11479,6 +11595,8 @@ async function openAccountRoleCard(kind) {
       }
     }
 
+    // Si le compte est verrouillé, on laisse ouvrir l'espace Activation uniquement
+    if (typeof ensureCompanyActivationFields === 'function') ensureCompanyActivationFields(company);
     window._alloBaseRole = window._alloBaseRole || currentUser.role;
     currentUser.role = 'entreprise';
     try { await saveAppDataAsync(); } catch (e) { console.warn('[Allo] company space sync', e); }
@@ -11621,17 +11739,21 @@ function renderAccount() {
   if (currentUser && currentUser.role === 'admin') {
     syncCashAdminPlanInputs();
   }
-  // Super Admin: hide personal top-up / withdraw (not needed)
+  // Super Admin / Entreprise: pas de portefeuille ni recharges personnelles côté entreprise
   try {
     const fin = document.getElementById('accountFinanceActions');
     const top = document.getElementById('btnAccountTopUp');
     const wit = document.getElementById('btnAccountWithdraw');
+    const wal = document.getElementById('btnAccountWallet');
     const isAdmin = currentUser && currentUser.role === 'admin';
-    if (top) top.style.display = isAdmin ? 'none' : '';
-    if (wit) wit.style.display = isAdmin ? 'none' : '';
-    if (fin && isAdmin) {
-      // Keep wallet button only if useful; still hide recharge/withdraw
-    }
+    const isEntreprise = currentUser && currentUser.role === 'entreprise';
+    const hideFinance = isAdmin || isEntreprise;
+    if (top) top.style.display = hideFinance ? 'none' : '';
+    if (wit) wit.style.display = hideFinance ? 'none' : '';
+    if (wal) wal.style.display = hideFinance ? 'none' : '';
+    if (fin && isEntreprise) fin.style.display = 'none';
+    else if (fin && isAdmin) fin.style.display = '';
+    else if (fin) fin.style.display = '';
   } catch (e) {}
 
   const balEl = document.getElementById('accountBalance');
@@ -14674,6 +14796,259 @@ function deleteProductVariant(productId, variantId) {
   }
 }
 
+
+
+// ===== ACTIVATION COMPTE ENTREPRISE (quota de commandes) =====
+function getCompanyActivationConfig() {
+  const cfg = (typeof adminConfig !== 'undefined' && adminConfig.companyActivation) ? adminConfig.companyActivation : {};
+  return {
+    freeOrderQuota: Math.max(1, Number(cfg.freeOrderQuota) || 50),
+    reactivationOrderQuota: Math.max(1, Number(cfg.reactivationOrderQuota) || 100),
+    reactivationPrice: Math.max(0, Number(cfg.reactivationPrice) || 20000)
+  };
+}
+
+function ensureCompanyActivationFields(company) {
+  if (!company) return null;
+  if (company.activationInitialized) return company;
+  const cfg = getCompanyActivationConfig();
+  // Première ouverture gratuite
+  if (company.orderQuotaTotal == null) company.orderQuotaTotal = cfg.freeOrderQuota;
+  if (company.ordersUsed == null) company.ordersUsed = 0;
+  if (company.activationLocked == null) company.activationLocked = false;
+  if (!company.activationPhase) company.activationPhase = 'free'; // free | paid | locked
+  company.activationInitialized = true;
+  return company;
+}
+
+function getCompanyOrdersRemaining(companyId) {
+  const company = (data.companies || []).find(c => String(c.id) === String(companyId));
+  if (!company) return 0;
+  ensureCompanyActivationFields(company);
+  if (company.activationLocked) return 0;
+  return Math.max(0, Number(company.orderQuotaTotal || 0) - Number(company.ordersUsed || 0));
+}
+
+function isCompanyAccountActive(companyId) {
+  if (!companyId) return true;
+  const company = (data.companies || []).find(c => String(c.id) === String(companyId));
+  if (!company) return false;
+  ensureCompanyActivationFields(company);
+  if (company.activationLocked) return false;
+  return getCompanyOrdersRemaining(companyId) > 0;
+}
+
+function consumeCompanyOrderQuota(companyId) {
+  const company = (data.companies || []).find(c => String(c.id) === String(companyId));
+  if (!company) return;
+  ensureCompanyActivationFields(company);
+  company.ordersUsed = Number(company.ordersUsed || 0) + 1;
+  if (company.ordersUsed >= Number(company.orderQuotaTotal || 0)) {
+    company.activationLocked = true;
+    company.activationPhase = 'locked';
+    // Notifier le propriétaire
+    if (company.ownerId) {
+      pushUserNotif(company.ownerId,
+        lang === 'en' ? 'Company account locked' : 'Compte entreprise verrouillé',
+        lang === 'en'
+          ? 'Your free/paid order quota is exhausted. Reactivate your account from Activation.'
+          : 'Votre quota de commandes est épuisé. Réactivez votre compte depuis Activation.');
+    }
+  }
+  try { saveAppData(); } catch (e) {}
+}
+
+function requestCompanyReactivation() {
+  if (!currentUser || currentUser.role !== 'entreprise') return;
+  const company = (data.companies || []).find(c => String(c.id) === String(currentUser.companyId));
+  if (!company) { alert(lang==='en'?'Company not found':'Entreprise introuvable'); return; }
+  ensureCompanyActivationFields(company);
+  const cfg = getCompanyActivationConfig();
+  if (!company.activationLocked && getCompanyOrdersRemaining(company.id) > 0) {
+    alert(lang==='en'?'Your account is still active.':'Votre compte est encore actif.');
+    return;
+  }
+  if (!data.companyActivationRequests) data.companyActivationRequests = [];
+  const existing = data.companyActivationRequests.find(r =>
+    String(r.companyId) === String(company.id) && r.status === 'pending');
+  if (existing) {
+    alert(lang==='en'?'A reactivation request is already pending.':'Une demande de réactivation est déjà en attente.');
+    return;
+  }
+  const req = {
+    id: 'car' + Date.now(),
+    companyId: company.id,
+    companyName: company.name,
+    ownerId: currentUser.id,
+    ownerName: currentUser.name || currentUser.identifier || '',
+    amount: cfg.reactivationPrice,
+    orderQuota: cfg.reactivationOrderQuota,
+    status: 'pending',
+    date: new Date().toISOString()
+  };
+  data.companyActivationRequests.push(req);
+  try { saveAppData(); } catch (e) {}
+  alert(lang==='en'
+    ? ('Reactivation request sent. Pay ' + formatMoney(cfg.reactivationPrice) + ' then wait for Super Admin validation.')
+    : ('Demande de réactivation envoyée. Payez ' + formatMoney(cfg.reactivationPrice) + ' puis attendez la validation du Super Admin.'));
+  renderCompanyActivation();
+}
+
+async function adminValidateCompanyActivation(reqId) {
+  if (!currentUser || currentUser.role !== 'admin') return;
+  const req = (data.companyActivationRequests || []).find(r => String(r.id) === String(reqId));
+  if (!req || req.status !== 'pending') return;
+  const company = (data.companies || []).find(c => String(c.id) === String(req.companyId));
+  if (!company) { alert('Entreprise introuvable'); return; }
+  ensureCompanyActivationFields(company);
+  const quota = Number(req.orderQuota) || getCompanyActivationConfig().reactivationOrderQuota;
+  company.orderQuotaTotal = Number(company.ordersUsed || 0) + quota;
+  company.activationLocked = false;
+  company.activationPhase = 'paid';
+  company.lastActivationAt = new Date().toISOString();
+  req.status = 'validated';
+  req.reviewedAt = new Date().toISOString();
+  // Créditer le Super Admin (revenus activation)
+  if (!adminConfig.companyActivationRevenue) adminConfig.companyActivationRevenue = 0;
+  adminConfig.companyActivationRevenue = Number(adminConfig.companyActivationRevenue || 0) + Number(req.amount || 0);
+  try { saveAdminConfig(); } catch (e) {}
+  try { saveAppData(); } catch (e) {}
+  pushUserNotif(req.ownerId,
+    lang==='en'?'Company reactivated':'Entreprise réactivée',
+    lang==='en'
+      ? ('Your account is active for ' + quota + ' more orders.')
+      : ('Votre compte est actif pour ' + quota + ' commandes supplémentaires.'));
+  renderAdminCompanyActivations();
+  alert(lang==='en'?'Company reactivated.':'Entreprise réactivée.');
+}
+
+async function adminRefuseCompanyActivation(reqId) {
+  if (!currentUser || currentUser.role !== 'admin') return;
+  const req = (data.companyActivationRequests || []).find(r => String(r.id) === String(reqId));
+  if (!req || req.status !== 'pending') return;
+  const reason = (prompt(lang==='en'?'Reason:':'Raison :') || '').trim() || (lang==='en'?'Refused':'Refusé');
+  req.status = 'refused';
+  req.reason = reason;
+  req.reviewedAt = new Date().toISOString();
+  try { saveAppData(); } catch (e) {}
+  pushUserNotif(req.ownerId, lang==='en'?'Reactivation refused':'Réactivation refusée', reason);
+  renderAdminCompanyActivations();
+}
+
+function saveCompanyActivationConfig() {
+  if (!currentUser || currentUser.role !== 'admin') return;
+  const freeQ = parseInt(document.getElementById('mCoActFreeQuota')?.value, 10);
+  const reactQ = parseInt(document.getElementById('mCoActReactQuota')?.value, 10);
+  const price = parseInt(document.getElementById('mCoActPrice')?.value, 10);
+  if (!adminConfig.companyActivation) adminConfig.companyActivation = {};
+  if (Number.isFinite(freeQ) && freeQ > 0) adminConfig.companyActivation.freeOrderQuota = freeQ;
+  if (Number.isFinite(reactQ) && reactQ > 0) adminConfig.companyActivation.reactivationOrderQuota = reactQ;
+  if (Number.isFinite(price) && price >= 0) adminConfig.companyActivation.reactivationPrice = price;
+  try { saveAdminConfig(); } catch (e) {}
+  alert(lang==='en'?'Activation settings saved.':'Paramètres d’activation enregistrés.');
+  renderAdminCompanyActivations();
+}
+
+function renderCompanyActivation() {
+  const el = document.getElementById('companyActivationContent');
+  if (!el || !currentUser || currentUser.role !== 'entreprise') return;
+  const company = (data.companies || []).find(c => String(c.id) === String(currentUser.companyId));
+  if (!company) {
+    el.innerHTML = '<div class="empty">Entreprise introuvable</div>';
+    return;
+  }
+  ensureCompanyActivationFields(company);
+  const cfg = getCompanyActivationConfig();
+  const remaining = getCompanyOrdersRemaining(company.id);
+  const used = Number(company.ordersUsed || 0);
+  const total = Number(company.orderQuotaTotal || 0);
+  const locked = !!company.activationLocked;
+  const pending = (data.companyActivationRequests || []).find(r =>
+    String(r.companyId) === String(company.id) && r.status === 'pending');
+  el.innerHTML = `
+    <div class="card">
+      <b>🔑 Activation du compte entreprise</b>
+      <p style="font-size:12.5px;color:var(--text-muted);margin-top:8px;line-height:1.45">
+        La première ouverture est <b style="color:var(--green)">gratuite</b> pour
+        <b>${cfg.freeOrderQuota}</b> commandes. Ensuite, une réactivation de
+        <b>${formatMoney(cfg.reactivationPrice)}</b> débloque
+        <b>${cfg.reactivationOrderQuota}</b> commandes.
+      </p>
+      <div class="stat-grid" style="margin-top:12px">
+        <div class="stat-card"><b>${used}</b><span>Commandes utilisées</span></div>
+        <div class="stat-card"><b>${remaining}</b><span>Restantes</span></div>
+        <div class="stat-card"><b>${total}</b><span>Quota total</span></div>
+        <div class="stat-card"><b style="color:${locked?'var(--red)':'var(--green)'}">${locked?'Verrouillé':'Actif'}</b><span>Statut</span></div>
+      </div>
+      ${locked ? `<div style="margin-top:14px;padding:12px;border-radius:12px;background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);font-size:13px">
+        Votre quota est épuisé. Réactivez pour ${formatMoney(cfg.reactivationPrice)}
+        (${cfg.reactivationOrderQuota} commandes).
+      </div>
+      ${pending
+        ? '<div style="margin-top:10px" class="status-pill status-pending">Demande en attente de validation</div>'
+        : '<button class="btn btn-accent btn-block" style="margin-top:12px" onclick="requestCompanyReactivation()">🔑 Demander la réactivation</button>'
+      }` : `<div style="margin-top:12px;font-size:12px;color:var(--green)">✓ Compte actif — vos clients peuvent commander.</div>`}
+    </div>`;
+}
+
+function renderAdminCompanyActivations() {
+  const cfgEl = document.getElementById('adminCompanyActivationConfig');
+  const listEl = document.getElementById('adminCompanyActivationList');
+  if (!cfgEl && !listEl) return;
+  const cfg = getCompanyActivationConfig();
+  if (cfgEl) {
+    cfgEl.innerHTML = `
+      <div class="card">
+        <b>⚙️ Paramètres d’activation entreprise</b>
+        <p style="font-size:12px;color:var(--text-muted);margin:6px 0 12px">
+          Première ouverture gratuite, puis réactivation payante définie ici.
+        </p>
+        <div class="field"><label>Quota gratuit (1ère ouverture)</label>
+          <input type="number" id="mCoActFreeQuota" min="1" value="${cfg.freeOrderQuota}"></div>
+        <div class="field"><label>Quota après réactivation</label>
+          <input type="number" id="mCoActReactQuota" min="1" value="${cfg.reactivationOrderQuota}"></div>
+        <div class="field"><label>Prix de réactivation (FCFA)</label>
+          <input type="number" id="mCoActPrice" min="0" step="100" value="${cfg.reactivationPrice}"></div>
+        <button class="btn btn-accent btn-block" onclick="saveCompanyActivationConfig()">Enregistrer</button>
+        <div style="margin-top:10px;font-size:12px;color:var(--text-muted)">
+          Revenus activations : <b style="color:var(--accent-bright)">${formatMoney(adminConfig.companyActivationRevenue||0)}</b>
+        </div>
+      </div>`;
+  }
+  if (listEl) {
+    const list = (data.companyActivationRequests || []).slice().reverse();
+    if (!list.length) {
+      listEl.innerHTML = '<div class="empty">Aucune demande de réactivation</div>';
+    } else {
+      listEl.innerHTML = list.map(r => `
+        <div class="card">
+          <div style="display:flex;justify-content:space-between"><b>${r.companyName||'Entreprise'}</b>${statusPillReq(r.status)}</div>
+          <div style="font-size:13px;margin-top:6px"><b>${formatMoney(r.amount)}</b> · ${r.orderQuota} commandes</div>
+          <div style="font-size:12px;color:var(--text-muted)">${r.ownerName||''} · ${r.date?new Date(r.date).toLocaleString('fr-FR'):''}</div>
+          ${r.status==='pending'
+            ? `<div style="display:flex;gap:8px;margin-top:10px">
+                <button class="btn btn-sm btn-accent" style="flex:1" onclick="adminValidateCompanyActivation('${r.id}')">Valider</button>
+                <button class="btn btn-sm btn-danger" style="flex:1" onclick="adminRefuseCompanyActivation('${r.id}')">Refuser</button>
+              </div>`
+            : (r.reason?`<div style="font-size:12px;color:var(--red);margin-top:6px">${r.reason}</div>`:'')}
+        </div>`).join('');
+    }
+  }
+  // Also list all companies status
+  const allEl = document.getElementById('adminCompaniesStatusList');
+  if (allEl) {
+    const cos = data.companies || [];
+    allEl.innerHTML = cos.length ? cos.map(c => {
+      ensureCompanyActivationFields(c);
+      const rem = getCompanyOrdersRemaining(c.id);
+      return `<div class="list-row">
+        <div class="c-info"><div class="c-name">${c.name||'Entreprise'}</div>
+        <div class="c-sub">${c.ordersUsed||0}/${c.orderQuotaTotal||0} commandes · reste ${rem}</div></div>
+        <span class="status-pill ${c.activationLocked?'status-refused':'status-ok'}">${c.activationLocked?'Verrouillé':'Actif'}</span>
+      </div>`;
+    }).join('') : '<div class="empty">Aucune entreprise</div>';
+  }
+}
 
 
 init();
