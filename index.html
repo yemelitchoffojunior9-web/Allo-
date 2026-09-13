@@ -6053,6 +6053,46 @@ function setAuthLoading(which, loading) {
   }
 }
 
+
+/** Disable modal primary action while async work runs (anti double-click). */
+let _modalActionBusy = false;
+function setModalActionBusy(busy, loadingLabel) {
+  const btn = document.querySelector('#modalContent button.btn-accent.btn-block, #modalContent .btn-accent.btn-block');
+  if (busy) {
+    if (_modalActionBusy) return false;
+    _modalActionBusy = true;
+    if (btn) {
+      btn.dataset.prevLabel = btn.textContent;
+      btn.disabled = true;
+      btn.style.opacity = '0.75';
+      btn.style.pointerEvents = 'none';
+      btn.setAttribute('aria-busy', 'true');
+      if (loadingLabel) btn.textContent = loadingLabel;
+    }
+    return true;
+  }
+  _modalActionBusy = false;
+  if (btn) {
+    btn.disabled = false;
+    btn.style.opacity = '';
+    btn.style.pointerEvents = '';
+    btn.removeAttribute('aria-busy');
+    if (btn.dataset.prevLabel) {
+      btn.textContent = btn.dataset.prevLabel;
+      delete btn.dataset.prevLabel;
+    }
+  }
+  return true;
+}
+function actionBusyLabel(kind) {
+  const en = lang === 'en';
+  if (kind === 'create') return en ? 'Creating…' : 'Création…';
+  if (kind === 'save') return en ? 'Saving…' : 'Enregistrement…';
+  if (kind === 'send') return en ? 'Sending…' : 'Envoi…';
+  if (kind === 'pay') return en ? 'Processing…' : 'Traitement…';
+  return en ? 'Please wait…' : 'Patientez…';
+}
+
 function withTimeout(promise, ms, label) {
   return Promise.race([
     promise,
@@ -7481,6 +7521,10 @@ async function saveAdminCommissions() {
   } catch(e) { console.error(e); alert(lang==='en'?'Save error':'Erreur d’enregistrement'); }
 }
 async function sendAdminNotification() {
+  if (_modalActionBusy) return;
+  if (!setModalActionBusy(true, actionBusyLabel('send'))) return;
+  try {
+
   const title = (document.getElementById('adminNotifTitle')?.value || '').trim();
   const body = (document.getElementById('adminNotifBody')?.value || '').trim();
   const target = document.getElementById('adminNotifTarget')?.value || 'all';
@@ -7497,6 +7541,10 @@ async function sendAdminNotification() {
   document.getElementById('adminNotifTitle').value='';
   document.getElementById('adminNotifBody').value='';
   alert(t('adminNotifSent')); renderAdminNotifs();
+
+  } finally {
+    setModalActionBusy(false);
+  }
 }
 
 function renderAdminNotifs() {
@@ -9401,6 +9449,10 @@ function renderCart() {
 
 
 async function validateCart() {
+  if (_modalActionBusy) return;
+  if (!setModalActionBusy(true, actionBusyLabel('pay'))) return;
+  try {
+
   if (!cart.length) return;
   if (currentUser.role !== 'user' && currentUser.role !== 'client') return;
   let total = 0;
@@ -9424,6 +9476,10 @@ async function validateCart() {
   try { await refreshCashPaymentOffers(); } catch (e) { console.warn('[Allo] cash offer refresh', e); }
   window._cashOfferAvailable = cashOfferAvailableForCart(groupCartByShop());
   openModal('checkout');
+
+  } finally {
+    setModalActionBusy(false);
+  }
 }
 
 function selectPayMethod(m) {
@@ -9620,6 +9676,10 @@ function syncCashAdminPlanInputs() {
 }
 
 async function confirmCheckout() {
+  if (_modalActionBusy) return;
+  if (!setModalActionBusy(true, actionBusyLabel('pay'))) return;
+  try {
+
   if (!cart.length) return;
   let method = window._payMethod || 'balance';
   // Client entreprise : jamais de paiement
@@ -9792,7 +9852,12 @@ async function confirmCheckout() {
   renderAll();
   switchView('orders');
   try { updateAllBadges(); } catch (e) {}
+
+  } finally {
+    setModalActionBusy(false);
+  }
 }
+
 
 function orderStatusLabel(st) {
   const map = {
@@ -10762,6 +10827,10 @@ function renderEmployees() {
 }
 
 async function addEmployee() {
+  if (_modalActionBusy) return;
+  if (!setModalActionBusy(true, actionBusyLabel('create'))) return;
+  try {
+
   if (!currentUser || currentUser.role !== 'entreprise') return;
   const rawId = document.getElementById('mEmpId')?.value || '';
   const ident = (typeof normalizeIdentifier === 'function') ? normalizeIdentifier(rawId) : String(rawId).trim().toLowerCase().replace(/\s+/g,'');
@@ -10782,6 +10851,10 @@ async function addEmployee() {
     console.error('[Allo] link employee',e);
     alert((lang==='en'?'Employee link failed: ':'Impossible de rattacher l’employé : ')+(e.message||e));
   }
+
+  } finally {
+    setModalActionBusy(false);
+  }
 }
 async function deleteEmployee(id) {
   if (!currentUser || currentUser.role !== 'entreprise') return;
@@ -10797,6 +10870,10 @@ async function deleteEmployee(id) {
 }
 
 async function saveEmployee(id) {
+  if (_modalActionBusy) return;
+  if (!setModalActionBusy(true, actionBusyLabel('save'))) return;
+  try {
+
   if (!currentUser || currentUser.role !== 'entreprise') return;
   const emp = getCompanyEmployees().find(u => String(u.id) === String(id));
   if (!emp) { alert(lang === 'en' ? 'Employee not found' : 'Employé introuvable'); return; }
@@ -10823,6 +10900,10 @@ async function saveEmployee(id) {
       alert((lang==='en'?'Update failed: ':'Modification impossible : ')+(e.message||e));
       return;
     }
+  }
+
+  } finally {
+    setModalActionBusy(false);
   }
 }
 
@@ -12698,6 +12779,7 @@ async function ensureProfileCompletion(force) {
 function closeModal() {
   if (window._profileCompletionRequired) return;
   document.getElementById('modalOverlay').classList.remove('show');
+  try { if (typeof setModalActionBusy === 'function') setModalActionBusy(false); } catch (e) {}
 }
 
 function previewTopProof(input) {
@@ -12993,6 +13075,10 @@ async function previewShopCover(input) {
 }
 
 async function saveShopProfile() {
+  if (_modalActionBusy) return;
+  if (!setModalActionBusy(true, actionBusyLabel('save'))) return;
+  try {
+
   try {
     if (!currentUser || currentUser.role !== 'boutique') {
       alert(lang === 'en' ? 'Shops only' : 'Réservé aux boutiques');
@@ -13038,6 +13124,10 @@ async function saveShopProfile() {
   } catch (e) {
     console.error('saveShopProfile', e);
     alert((lang === 'en' ? 'Could not save: ' : 'Enregistrement impossible : ') + (e.message || e));
+  }
+
+  } finally {
+    setModalActionBusy(false);
   }
 }
 
@@ -13164,28 +13254,29 @@ async function ensureCompanyCatalogForCurrentUser() {
 }
 
 async function addProduct(shopIdOverride) {
+  if (_modalActionBusy) return;
+  const nameEl = document.getElementById('mName');
+  const priceEl = document.getElementById('mPrice');
+  const stockEl = document.getElementById('mStock');
+  const iconEl = document.getElementById('mIcon');
+  const name = (nameEl?.value || '').trim();
+  const catsArr = (typeof getSelectedCategoriesFromForm === 'function') ? getSelectedCategoriesFromForm() : [];
+  if (catsArr.length !== 1) {
+    alert(lang === 'en' ? 'Choose exactly one category.' : 'Choisissez exactement une catégorie.');
+    return;
+  }
+  const cat = catsArr[0];
+  const hashtags = (typeof getProductHashtagsFromForm === 'function') ? getProductHashtagsFromForm() : [];
+  const price = parseInt(priceEl?.value, 10) || 0;
+  const stock = parseInt(stockEl?.value, 10) || 0;
+  const icon = (iconEl?.value || '📦').trim() || '📦';
+  const image = getProductImageFromForm();
+  if (!name || !price) {
+    alert(t('fillFields'));
+    return;
+  }
+  if (!setModalActionBusy(true, actionBusyLabel('create'))) return;
   try {
-    const nameEl = document.getElementById('mName');
-    const priceEl = document.getElementById('mPrice');
-    const stockEl = document.getElementById('mStock');
-    const iconEl = document.getElementById('mIcon');
-    const name = (nameEl?.value || '').trim();
-    const catsArr = (typeof getSelectedCategoriesFromForm === 'function') ? getSelectedCategoriesFromForm() : [];
-    if (catsArr.length !== 1) {
-      alert(lang === 'en' ? 'Choose exactly one category.' : 'Choisissez exactement une catégorie.');
-      return;
-    }
-    const cat = catsArr[0];
-    const hashtags = (typeof getProductHashtagsFromForm === 'function') ? getProductHashtagsFromForm() : [];
-    const price = parseInt(priceEl?.value, 10) || 0;
-    const stock = parseInt(stockEl?.value, 10) || 0;
-    const icon = (iconEl?.value || '📦').trim() || '📦';
-    const image = getProductImageFromForm();
-    if (!name || !price) {
-      alert(t('fillFields'));
-      return;
-    }
-
     let shopId;
     let shop;
     const isEnt = currentUser.role === 'entreprise';
@@ -13250,6 +13341,7 @@ async function addProduct(shopIdOverride) {
       icon,
       cat,
       cats: catsArr,
+      hashtags: hashtags || [],
       image: cover,
       images: imgs.length ? imgs : (cover ? [cover] : [])
     });
@@ -13289,10 +13381,13 @@ async function addProduct(shopIdOverride) {
   } catch (e) {
     console.error('addProduct', e);
     alert((lang === 'en' ? 'Could not create product: ' : 'Impossible de créer le produit : ') + (e.message || e));
+  } finally {
+    setModalActionBusy(false);
   }
 }
 
 async function saveProduct(id) {
+  if (_modalActionBusy) return;
   try {
     const p = data.products.find(x => x.id === id);
     if (!p) { alert(t('productNotFound')); return; }
@@ -13304,6 +13399,7 @@ async function saveProduct(id) {
       alert(lang === 'en' ? 'Choose exactly one category.' : 'Choisissez exactement une catégorie.');
       return;
     }
+    if (!setModalActionBusy(true, actionBusyLabel('save'))) return;
     p.cat = catsArr[0];
     p.cats = [p.cat];
     p.hashtags = (typeof getProductHashtagsFromForm === 'function') ? getProductHashtagsFromForm() : [];
@@ -13353,6 +13449,9 @@ async function saveProduct(id) {
   } catch (e) {
     console.error('saveProduct', e);
     alert((lang === 'en' ? 'Could not save: ' : 'Enregistrement impossible : ') + (e.message || e));
+  }
+ finally {
+    setModalActionBusy(false);
   }
 }
 
@@ -13520,6 +13619,10 @@ async function saveClientPrices(clientId) {
 }
 
 async function addClient() {
+  if (_modalActionBusy) return;
+  if (!setModalActionBusy(true, actionBusyLabel('create'))) return;
+  try {
+
   if (!currentUser || currentUser.role !== 'entreprise') return;
   const rawId = document.getElementById('mClientId')?.value || '';
   const ident = (typeof normalizeIdentifier === 'function') ? normalizeIdentifier(rawId) : String(rawId).trim().toLowerCase().replace(/\s+/g, '');
@@ -13536,6 +13639,10 @@ async function addClient() {
   } catch(e) {
     console.error('[Allo] link client',e);
     alert((lang==='en'?'Client link failed: ':'Impossible de rattacher le client : ')+(e.message||e));
+  }
+
+  } finally {
+    setModalActionBusy(false);
   }
 }
 function markDataDirty() {
@@ -14151,6 +14258,10 @@ function alloParseRequestNote(note) {
 }
 
 async function submitTopUpRequest() {
+  if (_modalActionBusy) return;
+  if (!setModalActionBusy(true, actionBusyLabel('send'))) return;
+  try {
+
   if (!currentUser || currentUser.role === 'admin') return;
   const senderName = (document.getElementById('mTopSenderName')?.value || '').trim();
   const senderPhone = (document.getElementById('mTopSenderPhone')?.value || '').trim();
@@ -14225,9 +14336,17 @@ async function submitTopUpRequest() {
   closeModal();
   alert(lang === 'en' ? 'Top-up request sent. Awaiting validation.' : 'Demande de recharge envoyée. En attente de validation.');
   switchView('topups');
+
+  } finally {
+    setModalActionBusy(false);
+  }
 }
 
 async function submitWithdrawRequest() {
+  if (_modalActionBusy) return;
+  if (!setModalActionBusy(true, actionBusyLabel('send'))) return;
+  try {
+
   if (!currentUser || currentUser.role === 'admin') return;
   const amount = parseInt(document.getElementById('mWdAmount')?.value, 10);
   const method = document.getElementById('mWdMethod')?.value || '';
@@ -14295,6 +14414,10 @@ async function submitWithdrawRequest() {
   closeModal();
   alert(lang === 'en' ? 'Withdrawal request sent. Awaiting validation.' : 'Demande de retrait envoyée. En attente de validation.');
   switchView('withdraws');
+
+  } finally {
+    setModalActionBusy(false);
+  }
 }
 
 function statusPillReq(status) {
@@ -14577,6 +14700,10 @@ async function deletePayMethod(id) {
   renderAdminPayMethods();
 }
 async function savePayMethod() {
+  if (_modalActionBusy) return;
+  if (!setModalActionBusy(true, actionBusyLabel('save'))) return;
+  try {
+
   if(!currentUser||currentUser.role!=='admin')return;
   const name=(document.getElementById('mPmName')?.value||'').trim(), type=document.getElementById('mPmType')?.value||'both', icon=document.getElementById('mPmIcon')?.value||'💳';
   if(!name){alert('Nom requis');return;}
@@ -14587,6 +14714,10 @@ async function savePayMethod() {
     await sbLoadAllIntoData();
   } else {data.paymentMethods.push(row);saveAppData();}
   closeModal();renderAdminPayMethods();
+
+  } finally {
+    setModalActionBusy(false);
+  }
 }
 function renderPromos() {
   const el = document.getElementById('promosList');
@@ -14635,6 +14766,10 @@ function stopProductPromo(id) {
   alert('Promotion arrêtée');
 }
 function saveCreatePromo() {
+  if (_modalActionBusy) return;
+  if (!setModalActionBusy(true, actionBusyLabel('save'))) return;
+  try {
+
   if (!currentUser || (currentUser.role !== 'boutique' && currentUser.role !== 'entreprise')) return;
   const productId = document.getElementById('mPromoProduct')?.value;
   const variantId = document.getElementById('mPromoVariant')?.value || '';
@@ -14668,6 +14803,10 @@ function saveCreatePromo() {
   closeModal();
   renderAll();
   alert('Promotion enregistrée');
+
+  } finally {
+    setModalActionBusy(false);
+  }
 }
 
 let _variantsProductId = null;
@@ -14741,6 +14880,10 @@ function addVariantToCart(productId, variantId) {
 }
 
 async function saveProductVariant() {
+  if (_modalActionBusy) return;
+  if (!setModalActionBusy(true, actionBusyLabel('save'))) return;
+  try {
+
   const productId = document.getElementById('mVarProductId')?.value;
   const name = (document.getElementById('mVarName')?.value||'').trim();
   const price = parseInt(document.getElementById('mVarPrice')?.value,10)||0;
@@ -14781,6 +14924,10 @@ async function saveProductVariant() {
   setTimeout(function () {
     openModal('manageVariants', productId);
   }, 120);
+
+  } finally {
+    setModalActionBusy(false);
+  }
 }
 function deleteProductVariant(productId, variantId) {
   const p = data.products.find(x => x.id === productId);
