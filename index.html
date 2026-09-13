@@ -8215,48 +8215,54 @@ function getShopName(shopId) {
 
 function resolveUserShopLinks() {
   if (!currentUser || !currentUser.id) return;
-  // Retrouver la boutique liée au compte (ownerId)
-  if (currentUser.role === 'boutique' || currentUser.role === 'entreprise') {
+  // Boutique publique uniquement — jamais confondre avec le catalogue entreprise.
+  if (currentUser.role === 'boutique') {
+    const isPublic = (s) => !!(s && s.isCompanyCatalog !== true && !s.companyId && s.private !== true);
     let shop = null;
     if (currentUser.shopId) {
-      shop = (data.shops || []).find(s => String(s.id) === String(currentUser.shopId));
+      const candidate = (data.shops || []).find(s => String(s.id) === String(currentUser.shopId));
+      if (isPublic(candidate)) shop = candidate;
     }
     if (!shop) {
-      shop = (data.shops || []).find(s => String(s.ownerId) === String(currentUser.id));
+      shop = (data.shops || []).find(s => String(s.ownerId) === String(currentUser.id) && isPublic(s));
     }
     // Rattacher les produits orphelins de ce propriétaire à une boutique existante
-    if (!shop && currentUser.role === 'boutique') {
+    if (!shop) {
       const orphanShopId = ((data.products || []).find(p =>
         String(p.ownerId || '') === String(currentUser.id) && p.shopId
       ) || {}).shopId;
       if (orphanShopId) {
-        shop = (data.shops || []).find(s => String(s.id) === String(orphanShopId));
+        shop = (data.shops || []).find(s => String(s.id) === String(orphanShopId) && isPublic(s));
         if (!shop) {
-          // Recréer la boutique manquante à partir des produits
-          shop = {
-            id: orphanShopId,
-            name: currentUser.name || 'Ma boutique',
-            ownerId: currentUser.id,
-            companyId: null,
-            description: 'Boutique sur Allo',
-            coverImage: null,
-            deliveryZones: []
-          };
-          if (!data.shops) data.shops = [];
-          data.shops.push(shop);
-          try { saveAppData(); } catch (e) {}
+          const candidate = (data.shops || []).find(s => String(s.id) === String(orphanShopId));
+          if (candidate && !isPublic(candidate)) shop = null;
+          else if (!candidate) {
+            // Recréer la boutique manquante à partir des produits
+            shop = {
+              id: orphanShopId,
+              name: currentUser.name || 'Ma boutique',
+              ownerId: currentUser.id,
+              companyId: null,
+              description: 'Boutique sur Allo',
+              coverImage: null,
+              deliveryZones: [],
+              private: false,
+              isCompanyCatalog: false
+            };
+            if (!data.shops) data.shops = [];
+            data.shops.push(shop);
+            try { saveAppData(); } catch (e) {}
+          }
         }
       }
     }
-    if (!shop && currentUser.role === 'boutique') {
-      // Dernier recours : créer / rattacher via ensureBoutiqueShop
+    if (!shop) {
       try {
         if (typeof ensureBoutiqueShop === 'function') shop = ensureBoutiqueShop();
       } catch (e) {}
     }
-    if (shop) {
+    if (shop && isPublic(shop)) {
       currentUser.shopId = shop.id;
-      if (shop.companyId) currentUser.companyId = shop.companyId;
       // Réparer les produits de ce propriétaire sans shopId
       (data.products || []).forEach(p => {
         if (String(p.ownerId || '') === String(currentUser.id) && !p.shopId) {
@@ -8264,16 +8270,29 @@ function resolveUserShopLinks() {
         }
       });
     }
-    // Entreprise : companyId
-    if (currentUser.role === 'entreprise' && !currentUser.companyId) {
-      const co = (data.companies || []).find(c => String(c.ownerId) === String(currentUser.id));
-      if (co) currentUser.companyId = co.id;
-    }
-    // Sync registeredUsers
     const reg = (registeredUsers || []).find(u => String(u.id) === String(currentUser.id));
     if (reg) {
       reg.shopId = currentUser.shopId;
       reg.companyId = currentUser.companyId;
+    }
+  }
+  // Entreprise : ne jamais écrire shopId (catalogue ≠ boutique publique)
+  if (currentUser.role === 'entreprise') {
+    if (!currentUser.companyId) {
+      const co = (data.companies || []).find(c => String(c.ownerId) === String(currentUser.id));
+      if (co) currentUser.companyId = co.id;
+    }
+    // Nettoyer un shopId catalogue éventuellement resté sur le profil
+    if (currentUser.shopId) {
+      const s = (data.shops || []).find(x => String(x.id) === String(currentUser.shopId));
+      if (!s || s.isCompanyCatalog === true || s.companyId) {
+        currentUser.shopId = null;
+      }
+    }
+    const reg = (registeredUsers || []).find(u => String(u.id) === String(currentUser.id));
+    if (reg) {
+      reg.companyId = currentUser.companyId;
+      if (currentUser.shopId == null) reg.shopId = null;
     }
   }
   // Client : companyId depuis data.clients
@@ -11858,13 +11877,33 @@ function renderAccount() {
 
     // Compatibilité avec les anciennes données : si les deux liens existent,
     // on conserve le lien déjà porté par le profil et on masque l'autre option.
-    let businessType = currentUser.shopId ? 'shop' : (currentUser.companyId ? 'company' : null);
-    if (businessType === 'shop' && currentUser.companyId) currentUser.companyId = null;
-    if (businessType === 'company' && currentUser.shopId) currentUser.shopId = null;
+    // Important : un shopId pointant vers un catalogue entreprise (isCompanyCatalog
+    // ou companyId) n'est PAS une activité boutique — c'était un bug de ensureCompanyCatalog.
+    const isPubShop = (s) => !!(s && s.isCompanyCatalog !== true && !s.companyId && s.private !== true);
+    if (currentUser.shopId && linkedShop && !isPubShop(linkedShop)) {
+      currentUser.shopId = null;
+      const regFix = (registeredUsers || []).find(u => String(u.id) === String(currentUser.id));
+      if (regFix) regFix.shopId = null;
+    }
+    if (!currentUser.companyId) {
+      const ownedCo = (data.companies || []).find(c => String(c.ownerId || '') === uid);
+      if (ownedCo) currentUser.companyId = ownedCo.id;
+    }
+    let businessType = null;
+    if (currentUser.companyId) {
+      businessType = 'company';
+      if (currentUser.shopId) currentUser.shopId = null;
+    } else if (currentUser.shopId && isPubShop(linkedShop)) {
+      businessType = 'shop';
+    } else if (currentUser.shopId && !linkedShop) {
+      businessType = 'shop';
+    }
 
-    const ownedShop = linkedShop || (businessType === 'shop'
-      ? (data.shops || []).find(s => String(s.ownerId || '') === uid)
-      : null);
+    const ownedShop = (businessType === 'shop')
+      ? (isPubShop(linkedShop)
+          ? linkedShop
+          : (data.shops || []).find(s => String(s.ownerId || '') === uid && isPubShop(s)))
+      : null;
     const ownedCompany = linkedCompany || (businessType === 'company'
       ? (data.companies || []).find(c => String(c.ownerId || '') === uid)
       : null);
@@ -13133,13 +13172,19 @@ async function saveShopProfile() {
 
 function ensureBoutiqueShop() {
   if (!currentUser) return null;
+  // Les entreprises utilisent ensureCompanyCatalogForCurrentUser(), pas cette voie boutique.
+  if (currentUser.role === 'entreprise' || currentUser.role === 'employe') {
+    return null;
+  }
   try { resolveUserShopLinks(); } catch (e) {}
+  const isPublicBoutique = (s) => !!(s && s.isCompanyCatalog !== true && !s.companyId && s.private !== true);
   let shop = null;
   if (currentUser.shopId) {
-    shop = (data.shops || []).find(s => String(s.id) === String(currentUser.shopId));
+    const candidate = (data.shops || []).find(s => String(s.id) === String(currentUser.shopId));
+    if (isPublicBoutique(candidate)) shop = candidate;
   }
   if (!shop) {
-    shop = (data.shops || []).find(s => String(s.ownerId) === String(currentUser.id));
+    shop = (data.shops || []).find(s => String(s.ownerId) === String(currentUser.id) && isPublicBoutique(s));
   }
   if (!shop && currentUser.role === 'boutique') {
     const sid = 's' + Date.now();
@@ -13150,33 +13195,15 @@ function ensureBoutiqueShop() {
       companyId: null,
       description: 'Boutique sur Allo',
       coverImage: null,
-      deliveryZones: []
+      deliveryZones: [],
+      private: false,
+      isCompanyCatalog: false
     };
     if (!data.shops) data.shops = [];
     data.shops.push(shop);
   }
-  // Entreprise : catalogue interne privé (jamais listé aux utilisateurs publics)
-  if (!shop && currentUser.role === 'entreprise') {
-    const sid = 's' + Date.now();
-    shop = {
-      id: sid,
-      name: currentUser.name || 'Entreprise',
-      ownerId: currentUser.id,
-      companyId: currentUser.companyId || null,
-      private: true,
-      isCompanyCatalog: true,
-      description: 'Catalogue entreprise (privé)'
-    };
-    if (!data.shops) data.shops = [];
-    data.shops.push(shop);
-  }
-  if (shop) {
+  if (shop && currentUser.role === 'boutique') {
     if (!shop.ownerId) shop.ownerId = currentUser.id;
-    if (currentUser.role === 'entreprise') {
-      shop.private = true;
-      shop.isCompanyCatalog = true;
-      if (currentUser.companyId) shop.companyId = currentUser.companyId;
-    }
     currentUser.shopId = shop.id;
     const reg = (registeredUsers || []).find(u => String(u.id) === String(currentUser.id));
     if (reg) reg.shopId = shop.id;
@@ -13247,9 +13274,9 @@ async function ensureCompanyCatalogForCurrentUser() {
   catalog.companyId = cid;
   catalog.private = true;
   catalog.isCompanyCatalog = true;
-  currentUser.shopId = catalog.id;
-  const reg = (registeredUsers || []).find(u => String(u.id) === String(currentUser.id));
-  if (reg) reg.shopId = catalog.id;
+  // Ne JAMAIS écrire le catalogue privé dans currentUser.shopId / profiles.shop_id.
+  // shop_id sur le profil signifie « activité boutique publique » et écraserait
+  // le choix entreprise (renderAccount prend shopId en priorité et efface companyId).
   return catalog;
 }
 
