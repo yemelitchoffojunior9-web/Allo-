@@ -3813,6 +3813,11 @@ function mapOrderRow(r, items) {
     status: ({'confirmé':'preparation','expédié':'livraison'}[String(r.status || '').toLowerCase()] || r.status || 'en cours'),
     shopStatus: r.shop_status || {},
     timeline: Array.isArray(r.timeline) ? r.timeline : [],
+    sellerSeenAt: (function(){
+      const tl = Array.isArray(r.timeline) ? r.timeline : [];
+      const hit = tl.find(t => t && (t.status === 'seller_seen' || t.status === 'vu'));
+      return hit ? (hit.date || null) : null;
+    })(),
     commissionTotal: Number(r.commission_total || 0),
     buyerName: r.buyer_name || '',
     buyerAvatarUrl: r.buyer_avatar_url || '',
@@ -4720,6 +4725,18 @@ async function sbLoadAllIntoData() {
       });
       const ixr=(appRecords.data||[]).find(r=>r.collection==='interactions'&&String(r.user_id)===String(currentUser&&currentUser.id)&&r.record_key==='main');
       if(ixr && currentUser){ window._alloRemoteInteractions=ixr.value||{}; }
+      // Quota activation entreprise (indépendant du statut livré)
+      (appRecords.data || []).filter(r => r.collection === 'company_activation').forEach(r => {
+        const company = (data.companies || []).find(c => String(c.id) === String(r.record_key));
+        if (!company) return;
+        const v = r.value || {};
+        if (v.ordersUsed != null) company.ordersUsed = Number(v.ordersUsed) || 0;
+        if (v.orderQuotaTotal != null) company.orderQuotaTotal = Number(v.orderQuotaTotal) || 0;
+        if (v.activationLocked != null) company.activationLocked = !!v.activationLocked;
+        if (v.activationPhase) company.activationPhase = v.activationPhase;
+        if (v.lastActivationAt) company.lastActivationAt = v.lastActivationAt;
+        company.activationInitialized = true;
+      });
     } catch(e) {}
 
     // admin config depuis tables
@@ -7853,8 +7870,12 @@ function enterApp() {
   const searchBtn = document.getElementById('searchHeaderBtn');
   const shopsBtn = document.getElementById('shopsHeaderBtn');
 
-  // reset
-  [wChip, msgBtn, searchBtn, shopsBtn].forEach(el => el && el.classList.remove('show'));
+  // reset — onglet Boutiques uniquement pour les utilisateurs grand public
+  [wChip, msgBtn, searchBtn, shopsBtn].forEach(el => {
+    if (!el) return;
+    el.classList.remove('show');
+    if (el === shopsBtn) el.style.display = 'none';
+  });
 
   // Portefeuille : boutiques uniquement (plus d'entreprise)
   if (currentUser.role === 'boutique') {
@@ -7863,14 +7884,21 @@ function enterApp() {
   }
   if (currentUser.role === 'entreprise') {
     if (msgBtn) msgBtn.classList.add('show');
+    // Pas d'onglet boutiques publiques dans l'espace entreprise
+    if (shopsBtn) { shopsBtn.classList.remove('show'); shopsBtn.style.display = 'none'; }
   }
   if (currentUser.role === 'user') {
-    shopsBtn.classList.add('show');
+    if (shopsBtn) { shopsBtn.classList.add('show'); shopsBtn.style.display = ''; }
     searchBtn.classList.add('show');
   }
   if (currentUser.role === 'client') {
     searchBtn.classList.add('show');
     msgBtn.classList.add('show');
+    // Pas d'onglet boutiques publiques dans l'espace client entreprise
+    if (shopsBtn) { shopsBtn.classList.remove('show'); shopsBtn.style.display = 'none'; }
+  }
+  if (currentUser.role === 'employe' || currentUser.role === 'admin') {
+    if (shopsBtn) { shopsBtn.classList.remove('show'); shopsBtn.style.display = 'none'; }
   }
   const notifBtn = document.getElementById('notifHeaderBtn');
   if (notifBtn) {
@@ -8173,11 +8201,18 @@ function switchView(view) {
   renderAll();
   updateAllBadges();
   // Commandes : toujours recharger depuis Supabase (source de vérité nationale)
-  if (view === 'orders' && alloIsSupabaseMode()) {
-    try { startOrderRealtime(); } catch (e) {}
-    refreshOrdersFromSupabase().then(function(ok){
-      if (ok) { renderOrders(); try { updateAllBadges(); } catch(e) {} }
-    }).catch(function(e){ console.error('[Allo] refresh orders view', e); });
+  if (view === 'orders') {
+    try { markOrdersSeenBySeller(); } catch (e) {}
+    if (alloIsSupabaseMode()) {
+      try { startOrderRealtime(); } catch (e) {}
+      refreshOrdersFromSupabase().then(function(ok){
+        if (ok) {
+          try { markOrdersSeenBySeller(); } catch (e) {}
+          renderOrders();
+          try { updateAllBadges(); } catch(e) {}
+        }
+      }).catch(function(e){ console.error('[Allo] refresh orders view', e); });
+    }
   }
   // Les données sensibles de l'admin sont rechargées directement depuis Supabase.
   // Elles ne dépendent pas du chargement global des autres tables.
@@ -9460,8 +9495,6 @@ function renderCart() {
   </div>`;
   if (currentUser && currentUser.role !== 'client') {
     html += `<p style="font-size:11px;color:var(--text-muted);text-align:center;margin-bottom:8px">${t('escrowHold')}</p>`;
-  } else {
-    html += `<p style="font-size:11px;color:var(--text-muted);text-align:center;margin-bottom:8px">${lang==='en'?'Company client order — no payment required':'Commande client entreprise — aucun paiement requis'}</p>`;
   }
   html += `<button class="btn btn-accent btn-block" onclick="validateCart()">${groups.length > 1 ? t('payAllInvoices') : t('validateOrder')}</button>`;
   html += `<button class="btn btn-ghost btn-block" style="margin-top:8px" onclick="clearCart()">${lang==='en'?'Clear cart':'Vider le panier'}</button>`;
@@ -9864,7 +9897,7 @@ async function confirmCheckout() {
   closeModal();
   alert(
     (method === 'company_free'
-      ? (lang === 'en' ? 'Order placed — no payment required' : 'Commande enregistrée — aucun paiement requis')
+      ? (lang === 'en' ? 'Order placed' : 'Commande enregistrée')
       : method === 'cod'
       ? (lang === 'en' ? 'Order placed — pay in cash at delivery' : 'Commande enregistrée — paiement en espèces à la livraison')
       : t('paymentOk')) + ' · ' +
@@ -9881,6 +9914,116 @@ async function confirmCheckout() {
   }
 }
 
+
+
+function orderHasSellerSeen(o) {
+  if (!o) return false;
+  if (o.sellerSeenAt) return true;
+  const tl = Array.isArray(o.timeline) ? o.timeline : [];
+  return tl.some(t => t && (t.status === 'seller_seen' || t.status === 'vu'));
+}
+function getSellerSeenAt(o) {
+  if (!o) return null;
+  if (o.sellerSeenAt) return o.sellerSeenAt;
+  const tl = Array.isArray(o.timeline) ? o.timeline : [];
+  const hit = tl.find(t => t && (t.status === 'seller_seen' || t.status === 'vu'));
+  return hit ? (hit.date || null) : null;
+}
+function markOrdersSeenBySeller() {
+  if (!currentUser) return;
+  if (currentUser.role !== 'entreprise' && currentUser.role !== 'employe') return;
+  const sellerShopIds = (typeof getSellerShopIds === 'function' ? getSellerShopIds() : []).map(String);
+  if (!sellerShopIds.length) return;
+  const toSync = [];
+  (data.orders || []).forEach(o => {
+    if (!o || orderHasSellerSeen(o)) return;
+    if (typeof orderBelongsToSeller === 'function' && !orderBelongsToSeller(o, sellerShopIds)) return;
+    // Ne marque que les commandes entreprise / company_free (espace entreprise)
+    const isCompany = !!(o.companyId || o.payment === 'company_free');
+    if (!isCompany) return;
+    o.sellerSeenAt = new Date().toISOString();
+    if (!Array.isArray(o.timeline)) o.timeline = [];
+    if (!o.timeline.some(t => t && t.status === 'seller_seen')) {
+      o.timeline.push({ status: 'seller_seen', date: o.sellerSeenAt, by: currentUser.id });
+    }
+    toSync.push(o);
+  });
+  if (!toSync.length) return;
+  try { saveAppData(); } catch (e) {}
+  try { updateAllBadges(); } catch (e) {}
+  if (typeof alloIsSupabaseMode === 'function' && alloIsSupabaseMode()) {
+    toSync.forEach(o => {
+      Promise.resolve().then(() => sbUpsertOrder(o)).catch(e => console.error('[Allo] mark seen', e));
+    });
+  }
+}
+
+
+/** Entreprise : marquer une commande comme livrée UNE seule fois (pas de double livraison). */
+async function markCompanyOrderDelivered(orderId) {
+  if (!currentUser) return;
+  if (currentUser.role !== 'entreprise' && currentUser.role !== 'employe') return;
+  const o = (data.orders || []).find(x => String(x.id) === String(orderId));
+  if (!o) return;
+  const isCompany = !!(o.companyId || o.payment === 'company_free');
+  if (!isCompany) return;
+  const norm = (typeof normalizeOrderStatus === 'function') ? normalizeOrderStatus(o.status) : String(o.status || '').toLowerCase();
+  if (norm === 'livré' || norm === 'annulé') {
+    alert(lang === 'en' ? 'This order is already closed.' : 'Cette commande est déjà clôturée.');
+    try { renderOrders(); } catch (e) {}
+    return;
+  }
+  // Verrou anti double-clic
+  if (o._deliveringLock) return;
+  o._deliveringLock = true;
+  try {
+    const now = new Date().toISOString();
+    o.status = 'livré';
+    if (!o.shopStatus || typeof o.shopStatus !== 'object') o.shopStatus = {};
+    const sellerShopIds = (typeof getSellerShopIds === 'function' ? getSellerShopIds() : []).map(String);
+    const items = (typeof orderItemsForSeller === 'function') ? orderItemsForSeller(o) : (o.items || []);
+    items.forEach(it => {
+      const p = (data.products || []).find(x => String(x.id) === String(it.productId));
+      const sid = String(it.shopId || (p && p.shopId) || '');
+      if (sid && (!sellerShopIds.length || sellerShopIds.includes(sid))) {
+        o.shopStatus[sid] = 'livré';
+      }
+    });
+    if (!Array.isArray(o.timeline)) o.timeline = [];
+    if (!o.timeline.some(t => t && t.status === 'livré')) {
+      o.timeline.push({ status: 'livré', date: now, by: currentUser.id });
+    }
+    if (!orderHasSellerSeen(o)) {
+      o.sellerSeenAt = now;
+      if (!o.timeline.some(t => t && t.status === 'seller_seen')) {
+        o.timeline.push({ status: 'seller_seen', date: now, by: currentUser.id });
+      }
+    }
+    o._walletDone = true;
+    o.commissionTotal = 0;
+    try { saveAppData(); } catch (e) {}
+    try { renderOrders(); } catch (e) {}
+    try { updateAllBadges(); } catch (e) {}
+    if (o.userId && typeof pushUserNotif === 'function') {
+      pushUserNotif(o.userId,
+        lang === 'en' ? 'Delivered' : 'Livré',
+        lang === 'en' ? 'Your order has been delivered' : 'Votre commande a été livrée'
+      );
+    }
+    if (typeof alloIsSupabaseMode === 'function' && alloIsSupabaseMode()) {
+      try {
+        await sbUpsertOrder(o);
+      } catch (e) {
+        console.error('[Allo] markCompanyOrderDelivered sync', e);
+        alert(lang === 'en'
+          ? 'Marked locally, but cloud sync failed. Check connection.'
+          : 'Marqué ici, mais la sync cloud a échoué. Vérifiez la connexion.');
+      }
+    }
+  } finally {
+    o._deliveringLock = false;
+  }
+}
 
 function orderStatusLabel(st) {
   const map = {
@@ -10310,23 +10453,31 @@ function _paintOrdersList() {
       </div>`;
     }).join('');
     const isCompanyOrderEarly = !!(o.companyId || o.payment === 'company_free');
-    let nxtSeller = nextSellerStatus(displayStatus);
-    // Entreprise : peut marquer livré sans code
-    if (!nxtSeller && isCompanyOrderEarly && displayStatus === 'livraison' && (currentUser.role === 'entreprise' || currentUser.role === 'employe')) {
+    const isCompanyOrder = !!(o.companyId || o.payment === 'company_free');
+    const isEnterpriseSpace = currentUser.role === 'entreprise' || currentUser.role === 'employe';
+    // Espace entreprise : pas de progression de statut (juste voir la commande)
+    let nxtSeller = isEnterpriseSpace && isCompanyOrder ? null : nextSellerStatus(displayStatus);
+    if (!nxtSeller && isCompanyOrderEarly && displayStatus === 'livraison' && isEnterpriseSpace && !isCompanyOrder) {
       nxtSeller = 'livré';
     }
-    const canAdvance = seller && nxtSeller;
+    const canAdvance = seller && nxtSeller && !(isEnterpriseSpace && isCompanyOrder);
     const isBuyer = currentUser.role === 'user' || currentUser.role === 'client';
     const statusIsDelivery = (displayStatus === 'livraison' || o.status === 'livraison');
-    const isCompanyOrder = !!(o.companyId || o.payment === 'company_free');
     // Entreprise : pas de validation par code
     const canConfirmDelivery = !isCompanyOrder && isBuyer && statusIsDelivery && o.status !== 'livré' && o.status !== 'annulé' && o.deliveryCode;
-    const payLabel = o.payment ? ({ balance: t('payBalance'), wave: t('payWave'), orange: t('payOrange'), mtn: t('payMtn'), cod: t('payCod'), company_free: (lang==='en'?'Company order (free)':'Commande entreprise (gratuite)') }[o.payment] || o.payment) : '';
-    const cashOrderHint = o.payment === 'cod'
+    const payLabel = isCompanyOrder
+      ? ''
+      : (o.payment ? ({ balance: t('payBalance'), wave: t('payWave'), orange: t('payOrange'), mtn: t('payMtn'), cod: t('payCod'), company_free: '' }[o.payment] || o.payment) : '');
+    // Messages « aucun paiement / code » retirés pour les commandes entreprise
+    const cashOrderHint = (!isCompanyOrder && o.payment === 'cod')
       ? `<div style="font-size:11px;color:var(--green);margin-top:5px">💵 ${lang==='en' ? 'Cash order: no Allo balance is charged and no Allo commission is released.' : 'Commande espèces : aucun solde Allo n’est débité et aucune commission Allo n’est libérée.'}</div>`
-      : (isCompanyOrder
-        ? `<div style="font-size:11px;color:var(--green);margin-top:5px">🏢 ${lang==='en' ? 'Company order: no payment and no delivery code required.' : 'Commande entreprise : aucun paiement ni code de livraison requis.'}</div>`
-        : '');
+      : '';
+    const sellerSeen = orderHasSellerSeen(o);
+    const seenAtStr = (() => {
+      const at = getSellerSeenAt(o);
+      if (!at) return '';
+      try { return new Date(at).toLocaleString(locale); } catch(e) { return ''; }
+    })();
     const totalShow = seller ? subtotal : o.total;
     const deadlineStr = o.deadlineAt ? new Date(o.deadlineAt).toLocaleString(locale) : '';
     const buyerProfileBlock = seller ? (() => {
@@ -10373,35 +10524,66 @@ function _paintOrdersList() {
         </div>
         <button type="button" class="btn btn-accent btn-block" onclick="confirmDeliveryByBuyerInline('${o.id}')">${t('confirmDelivery')}</button>
       </div>` : '';
+    // Badge statut simplifié pour commandes entreprise (pas de pipeline multi-étapes)
+    const companyDelivered = isCompanyOrder && (normalizeOrderStatus(displayStatus) === 'livré' || normalizeOrderStatus(o.status) === 'livré');
+    let statusPillHtml = `<span class="status-pill ${stClass}">${stLabel}</span>`;
+    if (isCompanyOrder) {
+      if (companyDelivered) {
+        statusPillHtml = `<span class="status-pill status-ok">${lang==='en'?'DELIVERED':'LIVRÉ'}</span>`;
+      } else if (isEnterpriseSpace) {
+        statusPillHtml = sellerSeen
+          ? `<span class="status-pill status-ok">${lang==='en'?'SEEN':'VU'}</span>`
+          : `<span class="status-pill status-pending">${lang==='en'?'NEW':'NOUVELLE'}</span>`;
+      } else if (isBuyer) {
+        statusPillHtml = sellerSeen
+          ? `<span class="status-pill status-ok">${lang==='en'?'SEEN':'VU'}${seenAtStr ? ' · ' + seenAtStr : ''}</span>`
+          : `<span class="status-pill status-pending">${lang==='en'?'SENT':'ENVOYÉE'}</span>`;
+      }
+    }
+    const timelineHtml = (isCompanyOrder && (isEnterpriseSpace || isBuyer))
+      ? ''
+      : orderTimelineHTML(Object.assign({}, o, { status: displayStatus }));
+    const seenHintBuyer = companyDelivered && isBuyer
+      ? `<div style="font-size:12px;color:var(--green);margin:8px 0;display:flex;align-items:center;gap:6px">✅ ${lang==='en'?'Delivered by the company':'Livré par l’entreprise'}</div>`
+      : (isCompanyOrder && isBuyer && sellerSeen
+        ? `<div style="font-size:12px;color:var(--green);margin:8px 0;display:flex;align-items:center;gap:6px">👁 ${lang==='en'?'Seen by the company':'Vu par l’entreprise'}${seenAtStr ? ' · ' + seenAtStr : ''}</div>`
+        : (isCompanyOrder && isBuyer && !sellerSeen
+          ? `<div style="font-size:12px;color:var(--text-muted);margin:8px 0">⏳ ${lang==='en'?'Waiting for company to view':'En attente de consultation par l’entreprise'}</div>`
+          : ''));
+    const canMarkCompanyDelivered = isEnterpriseSpace && isCompanyOrder && !companyDelivered;
     return `<div class="card">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
         <div>
           <div style="font-weight:700;font-size:14px">${t('order')} #${String(o.id).slice(-6)}</div>
           <div style="font-size:11px;color:var(--text-muted)">${new Date(o.date).toLocaleString(locale)}${payLabel ? ' · ' + payLabel : ''}</div>
           ${cashOrderHint}
-          ${deadlineStr ? `<div style="font-size:11px;color:var(--cyan);margin-top:2px">⏱ ${t('deliveryDeadline')} : ${deadlineStr}</div>` : ''}
-          ${seller ? `<div style="font-size:11px;color:var(--cyan);margin-top:2px">${t('onlyYourItems')}</div>` : ''}
+          ${(!isCompanyOrder && deadlineStr) ? `<div style="font-size:11px;color:var(--cyan);margin-top:2px">⏱ ${t('deliveryDeadline')} : ${deadlineStr}</div>` : ''}
+          ${(seller && !isCompanyOrder) ? `<div style="font-size:11px;color:var(--cyan);margin-top:2px">${t('onlyYourItems')}</div>` : ''}
         </div>
-        <span class="status-pill ${stClass}">${stLabel}</span>
+        ${statusPillHtml}
       </div>
       ${buyerProfileBlock}
-      ${orderTimelineHTML(Object.assign({}, o, { status: displayStatus }))}
+      ${timelineHtml}
+      ${seenHintBuyer}
       ${itemsHtml}
       <div class="row-info" style="margin-top:8px">
         <div class="info-box purple"><b>${formatMoney(totalShow)}</b><span>${t('total')}</span></div>
         <div class="info-box cyan"><b>${items.length}</b><span>${t('items')}</span></div>
       </div>
-      ${sellerCodeBlock}
-      ${waitHint}
-      ${buyerConfirmBlock || ''}
+      ${(!isCompanyOrder) ? sellerCodeBlock : ''}
+      ${(!isCompanyOrder) ? waitHint : ''}
+      ${(!isCompanyOrder) ? (buyerConfirmBlock || '') : ''}
       ${canAdvance ? `<button class="btn btn-sm btn-accent" style="width:100%;margin-top:8px" onclick="advanceOrderStatus('${o.id}')">${t('advanceStatus')} → ${orderStatusLabel(nxtSeller)}</button>` : ''}
+      ${canMarkCompanyDelivered ? `<button class="btn btn-sm btn-accent" style="width:100%;margin-top:8px" onclick="markCompanyOrderDelivered('${o.id}')">${lang==='en'?'Mark as delivered':'Marquer comme livré'}</button>` : ''}
       ${isBuyer ? `
         <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
           <button class="btn btn-sm btn-ghost" style="flex:1" onclick="reorderOrder('${o.id}')">↺ ${t('reorder')}</button>
           <button class="btn btn-sm btn-ghost" style="flex:1" onclick="printInvoice('${o.id}')">🖨 ${t('invoicePrint')}</button>
-          ${o.status==='livré' ? `<button class="btn btn-sm btn-ghost" style="flex:1" onclick="requestReturn('${o.id}')">↩️ ${t('requestReturn')}</button>` : ''}
+          ${(!isCompanyOrder && o.status==='livré') ? `<button class="btn btn-sm btn-ghost" style="flex:1" onclick="requestReturn('${o.id}')">↩️ ${t('requestReturn')}</button>` : ''}
         </div>` : `
-        <button class="btn btn-sm btn-ghost" style="width:100%;margin-top:8px" onclick="printInvoice('${o.id}')">🖨 ${t('invoicePrint')}</button>`}
+        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+          <button class="btn btn-sm btn-ghost" style="flex:1" onclick="printInvoice('${o.id}')">🖨 ${t('invoicePrint')}</button>
+        </div>`}
     </div>`;
   }).filter(Boolean).join('');
 }
@@ -15004,10 +15186,46 @@ function ensureCompanyActivationFields(company) {
   return company;
 }
 
+/** Nombre de commandes REÇUES par l'entreprise (indépendant du statut livré / vu). */
+function countCompanyReceivedOrders(companyId) {
+  if (!companyId) return 0;
+  const cid = String(companyId);
+  return (data.orders || []).filter(o => {
+    if (!o) return false;
+    if (String(o.companyId || '') === cid) return true;
+    if (o.payment === 'company_free') {
+      return (o.items || []).some(it => {
+        const p = (data.products || []).find(x => String(x.id) === String(it.productId));
+        return p && String(p.companyId || '') === cid;
+      });
+    }
+    return false;
+  }).length;
+}
+
+/**
+ * Aligne ordersUsed sur le max(stocké, commandes réelles).
+ * Ainsi le quota avance dès la réception, même si « livré » n'est jamais cliqué.
+ */
+function syncCompanyOrdersUsedFromReceived(company) {
+  if (!company) return;
+  ensureCompanyActivationFields(company);
+  const received = countCompanyReceivedOrders(company.id);
+  const stored = Number(company.ordersUsed || 0);
+  if (received > stored) {
+    company.ordersUsed = received;
+  }
+  if (Number(company.ordersUsed || 0) >= Number(company.orderQuotaTotal || 0)) {
+    company.activationLocked = true;
+    company.activationPhase = 'locked';
+  }
+}
+
 function getCompanyOrdersRemaining(companyId) {
   const company = (data.companies || []).find(c => String(c.id) === String(companyId));
   if (!company) return 0;
   ensureCompanyActivationFields(company);
+  try { syncCompanyOrdersUsedFromReceived(company); } catch (e) {}
   if (company.activationLocked) return 0;
   return Math.max(0, Number(company.orderQuotaTotal || 0) - Number(company.ordersUsed || 0));
 }
@@ -15017,10 +15235,43 @@ function isCompanyAccountActive(companyId) {
   const company = (data.companies || []).find(c => String(c.id) === String(companyId));
   if (!company) return false;
   ensureCompanyActivationFields(company);
+  try { syncCompanyOrdersUsedFromReceived(company); } catch (e) {}
   if (company.activationLocked) return false;
   return getCompanyOrdersRemaining(companyId) > 0;
 }
 
+/** Persiste le quota activation entreprise (app_records). Indépendant du statut livré. */
+async function persistCompanyActivationState(company) {
+  if (!company || !company.id) return;
+  try { saveAppData(); } catch (e) {}
+  if (!(typeof alloIsSupabaseMode === 'function' && alloIsSupabaseMode() && sb && alloUuid(company.id))) return;
+  const ownerId = company.ownerId || (currentUser && currentUser.id) || null;
+  if (!ownerId || !alloUuid(ownerId)) return;
+  const value = {
+    ordersUsed: Number(company.ordersUsed || 0),
+    orderQuotaTotal: Number(company.orderQuotaTotal || 0),
+    activationLocked: !!company.activationLocked,
+    activationPhase: company.activationPhase || 'free',
+    lastActivationAt: company.lastActivationAt || null
+  };
+  try {
+    await sb.from('app_records').upsert({
+      user_id: ownerId,
+      collection: 'company_activation',
+      record_key: String(company.id),
+      value,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id,collection,record_key' });
+  } catch (e) {
+    console.warn('[Allo] persist company activation', e);
+  }
+}
+
+/**
+ * Compte UNE commande reçue dans le quota entreprise.
+ * Déclenché à la création de la commande (pas à la consultation, pas à la livraison).
+ * Marquer livré ou non n'a AUCUN impact sur ce compteur.
+ */
 function consumeCompanyOrderQuota(companyId) {
   const company = (data.companies || []).find(c => String(c.id) === String(companyId));
   if (!company) return;
@@ -15029,16 +15280,15 @@ function consumeCompanyOrderQuota(companyId) {
   if (company.ordersUsed >= Number(company.orderQuotaTotal || 0)) {
     company.activationLocked = true;
     company.activationPhase = 'locked';
-    // Notifier le propriétaire
     if (company.ownerId) {
       pushUserNotif(company.ownerId,
         lang === 'en' ? 'Company account locked' : 'Compte entreprise verrouillé',
         lang === 'en'
-          ? 'Your free/paid order quota is exhausted. Reactivate your account from Activation.'
-          : 'Votre quota de commandes est épuisé. Réactivez votre compte depuis Activation.');
+          ? 'Your order quota is exhausted (received orders). Reactivate your account from Activation — marking orders delivered does not free the quota.'
+          : 'Votre quota de commandes reçues est épuisé. Réactivez votre compte depuis Activation — marquer livré ne libère pas le quota.');
     }
   }
-  try { saveAppData(); } catch (e) {}
+  try { persistCompanyActivationState(company); } catch (e) {}
 }
 
 function requestCompanyReactivation() {
@@ -15095,6 +15345,7 @@ async function adminValidateCompanyActivation(reqId) {
   if (!adminConfig.companyActivationRevenue) adminConfig.companyActivationRevenue = 0;
   adminConfig.companyActivationRevenue = Number(adminConfig.companyActivationRevenue || 0) + Number(req.amount || 0);
   try { saveAdminConfig(); } catch (e) {}
+  try { persistCompanyActivationState(company); } catch (e) {}
   try { saveAppData(); } catch (e) {}
   pushUserNotif(req.ownerId,
     lang==='en'?'Company reactivated':'Entreprise réactivée',
@@ -15153,12 +15404,14 @@ function renderCompanyActivation() {
       <b>🔑 Activation du compte entreprise</b>
       <p style="font-size:12.5px;color:var(--text-muted);margin-top:8px;line-height:1.45">
         La première ouverture est <b style="color:var(--green)">gratuite</b> pour
-        <b>${cfg.freeOrderQuota}</b> commandes. Ensuite, une réactivation de
+        <b>${cfg.freeOrderQuota}</b> commandes <b>reçues</b>. Ensuite, une réactivation de
         <b>${formatMoney(cfg.reactivationPrice)}</b> débloque
         <b>${cfg.reactivationOrderQuota}</b> commandes.
+        Le quota est compté dès qu’un client passe commande — <b>voir</b> ou <b>marquer livré</b> ne change pas le compteur.
+        Quand le quota est atteint, le compte doit être réactivé même si des commandes ne sont pas marquées livrées.
       </p>
       <div class="stat-grid" style="margin-top:12px">
-        <div class="stat-card"><b>${used}</b><span>Commandes utilisées</span></div>
+        <div class="stat-card"><b>${used}</b><span>Commandes reçues</span></div>
         <div class="stat-card"><b>${remaining}</b><span>Restantes</span></div>
         <div class="stat-card"><b>${total}</b><span>Quota total</span></div>
         <div class="stat-card"><b style="color:${locked?'var(--red)':'var(--green)'}">${locked?'Verrouillé':'Actif'}</b><span>Statut</span></div>
@@ -15261,6 +15514,12 @@ function countUndeliveredOrders() {
       const shopIds = (typeof getSellerShopIds === 'function' ? getSellerShopIds() : []).map(String);
       const items = orderItemsForSeller(o);
       if (!items.length) return false;
+      // Espace entreprise : badge seulement si non vue ET non livrée.
+      const isCompany = !!(o.companyId || o.payment === 'company_free');
+      if ((currentUser.role === 'entreprise' || currentUser.role === 'employe') && isCompany) {
+        if (norm === 'livré' || norm === 'annulé') return false;
+        return !orderHasSellerSeen(o);
+      }
       // Une commande vendeur est considérée terminée pour ce vendeur seulement
       // lorsque le statut de chacune de ses boutiques concernées est livré.
       const relevantShopIds = [...new Set(items.map(it => {
