@@ -3810,7 +3810,13 @@ function mapOrderRow(r, items) {
     deliveryHours: r.delivery_hours || null,
     deadlineAt: r.deadline_at || null,
     // Traduction entre l'enum Supabase et les statuts affichés dans l'interface.
-    status: ({'confirmé':'preparation','expédié':'livraison'}[String(r.status || '').toLowerCase()] || r.status || 'en cours'),
+    // Si le timeline contient "livré", on force le statut (évite le retour en arrière après refresh).
+    status: (function(){
+      const tl = Array.isArray(r.timeline) ? r.timeline : [];
+      if (tl.some(t => t && (t.status === 'livré' || t.status === 'delivered' || t.status === 'livre'))) return 'livré';
+      const raw = String(r.status || '').toLowerCase();
+      return ({'confirmé':'preparation','expédié':'livraison','livre':'livré','delivered':'livré'}[raw] || r.status || 'en cours');
+    })(),
     shopStatus: r.shop_status || {},
     timeline: Array.isArray(r.timeline) ? r.timeline : [],
     sellerSeenAt: (function(){
@@ -4062,7 +4068,8 @@ async function refreshOrdersFromSupabase() {
       if (!itemsByO[it.order_id]) itemsByO[it.order_id] = [];
       itemsByO[it.order_id].push(it);
     });
-    data.orders = (ordersRes.data || []).map(o => mapOrderRow(o, itemsByO[o.id]));
+    // Supabase = seule source de vérité (multi-appareils)
+    data.orders = (ordersRes.data || []).map(row => mapOrderRow(row, itemsByO[row.id]));
     return true;
   } catch (e) {
     console.error('[Allo] refreshOrdersFromSupabase', e);
@@ -4082,6 +4089,7 @@ let _orderTrackingPoll = null;
 
 function mergeRealtimeOrderRow(row, items) {
   if (!row || !row.id) return;
+  // Supabase = seule source de vérité
   const mapped = mapOrderRow(row, items || []);
   const idx = (data.orders || []).findIndex(o => String(o.id) === String(row.id));
   if (idx >= 0) data.orders[idx] = mapped;
@@ -9932,6 +9940,18 @@ async function confirmCheckout() {
 
 
 
+
+function orderTimelineHasDelivered(o) {
+  const tl = (o && Array.isArray(o.timeline)) ? o.timeline : [];
+  return tl.some(t => t && (t.status === 'livré' || t.status === 'delivered' || t.status === 'livre'));
+}
+function orderIsDelivered(o) {
+  if (!o) return false;
+  const st = (typeof normalizeOrderStatus === 'function') ? normalizeOrderStatus(o.status) : String(o.status || '').toLowerCase();
+  if (st === 'livré') return true;
+  return orderTimelineHasDelivered(o);
+}
+
 function orderHasSellerSeen(o) {
   if (!o) return false;
   if (o.sellerSeenAt) return true;
@@ -10005,69 +10025,132 @@ async function markCompanyOrderDelivered(orderId) {
   if (!o) return;
   const isCompany = !!(o.companyId || o.payment === 'company_free');
   if (!isCompany) return;
-  const norm = (typeof normalizeOrderStatus === 'function') ? normalizeOrderStatus(o.status) : String(o.status || '').toLowerCase();
-  if (norm === 'livré' || norm === 'annulé') {
+  if (orderIsDelivered(o)) {
     alert(lang === 'en' ? 'This order is already closed.' : 'Cette commande est déjà clôturée.');
     try { renderOrders(); } catch (e) {}
     return;
   }
-  // Confirmation obligatoire — empêche un marquage accidentel si le bouton "saute"
   const ok = confirm(lang === 'en'
     ? 'Mark this order as delivered? This cannot be undone.'
     : 'Marquer cette commande comme livrée ? Cette action est définitive.');
   if (!ok) return;
-  // Verrou anti double-clic
   if (o._deliveringLock) return;
   o._deliveringLock = true;
-  // Désactiver le bouton immédiatement dans le DOM
   try {
     const btn = document.querySelector('[data-deliver-btn="' + String(orderId).replace(/"/g, '') + '"]');
     if (btn) { btn.disabled = true; btn.textContent = lang === 'en' ? 'Saving…' : 'Enregistrement…'; }
   } catch (e) {}
-  try {
-    const now = new Date().toISOString();
-    o.status = 'livré';
-    if (!o.shopStatus || typeof o.shopStatus !== 'object') o.shopStatus = {};
-    const sellerShopIds = (typeof getSellerShopIds === 'function' ? getSellerShopIds() : []).map(String);
-    const items = (typeof orderItemsForSeller === 'function') ? orderItemsForSeller(o) : (o.items || []);
-    items.forEach(it => {
-      const p = (data.products || []).find(x => String(x.id) === String(it.productId));
-      const sid = String(it.shopId || (p && p.shopId) || '');
-      if (sid && (!sellerShopIds.length || sellerShopIds.includes(sid))) {
-        o.shopStatus[sid] = 'livré';
-      }
-    });
-    if (!Array.isArray(o.timeline)) o.timeline = [];
-    if (!o.timeline.some(t => t && t.status === 'livré')) {
-      o.timeline.push({ status: 'livré', date: now, by: currentUser.id });
-    }
-    if (!orderHasSellerSeen(o)) {
-      o.sellerSeenAt = now;
-      if (!o.timeline.some(t => t && t.status === 'seller_seen')) {
-        o.timeline.push({ status: 'seller_seen', date: now, by: currentUser.id });
-      }
-    }
-    o._walletDone = true;
-    o.commissionTotal = 0;
-    try { saveAppData(); } catch (e) {}
+
+  // Exige Supabase : seule source de vérité nationale / multi-appareils
+  if (!(typeof alloIsSupabaseMode === 'function' && alloIsSupabaseMode() && sb && alloUuid(o.id))) {
+    o._deliveringLock = false;
+    alert(lang === 'en'
+      ? 'Internet / Supabase required to mark delivered (so it syncs on all devices).'
+      : 'Internet / Supabase requis pour marquer livré (synchronisation sur tous les appareils).');
     try { renderOrders(); } catch (e) {}
-    try { updateAllBadges(); } catch (e) {}
-    if (o.userId && typeof pushUserNotif === 'function') {
-      pushUserNotif(o.userId,
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const sellerShopIds = (typeof getSellerShopIds === 'function' ? getSellerShopIds() : []).map(String);
+  const items = (typeof orderItemsForSeller === 'function') ? orderItemsForSeller(o) : (o.items || []);
+  const nextShopStatus = Object.assign({}, (o.shopStatus && typeof o.shopStatus === 'object') ? o.shopStatus : {});
+  items.forEach(it => {
+    const p = (data.products || []).find(x => String(x.id) === String(it.productId));
+    const sid = String(it.shopId || (p && p.shopId) || '');
+    if (sid && (!sellerShopIds.length || sellerShopIds.includes(sid))) nextShopStatus[sid] = 'livré';
+  });
+  const nextTimeline = Array.isArray(o.timeline) ? o.timeline.slice() : [];
+  if (!nextTimeline.some(t => t && t.status === 'livré')) {
+    nextTimeline.push({ status: 'livré', date: now, by: currentUser.id });
+  }
+  if (!nextTimeline.some(t => t && t.status === 'seller_seen')) {
+    nextTimeline.push({ status: 'seller_seen', date: now, by: currentUser.id });
+  }
+
+  try {
+    // 1) Essayer status + timeline + shop_status
+    let res = await sb.from('orders').update({
+      status: 'livré',
+      shop_status: nextShopStatus,
+      timeline: nextTimeline,
+      updated_at: now
+    }).eq('id', o.id).select('*').maybeSingle();
+
+    // 2) Si status enum/RLS refuse, au minimum persister timeline + shop_status
+    if (res.error || !res.data) {
+      console.warn('[Allo] mark delivered full patch', res && res.error);
+      res = await sb.from('orders').update({
+        shop_status: nextShopStatus,
+        timeline: nextTimeline,
+        updated_at: now
+      }).eq('id', o.id).select('*').maybeSingle();
+    }
+
+    // 3) Dernier recours : sbUpsertOrder puis relecture
+    if (res.error || !res.data) {
+      console.warn('[Allo] mark delivered timeline patch', res && res.error);
+      o.status = 'livré';
+      o.shopStatus = nextShopStatus;
+      o.timeline = nextTimeline;
+      o.sellerSeenAt = now;
+      await sbUpsertOrder(o);
+      res = await sb.from('orders').select('*').eq('id', o.id).maybeSingle();
+    }
+
+    if (res.error || !res.data) {
+      throw (res && res.error) || new Error('Update not confirmed by Supabase');
+    }
+
+    // Relecture serveur = vérité
+    try { await refreshSingleOrderFromSupabase(o.id); } catch (e) {
+      // Appliquer la ligne renvoyée
+      const itemsRes = await sb.from('order_items').select('*').eq('order_id', o.id);
+      mergeRealtimeOrderRow(res.data, (itemsRes && itemsRes.data) || []);
+    }
+
+    const fresh = (data.orders || []).find(x => String(x.id) === String(o.id));
+    if (!fresh || !orderIsDelivered(fresh)) {
+      // Si le serveur a le timeline livré via res.data, forcer via map
+      if (res.data) mergeRealtimeOrderRow(res.data, null);
+    }
+
+    const check = (data.orders || []).find(x => String(x.id) === String(o.id));
+    if (!check || !orderIsDelivered(check)) {
+      // Dernière chance : injecter timeline serveur dans la ligne mappée
+      if (res.data) {
+        const mapped = mapOrderRow(res.data, check ? check.items : []);
+        if (!orderTimelineHasDelivered(mapped) && Array.isArray(nextTimeline)) {
+          mapped.timeline = nextTimeline;
+          mapped.status = 'livré';
+        }
+        const idx = (data.orders || []).findIndex(x => String(x.id) === String(o.id));
+        if (idx >= 0) data.orders[idx] = mapped;
+      }
+    }
+
+    const final = (data.orders || []).find(x => String(x.id) === String(o.id));
+    if (!final || !orderIsDelivered(final)) {
+      throw new Error('Supabase did not persist delivered state');
+    }
+
+    if (final.userId && typeof pushUserNotif === 'function') {
+      pushUserNotif(final.userId,
         lang === 'en' ? 'Delivered' : 'Livré',
         lang === 'en' ? 'Your order has been delivered' : 'Votre commande a été livrée'
       );
     }
-    if (typeof alloIsSupabaseMode === 'function' && alloIsSupabaseMode()) {
-      try {
-        await sbUpsertOrder(o);
-      } catch (e) {
-        console.error('[Allo] markCompanyOrderDelivered sync', e);
-        alert(lang === 'en'
-          ? 'Marked locally, but cloud sync failed. Check connection.'
-          : 'Marqué ici, mais la sync cloud a échoué. Vérifiez la connexion.');
-      }
-    }
+    try { renderOrders(); } catch (e) {}
+    try { updateAllBadges(); } catch (e) {}
+  } catch (e) {
+    console.error('[Allo] markCompanyOrderDelivered', e);
+    // Recharger l'état serveur (pas de sticky local)
+    try { await refreshOrdersFromSupabase(); } catch (e2) {}
+    try { renderOrders(); } catch (e2) {}
+    try { updateAllBadges(); } catch (e2) {}
+    alert(lang === 'en'
+      ? 'Could not save delivered status to the server. Check connection and try again.'
+      : 'Impossible d’enregistrer « livré » sur le serveur. Vérifiez la connexion et réessayez.');
   } finally {
     o._deliveringLock = false;
   }
@@ -10573,7 +10656,7 @@ function _paintOrdersList() {
         <button type="button" class="btn btn-accent btn-block" onclick="confirmDeliveryByBuyerInline('${o.id}')">${t('confirmDelivery')}</button>
       </div>` : '';
     // Badge statut simplifié pour commandes entreprise (pas de pipeline multi-étapes)
-    const companyDelivered = isCompanyOrder && (normalizeOrderStatus(displayStatus) === 'livré' || normalizeOrderStatus(o.status) === 'livré');
+    const companyDelivered = isCompanyOrder && (orderIsDelivered(o) || normalizeOrderStatus(displayStatus) === 'livré' || normalizeOrderStatus(o.status) === 'livré');
     let statusPillHtml = `<span class="status-pill ${stClass}">${stLabel}</span>`;
     if (isCompanyOrder) {
       if (companyDelivered) {
