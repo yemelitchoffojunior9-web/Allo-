@@ -3316,7 +3316,7 @@ nav.bottom,
           <button class="link" id="adminHashtagAddBtn" onclick="openModal('addHashtag')">+ Hashtag</button>
         </div>
         <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:10px;line-height:1.45">
-          Le Super Admin crée les hashtags disponibles. Les boutiques et entreprises peuvent seulement les sélectionner lors de la création d’un produit.
+          Les vendeurs écrivent librement leurs hashtags sur chaque produit. Les catégories servent aussi à la recherche. Cette liste admin reste optionnelle pour des tags globaux.
         </p>
         <div id="adminHashtagsList"></div>
       </div>
@@ -3741,7 +3741,10 @@ function mapProductRow(r) {
       endsAt: r.promo_ends_at,
       description: r.promo_description
     } : null,
-    variants: []
+    variants: [],
+    // null = hérite de la boutique ; true/false = override produit
+    codEnabled: (r.cod_enabled === true || r.codEnabled === true) ? true
+      : ((r.cod_enabled === false || r.codEnabled === false) ? false : null)
   };
 }
 
@@ -3759,7 +3762,8 @@ function mapShopRow(r) {
     isCompanyCatalog: !!r.is_company_catalog,
     certified: !!r.certified,
     certifiedAt: r.certified_at,
-    certifiedBy: r.certified_by
+    certifiedBy: r.certified_by,
+    codEnabled: r.cod_enabled === true || r.codEnabled === true
   };
 }
 
@@ -4651,6 +4655,7 @@ async function sbLoadAllIntoData() {
         id:p.id, entityType:p.entity_type, durationKey:p.duration_key,
         price:Number(p.price || 0), enabled:p.enabled === true
       }));
+      try { applyShopCodFlagsFromCashOffers(); } catch (e) {}
     } catch (e) {
       console.warn('[Allo] cash offer load', e);
       data.cashPaymentOffers = data.cashPaymentOffers || [];
@@ -4739,6 +4744,7 @@ async function sbLoadAllIntoData() {
           if (s.key === 'default_commission') adminConfig.defaultCommission = Number(s.value);
           if (s.key === 'deposit_info') data.depositInfo = s.value;
         });
+        try { applyShopCodFlagsFromSettings(settings.data || []); } catch (e) {}
       }
     } catch (e) {}
 
@@ -4812,7 +4818,8 @@ async function sbUpsertProduct(p) {
     promo_price: p.promo && p.promo.promoPrice ? p.promo.promoPrice : null,
     promo_starts_at: p.promo && p.promo.startsAt ? p.promo.startsAt : null,
     promo_ends_at: p.promo && p.promo.endsAt ? p.promo.endsAt : null,
-    promo_description: p.promo && p.promo.description ? p.promo.description : null
+    promo_description: p.promo && p.promo.description ? p.promo.description : null,
+    cod_enabled: (p.codEnabled === true) ? true : ((p.codEnabled === false) ? false : null)
   };
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(p.id || ''));
   let res;
@@ -4821,14 +4828,23 @@ async function sbUpsertProduct(p) {
   } else {
     res = await sb.from('products').insert(row).select().single();
   }
-  // Colonne delivery_zones optionnelle : si absente en base, réessayer sans
-  if (res.error && /delivery_zones/i.test(String(res.error.message || res.error.details || ''))) {
+  // Colonnes optionnelles : delivery_zones / cod_enabled
+  if (res.error && /delivery_zones|cod_enabled/i.test(String(res.error.message || res.error.details || ''))) {
     const row2 = Object.assign({}, row);
-    delete row2.delivery_zones;
+    if (/delivery_zones/i.test(String(res.error.message || res.error.details || ''))) delete row2.delivery_zones;
+    if (/cod_enabled/i.test(String(res.error.message || res.error.details || ''))) delete row2.cod_enabled;
     if (isUuid) {
       res = await sb.from('products').update(row2).eq('id', p.id).select().single();
     } else {
       res = await sb.from('products').insert(row2).select().single();
+    }
+    // Si encore une erreur sur l'autre colonne optionnelle
+    if (res.error && /delivery_zones|cod_enabled/i.test(String(res.error.message || res.error.details || ''))) {
+      const row3 = Object.assign({}, row2);
+      delete row3.delivery_zones;
+      delete row3.cod_enabled;
+      if (isUuid) res = await sb.from('products').update(row3).eq('id', p.id).select().single();
+      else res = await sb.from('products').insert(row3).select().single();
     }
   }
   if (res.error) {
@@ -4888,12 +4904,20 @@ async function sbSaveShop(s) {
     delivery_hours: s.deliveryHours || 48,
     private: !!s.private,
     is_company_catalog: !!s.isCompanyCatalog,
-    certified: !!s.certified
+    certified: !!s.certified,
+    cod_enabled: !!s.codEnabled
   };
   const isUuid = /^[0-9a-f]{8}-/i.test(String(s.id || ''));
   let res;
   if (isUuid) res = await sb.from('shops').update(row).eq('id', s.id).select().single();
   else res = await sb.from('shops').insert(row).select().single();
+  // Colonne cod_enabled optionnelle
+  if (res.error && /cod_enabled/i.test(String(res.error.message || res.error.details || ''))) {
+    const row2 = Object.assign({}, row);
+    delete row2.cod_enabled;
+    if (isUuid) res = await sb.from('shops').update(row2).eq('id', s.id).select().single();
+    else res = await sb.from('shops').insert(row2).select().single();
+  }
   if (res.error) console.warn('sbSaveShop', res.error);
   return res.data || null;
 }
@@ -5771,6 +5795,7 @@ let data = {
   withdrawRequests: [],
   paymentMethods: [],
   cashPaymentOffers: [],
+  shopCodFlags: {},
   cashOfferPlans: [],
   depositInfo: { number: '653199986', name: 'Junior Yemeli Tchoffo' }
 };
@@ -8828,7 +8853,53 @@ function collectAllProductCats(products) {
   return [...set];
 }
 
-/* Un seul produit = une seule catégorie. Les hashtags sont prédéfinis par le Super Admin. */
+
+function getProductCodFieldHTML(product) {
+  const shopIds = (typeof getSellerShopIds === 'function') ? getSellerShopIds() : [];
+  let shop = null;
+  if (product && product.shopId) {
+    shop = (data.shops || []).find(s => String(s.id) === String(product.shopId));
+  } else if (shopIds.length) {
+    shop = (data.shops || []).find(s => String(s.id) === String(shopIds[0]));
+  } else if (currentUser && currentUser.shopId) {
+    shop = (data.shops || []).find(s => String(s.id) === String(currentUser.shopId));
+  }
+  const shopOn = !!(shop && shop.codEnabled);
+  const fr = lang !== 'en';
+  // Valeur produit : true / false / null(hérite)
+  let val = 'inherit';
+  if (product && product.codEnabled === true) val = 'on';
+  if (product && product.codEnabled === false) val = 'off';
+  if (!shopOn) {
+    return `<div class="field" style="margin-top:8px">
+      <label>💵 ${fr ? 'Paiement à la livraison' : 'Cash on delivery'}</label>
+      <p style="font-size:11.5px;color:var(--text-muted);line-height:1.4">${fr
+        ? 'Activez d’abord l’option gratuite « Paiement à la livraison » dans Compte pour vos clients.'
+        : 'First enable the free “Cash on delivery” option in Account for your customers.'}</p>
+    </div>`;
+  }
+  return `<div class="field" style="margin-top:8px">
+    <label>💵 ${fr ? 'Paiement à la livraison (ce produit)' : 'Cash on delivery (this product)'}</label>
+    <select id="mProductCod">
+      <option value="inherit" ${val==='inherit'?'selected':''}>${fr ? 'Comme la boutique (activé)' : 'Same as shop (on)'}</option>
+      <option value="on" ${val==='on'?'selected':''}>${fr ? 'Activé pour ce produit' : 'Enabled for this product'}</option>
+      <option value="off" ${val==='off'?'selected':''}>${fr ? 'Désactivé pour ce produit' : 'Disabled for this product'}</option>
+    </select>
+    <div style="font-size:10.5px;color:var(--text-muted);margin-top:5px">${fr
+      ? 'Vous pouvez activer ou désactiver le COD à tout moment sur chaque produit.'
+      : 'You can enable or disable COD on each product at any time.'}</div>
+  </div>`;
+}
+
+function getProductCodFromForm() {
+  const sel = document.getElementById('mProductCod');
+  if (!sel) return null; // hérite
+  if (sel.value === 'on') return true;
+  if (sel.value === 'off') return false;
+  return null;
+}
+
+/* Catégorie = hashtag de recherche (aucune commission). Hashtags libres en plus. */
 function getCategoryCheckboxesHTML(selectedList, selectedHashtags) {
   const selected = Array.isArray(selectedList) ? selectedList[0] : (selectedList || '');
   const current = String(selected).trim();
@@ -8839,30 +8910,32 @@ function getCategoryCheckboxesHTML(selectedList, selectedHashtags) {
     const esc = x => String(x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     return `<option value="${esc(value)}" ${value === current ? 'selected' : ''}>${esc(label)}</option>`;
   }).join('');
-  const selectedTags = new Set((Array.isArray(selectedHashtags) ? selectedHashtags : []).map(x => String(x).replace(/^#+/,'').trim().toLowerCase()).filter(Boolean));
-  const hashtags = Array.isArray(window._alloHashtags) ? window._alloHashtags : [];
-  const tagOpts = hashtags.map(h => {
-    const raw = String(h && h.name || '').replace(/^#+/,'').trim().toLowerCase();
-    if (!raw) return '';
-    const label = '#' + raw;
-    const esc = x => String(x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-    return `<option value="${esc(raw)}" ${selectedTags.has(raw) ? 'selected' : ''}>${esc(label)}</option>`;
-  }).join('');
+  const tagsRaw = (Array.isArray(selectedHashtags) ? selectedHashtags : [])
+    .map(x => {
+      let s = String(x || '').trim();
+      if (!s) return '';
+      if (!s.startsWith('#')) s = '#' + s.replace(/^#+/, '');
+      return s;
+    }).filter(Boolean);
+  const tagsText = tagsRaw.join('\n');
+  const escText = String(tagsText).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   return `
-    <select id="mCat" onchange="updateCategoryCommissionInfo()" required>
-      <option value="">${lang==='en' ? 'Choose one category' : 'Choisissez une seule catégorie'}</option>
+    <select id="mCat" required>
+      <option value="">${lang==='en' ? 'Choose a category (search tag)' : 'Choisissez une catégorie (tag de recherche)'}</option>
       ${opts}
     </select>
-    <div id="mCatCommissionInfo" style="font-size:11px;color:var(--accent-bright);margin-top:6px"></div>
-    <div class="field" style="margin-top:10px;margin-bottom:0">
+    <div style="font-size:10.5px;color:var(--text-muted);margin-top:5px">
+      ${lang==='en'
+        ? 'Categories improve product search. There is no commission on categories or sales.'
+        : 'Les catégories améliorent la recherche des produits. Aucune commission sur les catégories ni sur les ventes.'}
+    </div>
+    <div class="field" style="margin-top:12px;margin-bottom:0">
       <label>${lang==='en' ? 'Search hashtags' : 'Hashtags de recherche'}</label>
-      <select id="mHashtags" multiple size="5" style="min-height:110px">
-        ${tagOpts || `<option disabled>${lang==='en' ? 'No hashtags available. Ask the Super Admin to add some.' : 'Aucun hashtag disponible. Le Super Admin doit d’abord en ajouter.'}</option>`}
-      </select>
+      <textarea id="mHashtags" rows="3" placeholder="${lang==='en' ? '#smartphone #phone #android' : '#smartphones #téléphone #android'}" style="resize:vertical;min-height:72px">${escText}</textarea>
       <div style="font-size:10.5px;color:var(--text-muted);margin-top:5px">
         ${lang==='en'
-          ? 'Select only hashtags created by the Super Admin. They never change the commission.'
-          : 'Sélectionnez uniquement les hashtags créés par le Super Admin. Ils ne modifient jamais la commission.'}
+          ? 'Write your own hashtags (one per line or separated by spaces). They only improve search.'
+          : 'Écrivez vos propres hashtags (un par ligne ou séparés par des espaces). Ils servent uniquement à la recherche.'}
       </div>
     </div>
   `;
@@ -8884,14 +8957,9 @@ function renderCategoryPickerResults() {}
 function toggleCategoryPickerValue() { updateCategoryCommissionInfo(); }
 
 function updateCategoryCommissionInfo() {
+  // Plus aucune commission : les catégories ne servent qu'à la recherche.
   const el = document.getElementById('mCatCommissionInfo');
-  const sel = document.getElementById('mCat');
-  if (!el) return;
-  const cat = String(sel && sel.value || '').trim();
-  const pct = cat ? Number(getCommissionRate(cat) || 0) : 0;
-  el.textContent = cat
-    ? ((lang==='en' ? 'Commission for this category: ' : 'Commission de cette catégorie : ') + pct + '%')
-    : '';
+  if (el) el.textContent = '';
 }
 
 function getSelectedCategoriesFromForm() {
@@ -8900,16 +8968,31 @@ function getSelectedCategoriesFromForm() {
 }
 
 function getProductHashtagsFromForm() {
-  const select = document.getElementById('mHashtags');
-  if (!select) return [];
-  return Array.from(select.selectedOptions || []).map(o => String(o.value || '').trim().toLowerCase()).filter(Boolean).map(x => '#' + x).slice(0, 30);
+  const el = document.getElementById('mHashtags');
+  if (!el) return [];
+  const raw = String(el.value || '');
+  const parts = raw.split(/[\s,;]+/).map(x => String(x || '').trim()).filter(Boolean);
+  const out = [];
+  const seen = new Set();
+  parts.forEach(p => {
+    let t = p.replace(/^#+/, '').toLowerCase().trim();
+    if (!t || seen.has(t)) return;
+    seen.add(t);
+    out.push('#' + t);
+  });
+  return out.slice(0, 30);
 }
 
 function setProductHashtagsInForm(list) {
-  const select = document.getElementById('mHashtags');
-  if (!select) return;
-  const selected = new Set((Array.isArray(list) ? list : []).map(x => String(x).replace(/^#+/,'').trim().toLowerCase()).filter(Boolean));
-  Array.from(select.options).forEach(o => { o.selected = selected.has(String(o.value||'').toLowerCase()); });
+  const el = document.getElementById('mHashtags');
+  if (!el) return;
+  const tags = (Array.isArray(list) ? list : []).map(x => {
+    let s = String(x || '').trim();
+    if (!s) return '';
+    if (!s.startsWith('#')) s = '#' + s.replace(/^#+/, '');
+    return s;
+  }).filter(Boolean);
+  el.value = tags.join('\n');
 }
 
 function openShopPage(shopId) {
@@ -9579,44 +9662,228 @@ async function refreshCashPaymentOffers() {
   data.cashOfferPlans = (plans.data || []).map(p => ({
     id:p.id, entityType:p.entity_type, durationKey:p.duration_key, price:Number(p.price || 0), enabled:p.enabled === true
   }));
+  try { applyShopCodFlagsFromCashOffers(); } catch (e) {}
   return data.cashPaymentOffers;
+}
+
+function getShopCodFlagsMap() {
+  if (!data.shopCodFlags || typeof data.shopCodFlags !== 'object') data.shopCodFlags = {};
+  return data.shopCodFlags;
+}
+
+function isShopCodEnabled(shop) {
+  if (!shop) return false;
+  // Catalogues entreprise privés : pas de COD public
+  if (shop.isCompanyCatalog === true) return false;
+  const flags = getShopCodFlagsMap();
+  if (flags[String(shop.id)] === true) return true;
+  if (flags[String(shop.id)] === false) return false;
+  if (shop.codEnabled === true) return true;
+  // Rétrocompat : ancienne offre payante encore active
+  try {
+    if (typeof findCashOffer === 'function' && findCashOffer('boutique', shop.id)) return true;
+  } catch (e) {}
+  return false;
+}
+
+function isProductCodEnabled(p) {
+  if (!p) return false;
+  const shop = (data.shops || []).find(s => String(s.id) === String(p.shopId));
+  if (!isShopCodEnabled(shop)) return false;
+  // null/undefined = hérite de la boutique (activé)
+  if (p.codEnabled === false) return false;
+  return true;
 }
 
 function cashOfferAvailableForCart(groups) {
   const gs = groups || [];
   if (!gs.length) return false;
-  // Les catalogues entreprise n'utilisent plus le paiement à la livraison
+  // COD gratuit : boutique active l'option ; chaque produit peut la désactiver
   return gs.every(g => {
     const shop = (data.shops || []).find(s => String(s.id) === String(g.shopId));
-    if (!shop) return false;
-    if (shop.isCompanyCatalog === true || shop.companyId) return false;
-    return !!findCashOffer('boutique', shop.id);
+    if (!isShopCodEnabled(shop)) return false;
+    const items = g.items || g.lines || [];
+    if (!items.length) return true;
+    return items.every(entry => {
+      const p = entry.p || (data.products || []).find(x => String(x.id) === String((entry.item && entry.item.productId) || entry.productId || entry.id));
+      return isProductCodEnabled(p || { shopId: g.shopId });
+    });
   });
 }
+
+async function persistShopCodFlags() {
+  const flags = getShopCodFlagsMap();
+  (data.shops || []).forEach(s => {
+    const v = flags[String(s.id)];
+    if (v === true) s.codEnabled = true;
+    else if (v === false) s.codEnabled = false;
+  });
+  if (typeof USE_SUPABASE !== 'undefined' && USE_SUPABASE && sb) {
+    // 1) app_settings (accessible si RLS le permet)
+    try {
+      const res = await sb.from('app_settings').upsert(
+        { key: 'shop_cod_flags', value: flags },
+        { onConflict: 'key' }
+      ).select().maybeSingle();
+      if (res.error) console.warn('[Allo] shop_cod_flags settings', res.error.message || res.error);
+    } catch (e) {
+      console.warn('[Allo] shop_cod_flags settings', e);
+    }
+    // 2) Miroir par boutique dans cash_payment_offers (lisible par les clients)
+    try {
+      for (const [shopId, enabled] of Object.entries(flags)) {
+        const shop = (data.shops || []).find(s => String(s.id) === String(shopId));
+        if (!shop || shop.isCompanyCatalog) continue;
+        const now = new Date();
+        const far = new Date(now.getTime() + 100 * 365 * 24 * 3600 * 1000); // ~100 ans
+        if (enabled) {
+          // Désactiver d'anciennes offres puis créer une offre gratuite permanente
+          try {
+            await sb.from('cash_payment_offers')
+              .update({ enabled: false })
+              .eq('entity_type', 'boutique')
+              .eq('entity_id', shopId);
+          } catch (_) {}
+          const ins = await sb.from('cash_payment_offers').insert({
+            entity_type: 'boutique',
+            entity_id: shopId,
+            owner_user_id: shop.ownerId || (currentUser && currentUser.id) || null,
+            enabled: true,
+            price_paid: 0,
+            duration_key: 'free',
+            starts_at: now.toISOString(),
+            expires_at: far.toISOString(),
+            activated_at: now.toISOString()
+          }).select().maybeSingle();
+          if (ins.error) console.warn('[Allo] free COD offer insert', ins.error.message || ins.error);
+          else {
+            // Mettre à jour le cache local
+            data.cashPaymentOffers = data.cashPaymentOffers || [];
+            data.cashPaymentOffers = data.cashPaymentOffers.filter(o =>
+              !(String(o.entityType) === 'boutique' && String(o.entityId) === String(shopId))
+            );
+            if (ins.data) {
+              data.cashPaymentOffers.push({
+                id: ins.data.id,
+                entityType: 'boutique',
+                entityId: shopId,
+                ownerUserId: ins.data.owner_user_id,
+                enabled: true,
+                pricePaid: 0,
+                durationKey: 'free',
+                startsAt: ins.data.starts_at || now.toISOString(),
+                expiresAt: ins.data.expires_at || far.toISOString()
+              });
+            }
+          }
+        } else {
+          try {
+            await sb.from('cash_payment_offers')
+              .update({ enabled: false })
+              .eq('entity_type', 'boutique')
+              .eq('entity_id', shopId);
+          } catch (_) {}
+          data.cashPaymentOffers = (data.cashPaymentOffers || []).filter(o =>
+            !(String(o.entityType) === 'boutique' && String(o.entityId) === String(shopId) && o.enabled)
+          );
+        }
+      }
+    } catch (e) {
+      console.warn('[Allo] COD offer mirror', e);
+    }
+  }
+  try {
+    if (typeof saveAppDataAsync === 'function') await saveAppDataAsync();
+    else if (typeof saveAppData === 'function') saveAppData();
+  } catch (e) {}
+}
+
+function applyShopCodFlagsFromSettings(settingsRows) {
+  try {
+    const rows = settingsRows || [];
+    const hit = rows.find(s => s && (s.key === 'shop_cod_flags' || s.key === 'shopCodFlags'));
+    if (!hit) return;
+    let val = hit.value;
+    if (typeof val === 'string') {
+      try { val = JSON.parse(val); } catch (e) { val = {}; }
+    }
+    if (!val || typeof val !== 'object') val = {};
+    data.shopCodFlags = Object.assign({}, data.shopCodFlags || {}, val);
+    (data.shops || []).forEach(s => {
+      const v = data.shopCodFlags[String(s.id)];
+      if (v === true) s.codEnabled = true;
+      else if (v === false) s.codEnabled = false;
+    });
+  } catch (e) {
+    console.warn('[Allo] applyShopCodFlagsFromSettings', e);
+  }
+}
+
+function applyShopCodFlagsFromCashOffers() {
+  try {
+    const now = Date.now();
+    (data.cashPaymentOffers || []).forEach(o => {
+      if (String(o.entityType) !== 'boutique' || !o.enabled) return;
+      const expires = o.expiresAt ? Date.parse(o.expiresAt) : NaN;
+      const starts = o.startsAt ? Date.parse(o.startsAt) : NaN;
+      const ok = (!Number.isFinite(starts) || starts <= now) && (!Number.isFinite(expires) || expires > now);
+      if (!ok) return;
+      const sid = String(o.entityId);
+      if (!data.shopCodFlags) data.shopCodFlags = {};
+      data.shopCodFlags[sid] = true;
+      const shop = (data.shops || []).find(s => String(s.id) === sid);
+      if (shop) shop.codEnabled = true;
+    });
+  } catch (e) {
+    console.warn('[Allo] applyShopCodFlagsFromCashOffers', e);
+  }
+}
+
+
 
 function renderCashOfferCard() {
   const ctx = getCashOfferContext();
   if (!ctx) return '';
-  const active = findCashOffer(ctx.entityType, ctx.entityId);
-  const plans = getCashOfferPlans(ctx.entityType);
-  const entityLabel = ctx.entityType === 'entreprise' ? 'entreprise' : 'boutique';
-  if (!plans.length) {
-    return `<div class="card" style="margin-top:10px;border-color:rgba(251,191,36,.3)">
-      <b>💵 Paiement à la livraison</b>
-      <p style="font-size:12px;color:var(--text-muted);margin-top:6px">Aucune offre n’est actuellement disponible pour cette ${entityLabel}.</p>
-    </div>`;
-  }
-  const activeUntil = active?.expiresAt ? new Date(active.expiresAt).toLocaleString(lang === 'en' ? 'en-GB' : 'fr-FR') : '';
+  const shop = (data.shops || []).find(s => String(s.id) === String(ctx.entityId));
+  const active = isShopCodEnabled(shop);
+  const fr = lang !== 'en';
   return `<div class="card" style="margin-top:10px;border-color:${active ? 'rgba(52,211,153,.35)' : 'rgba(251,191,36,.3)'}">
     <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
-      <div><b>💵 Paiement à la livraison</b>
-        <p style="font-size:12px;color:var(--text-muted);line-height:1.45;margin-top:5px">${active ? 'Activé pour cet espace.' : 'Choisissez une durée et payez l’offre depuis votre portefeuille Allo.'}</p>
+      <div><b>💵 ${fr ? 'Paiement à la livraison' : 'Cash on delivery'}</b>
+        <p style="font-size:12px;color:var(--text-muted);line-height:1.45;margin-top:5px">${active
+          ? (fr ? 'Option gratuite activée. Vos clients peuvent payer avec leur portefeuille Allo ou à la livraison. Vous pouvez aussi désactiver le COD sur chaque produit.' : 'Free option enabled. Customers can pay with Allo wallet or on delivery. You can also disable COD on each product.')
+          : (fr ? 'Option gratuite. Activez-la pour permettre à vos clients de payer à la livraison ou avec leur portefeuille Allo.' : 'Free option. Enable it so customers can pay on delivery or with their Allo wallet.')}</p>
       </div>
-      <span class="status-pill ${active ? 'status-ok' : 'status-pending'}">${active ? 'ACTIF' : 'INACTIF'}</span>
+      <span class="status-pill ${active ? 'status-ok' : 'status-pending'}">${active ? (fr ? 'ACTIF' : 'ACTIVE') : (fr ? 'INACTIF' : 'OFF')}</span>
     </div>
-    ${active ? `<div style="margin-top:8px;font-size:11px;color:var(--green)">✓ ${formatCashDuration(active.durationKey)} · valable jusqu’au ${activeUntil}.<br>Aucune commission sur les commandes en espèces.</div>` : ''}
-    ${!active ? `<div style="margin-top:10px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px">${plans.map(p => `<button type="button" class="btn btn-ghost" style="padding:10px 8px;text-align:center" onclick="openCashOfferModal('${p.durationKey}')"><b>${formatCashDuration(p.durationKey)}</b><br><span style="font-size:11px;color:var(--accent-bright)">${formatMoney(p.price)}</span></button>`).join('')}</div>` : ''}
+    <button type="button" class="btn ${active ? 'btn-danger' : 'btn-accent'} btn-block" style="margin-top:12px" onclick="toggleShopCod()">
+      ${active ? (fr ? 'Désactiver le paiement à la livraison' : 'Disable cash on delivery') : (fr ? 'Activer le paiement à la livraison (gratuit)' : 'Enable cash on delivery (free)')}
+    </button>
   </div>`;
+}
+
+async function toggleShopCod() {
+  const ctx = getCashOfferContext();
+  if (!ctx) { alert(lang==='en'?'Shop space not found.':'Espace vendeur introuvable.'); return; }
+  const shop = (data.shops || []).find(s => String(s.id) === String(ctx.entityId));
+  if (!shop) { alert(lang==='en'?'Shop not found.':'Boutique introuvable.'); return; }
+  const next = !isShopCodEnabled(shop);
+  shop.codEnabled = next;
+  const flags = getShopCodFlagsMap();
+  flags[String(shop.id)] = next;
+  try {
+    await persistShopCodFlags();
+    // Tentative optionnelle de colonne shops.cod_enabled
+    if (typeof USE_SUPABASE !== 'undefined' && USE_SUPABASE && typeof sbSaveShop === 'function') {
+      try { await sbSaveShop(shop); } catch (e) { console.warn('[Allo] sbSaveShop cod', e); }
+    }
+  } catch (e) {
+    console.warn('[Allo] toggleShopCod', e);
+  }
+  try { renderAccount(); } catch (e) {}
+  alert(next
+    ? (lang==='en' ? 'Cash on delivery is now enabled for your shop (free). Customers will see this option at checkout.' : 'Paiement à la livraison activé (gratuit). Vos clients verront cette option au paiement.')
+    : (lang==='en' ? 'Cash on delivery disabled for your shop.' : 'Paiement à la livraison désactivé pour votre boutique.'));
 }
 
 async function openCashOfferModal(durationKey) {
@@ -10722,15 +10989,8 @@ function markDelivered(orderId, fromAdvance) {
     const shop = data.shops.find(s => s.id === shopId);
     if (!shop) return;
     let amount = shopTotals[shopId];
-    // Super Admin commission per product category
-    let totalComm = 0;
-    (o.items || []).forEach(it => {
-      const p = data.products.find(x => x.id === it.productId);
-      if (!p || p.shopId !== shopId) return;
-      const line = (it.price || 0) * (it.qty || 0);
-      totalComm += applyCommissionOnSale(p, line);
-    });
-    amount = Math.max(0, amount - totalComm);
+    // Aucune commission : le vendeur reçoit 100% du montant de la vente.
+    // amount reste intégral
     // Une vente crédite toujours le portefeuille de l'espace vendeur qui porte le catalogue.
     // Une boutique rattachée à une entreprise conserve donc son portefeuille propre.
     let walletCtx = null;
@@ -11595,9 +11855,10 @@ function getSearchableProductList() {
     const cats = (typeof getProductCats === 'function') ? getProductCats(p) : (p.cat ? [p.cat] : []);
     const catsL = cats.map(c => String(c).toLowerCase());
     const shopL = getShopNameCached(shopCache, p.shopId).toLowerCase();
-    // haystack unique pour includes rapide
-    const hay = nameL + '\n' + catsL.join(' ') + '\n' + shopL + '\n' + String(p.cat || '').toLowerCase();
-    return { p, nameL, catsL, shopL, hay, price: Number(p.price) || 0, stock: Number(p.stock) || 0 };
+    const tagsL = (Array.isArray(p.hashtags) ? p.hashtags : []).map(h => String(h || '').replace(/^#+/, '').toLowerCase()).filter(Boolean);
+    // haystack : nom + catégories (comme hashtags) + hashtags libres + boutique
+    const hay = nameL + '\n' + catsL.join(' ') + '\n' + tagsL.join(' ') + '\n' + shopL + '\n' + String(p.cat || '').toLowerCase() + '\n' + String(p.description || '').toLowerCase();
+    return { p, nameL, catsL, shopL, tagsL, hay, price: Number(p.price) || 0, stock: Number(p.stock) || 0 };
   });
   window._prodSearchCache = { key, list };
   return list;
@@ -12300,7 +12561,7 @@ function renderAccount() {
     extra.innerHTML = '';
   }
 
-  // Paiement à la livraison : offre payante, activée par espace vendeur.
+  // Paiement à la livraison : option gratuite, activable par la boutique.
   if (extra && (currentUser.role === 'boutique' || currentUser.role === 'entreprise')) {
     extra.innerHTML += renderCashOfferCard();
   }
@@ -12375,6 +12636,7 @@ function openModal(type, extra) {
         <p style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${lang==='en'?'Where this product can be delivered':'Où ce produit peut être livré'}</p>
         ${getProductZonesCheckboxesHTML([])}
       </div>
+      ${getProductCodFieldHTML(null)}
       ${productImagesFieldHTML([])}
       <button class="btn btn-accent btn-block" onclick="addProduct('${shopId}')">${t('createProduct')}</button>`;
   }
@@ -12417,6 +12679,7 @@ function openModal(type, extra) {
       <div class="field"><label>${lang==='en'?'Delivery zones':'Zones de livraison'}</label>
         ${getProductZonesCheckboxesHTML(p.deliveryZones || [])}
       </div>
+      ${getProductCodFieldHTML(p)}
       ${productImagesFieldHTML(getProductImages(p))}
       <button class="btn btn-accent btn-block" onclick="saveProduct('${p.id}')">${t('save')}</button>
       <button class="btn btn-danger btn-block" style="margin-top:8px" onclick="deleteProduct('${p.id}')">${t('deleteProduct')}</button>`;
@@ -12800,6 +13063,7 @@ function openModal(type, extra) {
     const finalT = Math.max(0, total - discount);
     window._checkoutTotal = finalT;
     window._payMethod = 'balance';
+    try { applyShopCodFlagsFromCashOffers(); } catch (e) {}
     window._cashOfferAvailable = !!cashOfferAvailableForCart(groups);
     let invHtml = groups.map((g, i) =>
       `<div style="display:flex;justify-content:space-between;font-size:12.5px;padding:4px 0;border-bottom:1px solid var(--border)">
@@ -13673,7 +13937,8 @@ async function addProduct(shopIdOverride) {
       cats: catsArr,
       hashtags: hashtags || [],
       image: cover,
-      images: imgs.length ? imgs : (cover ? [cover] : [])
+      images: imgs.length ? imgs : (cover ? [cover] : []),
+      codEnabled: (typeof getProductCodFromForm === 'function') ? getProductCodFromForm() : null
     });
     try { invalidateProductSearchCache(); } catch (e) {}
 
@@ -13733,6 +13998,7 @@ async function saveProduct(id) {
     p.cat = catsArr[0];
     p.cats = [p.cat];
     p.hashtags = (typeof getProductHashtagsFromForm === 'function') ? getProductHashtagsFromForm() : [];
+    if (typeof getProductCodFromForm === 'function') p.codEnabled = getProductCodFromForm();
     p.price = parseInt(document.getElementById('mPrice')?.value, 10) || p.price;
     p.stock = parseInt(document.getElementById('mStock')?.value, 10);
     if (isNaN(p.stock)) p.stock = 0;
