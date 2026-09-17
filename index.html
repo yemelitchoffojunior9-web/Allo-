@@ -3217,9 +3217,15 @@ nav.bottom,
       <!-- ACTIVATION COMPTE ENTREPRISE -->
       <div class="view" id="view-company-activation">
         <div class="section-head">
-          <h2><span class="bar"></span> Activation compte</h2>
+          <h2><span class="bar"></span> Activation & formules</h2>
         </div>
         <div id="companyActivationContent"></div>
+      </div>
+      <div class="view" id="view-shop-activation">
+        <div class="section-head">
+          <h2><span class="bar"></span> Activation & formules</h2>
+        </div>
+        <div id="shopActivationContent"></div>
       </div>
 
       <!-- WALLET (Boutique uniquement) -->
@@ -3325,57 +3331,19 @@ nav.bottom,
         <div id="adminZonesList"></div>
       </div>
       <div class="view" id="view-admin-company-activation">
-        <div class="section-head"><h2><span class="bar"></span> Activation entreprises</h2></div>
-        <div id="adminCompanyActivationConfig"></div>
-        <div class="section-head" style="margin-top:16px"><h2><span class="bar"></span> Demandes de réactivation</h2></div>
+        <div class="section-head"><h2><span class="bar"></span> Formules d'activation</h2></div>
+        <p style="font-size:12.5px;color:var(--text-muted);margin:0 0 12px;line-height:1.45">
+          Créez plusieurs formules (quota de commandes + prix). Boutiques et entreprises choisissent celle qui leur convient.
+        </p>
+        <div id="adminActivationPlansList"></div>
+        <button class="btn btn-accent btn-block" style="margin:10px 0 16px" onclick="openModal('createActivationPlan')">＋ Créer une formule</button>
+        <div class="section-head" style="margin-top:8px"><h2><span class="bar"></span> Demandes d'activation</h2></div>
         <div id="adminCompanyActivationList"></div>
-        <div class="section-head" style="margin-top:16px"><h2><span class="bar"></span> Statut des entreprises</h2></div>
+        <div class="section-head" style="margin-top:16px"><h2><span class="bar"></span> Statut boutiques & entreprises</h2></div>
         <div id="adminCompaniesStatusList"></div>
       </div>
 
-      <div class="view" id="view-admin-commissions">
-        <div class="section-head"><h2><span class="bar"></span> <span id="adminCommTitle">Commissions</span></h2></div>
-
-        <div class="balance-card" style="margin-bottom:12px">
-          <div class="label" id="adminCommRevLabel">COMMISSIONS PERÇUES</div>
-          <div class="amount" id="adminCommRevenue">0 FCFA</div>
-          <p style="font-size:12px;color:var(--text-muted);margin-top:6px" id="adminCommHint"></p>
-        </div>
-
-        <div class="card" style="margin-bottom:10px">
-          <div class="field" style="margin-bottom:10px">
-            <label id="adminDefaultCommLabel">Commission par défaut (%)</label>
-            <input type="number" id="adminDefaultComm" min="0" max="100" step="0.5" value="0"
-              onchange="adminSetDefaultCommission(this.value)">
-          </div>
-          <button class="btn btn-sm btn-ghost btn-block" id="adminApplyDefaultBtn" onclick="adminApplyRateToAll()">
-            Appliquer ce taux à toutes les catégories
-          </button>
-        </div>
-
-        <div class="card" style="margin-bottom:10px;padding:10px 12px">
-          <input type="search" id="adminCommSearch" class="admin-search-input" placeholder="Rechercher…"
-            oninput="adminCommFilter(this.value)" autocomplete="off">
-          <div class="admin-comm-meta-row">
-            <span id="adminCommCount"></span>
-            <select id="adminCommSort" class="admin-sort-select" onchange="adminCommSetSort(this.value)">
-              <option value="name">Nom</option>
-              <option value="rate">Taux</option>
-              <option value="products">Produits</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="card" style="padding:0;overflow:hidden;margin-bottom:12px">
-          <div id="adminCommissionsForm" class="comm-list"></div>
-          <div class="comm-pager" id="adminCommPager"></div>
-        </div>
-
-        <button class="btn btn-accent btn-block" id="adminCommSaveBtn" onclick="saveAdminCommissions()">
-          Enregistrer
-        </button>
-      </div>
-
+      
       <div class="view" id="view-admin-notifs">
         <div class="section-head"><h2><span class="bar"></span> Notifications</h2></div>
         <div class="card" style="margin-bottom:12px">
@@ -3426,7 +3394,7 @@ nav.bottom,
           </div>
 
           <div style="font-weight:800;margin:16px 0 8px;opacity:.5;text-decoration:line-through">🏢 Entreprises (désactivé)</div>
-          <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px">Le paiement à la livraison n’est plus disponible pour les entreprises. Les revenus entreprise passent par l’activation de compte.</p>
+          <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px">Boutiques et entreprises utilisent des formules d’activation (quota de commandes). Le Super Admin définit les formules ; chaque vendeur choisit la sienne.</p>
           <!-- champs conservés cachés pour compatibilité -->
           <div style="display:none">
             <input type="number" id="cashPlan_entreprise_day" value="0">
@@ -4742,8 +4710,21 @@ async function sbLoadAllIntoData() {
         if (v.orderQuotaTotal != null) company.orderQuotaTotal = Number(v.orderQuotaTotal) || 0;
         if (v.activationLocked != null) company.activationLocked = !!v.activationLocked;
         if (v.activationPhase) company.activationPhase = v.activationPhase;
+        if (v.currentPlanId) company.currentPlanId = v.currentPlanId;
         if (v.lastActivationAt) company.lastActivationAt = v.lastActivationAt;
         company.activationInitialized = true;
+      });
+      (appRecords.data || []).filter(r => r.collection === 'shop_activation').forEach(r => {
+        const shop = (data.shops || []).find(s => String(s.id) === String(r.record_key));
+        if (!shop) return;
+        const v = r.value || {};
+        if (v.ordersUsed != null) shop.ordersUsed = Number(v.ordersUsed) || 0;
+        if (v.orderQuotaTotal != null) shop.orderQuotaTotal = Number(v.orderQuotaTotal) || 0;
+        if (v.activationLocked != null) shop.activationLocked = !!v.activationLocked;
+        if (v.activationPhase) shop.activationPhase = v.activationPhase;
+        if (v.currentPlanId) shop.currentPlanId = v.currentPlanId;
+        if (v.lastActivationAt) shop.lastActivationAt = v.lastActivationAt;
+        shop.activationInitialized = true;
       });
     } catch(e) {}
 
@@ -5782,6 +5763,7 @@ let data = {
   wishlist: [],
   promoCodes: [],
   companyActivationRequests: [],
+  activationRequests: [],
   returns: [],
   escrow: [],
   walletTx: [],
@@ -5952,7 +5934,7 @@ function findAccount(email, password) {
       identifier: factory.id,
       role: 'admin',
       balance: 0,
-      wallet: adminConfig.commissionRevenue || 0
+      wallet: adminConfig.companyActivationRevenue || 0
     };
   }
 
@@ -6322,12 +6304,18 @@ function defaultAdminConfig() {
     name: 'Admin',
     email: null,
     defaultCommission: 0,
-    commissions: { 'Mode': 5, 'Tech': 5, 'Alimentaire': 5, 'Boissons': 5, 'Frais': 5, 'Autres': 5 },
+    commissions: {},
     categories: ['Mode', 'Tech', 'Alimentaire', 'Boissons', 'Frais', 'Autres'],
     deliveryZones: ['Douala', 'Yaoundé', 'Bafoussam', 'Bamenda', 'Garoua', 'Maroua', 'Ngaoundéré', 'Kribi', 'Limbe', 'Bertoua'],
     commissionRevenue: 0,
-    // Activation compte entreprise : 1ère ouverture gratuite (freeOrderQuota commandes),
-    // puis le Super Admin définit reactivationOrderQuota + reactivationPrice.
+    companyActivationRevenue: 0,
+    // Formules d'activation : Super Admin en crée plusieurs ; boutique / entreprise choisit.
+    activationPlans: [
+      { id: 'plan_free', name: 'Découverte', orderQuota: 50, price: 0, target: 'both', description: 'Première ouverture gratuite — 50 commandes reçues', active: true },
+      { id: 'plan_starter', name: 'Starter', orderQuota: 100, price: 15000, target: 'both', description: '100 commandes reçues', active: true },
+      { id: 'plan_pro', name: 'Pro', orderQuota: 300, price: 40000, target: 'both', description: '300 commandes reçues', active: true },
+      { id: 'plan_business', name: 'Business', orderQuota: 1000, price: 100000, target: 'both', description: '1000 commandes reçues', active: true }
+    ],
     companyActivation: {
       freeOrderQuota: 50,
       reactivationOrderQuota: 100,
@@ -6352,7 +6340,10 @@ function loadAdminConfig() {
       merged.id = String(merged.id).trim();
       merged.password = String(merged.password);
       if (!merged.commissions || typeof merged.commissions !== 'object') {
-        merged.commissions = defaults.commissions;
+        merged.commissions = {};
+      }
+      if (!Array.isArray(merged.activationPlans) || !merged.activationPlans.length) {
+        merged.activationPlans = defaults.activationPlans;
       }
       if (!Array.isArray(merged.categories) || !merged.categories.length) {
         merged.categories = defaults.categories;
@@ -6462,29 +6453,8 @@ function listAllManagedAccounts() {
 }
 
 function getRealCommissionRevenue() {
-  // Only count commissions from delivered orders currently in data (no phantom amounts)
-  const orders = data.orders || [];
-  let total = 0;
-  orders.forEach(o => {
-    if (o.status !== 'livré' && o.status !== 'delivered') return;
-    if (o.commissionTotal != null) {
-      total += Number(o.commissionTotal) || 0;
-      return;
-    }
-    (o.items || []).forEach(it => {
-      const p = data.products.find(x => x.id === it.productId);
-      if (!p) return;
-      const line = (it.price || 0) * (it.qty || 0);
-      const pct = typeof getProductCommissionRate === 'function' ? getProductCommissionRate(p) : (typeof getCommissionRate === 'function' ? getCommissionRate(p.cat || 'Autres') : 0);
-      total += Math.round(line * pct / 100);
-    });
-  });
-  // Keep adminConfig in sync with reality (prevents stale alloEphemeralStorage values)
-  if (adminConfig) {
-    adminConfig.commissionRevenue = total;
-    try { saveAdminConfig(); } catch (e) {}
-  }
-  return total;
+  // Système de commission retiré — revenus = activations de formules
+  return Number(adminConfig && adminConfig.companyActivationRevenue) || 0;
 }
 
 async function renderAdminHome() {
@@ -6501,7 +6471,7 @@ async function renderAdminHome() {
     stats.innerHTML = `
       <div class="hero-stat"><b>${accounts.length}</b><span>${t('adminAccounts')}</span></div>
       <div class="hero-stat"><b>${orders.length}</b><span>${t('orders')}</span></div>
-      <div class="hero-stat"><b>${formatMoney(realRevenue)}</b><span>${t('adminCommissionRevenue')}</span></div>`;
+      <div class="hero-stat"><b>${formatMoney(realRevenue)}</b><span>${lang==='en'?'Activation revenue':'Revenus activation'}</span></div>`;
   }
   const banner = document.getElementById('privateBanner');
   if (banner) banner.classList.add('hidden');
@@ -6514,8 +6484,8 @@ async function renderAdminHome() {
         <b>🛡 Super Admin</b>
         <p style="font-size:12.5px;color:var(--text-muted);margin-top:6px;line-height:1.45">
           ${lang==='en'
-            ? 'Manage all accounts, categories, commissions, notifications and feedback.'
-            : 'Gérez tous les comptes, catégories, commissions, notifications et suggestions.'}
+            ? 'Manage all accounts, categories, activation plans, notifications and feedback.'
+            : 'Gérez tous les comptes, catégories, formules d\'activation, notifications et suggestions.'}
         </p>
       </div>
       <div class="row-info">
@@ -6523,7 +6493,7 @@ async function renderAdminHome() {
         <div class="info-box cyan" style="cursor:pointer" onclick="switchView('admin-categories')"><b>${getAdminCategories().length}</b><span>${t('adminCategories')}</span></div>
       </div>
       <div class="row-info" style="margin-top:8px">
-        <div class="info-box purple" style="cursor:pointer" onclick="switchView('admin-commissions')"><b>${Object.keys(adminConfig.commissions||{}).length}</b><span>${t('adminCommissions')}</span></div>
+        <div class="info-box purple" style="cursor:pointer" onclick="switchView('admin-company-activation')"><b>${(adminConfig.activationPlans||[]).length}</b><span>${lang==='en'?'Plans':'Formules'}</span></div>
         <div class="info-box cyan" style="cursor:pointer" onclick="switchView('admin-zones')"><b>${getAdminDeliveryZones().length}</b><span>${lang==='en'?'Zones':'Zones'}</span></div>
       </div>
       <div class="row-info" style="margin-top:8px">
@@ -7190,24 +7160,14 @@ async function adminAddCategory() {
   if (!adminConfig.categories) adminConfig.categories = getAdminCategories();
   if (adminConfig.categories.includes(name)) { closeModal(); return; }
   if (USE_SUPABASE && sb) {
-    // Source de vérité : Supabase. On relit le taux au moment exact de la création
-    // pour utiliser la dernière valeur enregistrée, sans dépendre d'un cache local.
-    const defRes = await sbAdminGetDefaultCommission();
-    if (defRes.error) { alert(lang==='en'?'Could not read the default commission.':'Impossible de lire la commission par défaut.'); return; }
-    const defaultRate = Number(defRes.data ?? 0);
-    const res = await sbAdminSaveCategory(name, defaultRate);
+    const res = await sbAdminSaveCategory(name, 0);
     if (res.error) { alert(lang==='en'?'Could not save category.':'Impossible d’enregistrer la catégorie.'); return; }
-    adminConfig.defaultCommission = defaultRate;
-    if (!adminConfig.commissions) adminConfig.commissions = {};
-    adminConfig.commissions[name] = defaultRate;
     await sbLoadAllIntoData();
   } else {
     adminConfig.categories.push(name);
-    if (!adminConfig.commissions) adminConfig.commissions = {};
-    adminConfig.commissions[name] = Number.isFinite(Number(adminConfig.defaultCommission)) ? Number(adminConfig.defaultCommission) : 0;
     saveAdminConfig();
   }
-  closeModal(); alert(t('adminCategoryAdded')); renderAdminCategories(); renderAdminCommissions();
+  closeModal(); alert(t('adminCategoryAdded')); renderAdminCategories();
 }
 
 async function adminRemoveCategory(name) {
@@ -7221,7 +7181,7 @@ async function adminRemoveCategory(name) {
     if (adminConfig.commissions) delete adminConfig.commissions[name];
     saveAdminConfig();
   }
-  renderAdminCategories(); renderAdminCommissions();
+  renderAdminCategories();
 }
 
 function renderAdminZones() {
@@ -7280,18 +7240,12 @@ async function adminRemoveZone(name) {
 window._adminCommState = { q: '', page: 1, pageSize: 30, sort: 'name', _searchTimer: null };
 
 function getCommissionRate(cat) {
-  try {
-    if (!adminConfig.commissions) adminConfig.commissions = {};
-    if (adminConfig.commissions[cat] != null && adminConfig.commissions[cat] !== '') return Number(adminConfig.commissions[cat]);
-    if (adminConfig.defaultCommission != null) return Number(adminConfig.defaultCommission);
-  } catch (e) {}
   return 0;
 }
 
 // Taux effectif d'un produit : chaque hashtag ajoute le taux configuré par le Super Admin.
 function getProductCommissionRate(product) {
-  const cat = String(product && product.cat || '').trim();
-  return cat ? Math.max(0, Number(getCommissionRate(cat)) || 0) : 0;
+  return 0;
 }
 
 function productCountByCategory() {
@@ -7392,7 +7346,7 @@ function adminApplyRateToAll() {
   alert(t('adminSaved'));
 }
 
-function renderAdminCommissionsListOnly() {
+function renderAdminCommissionsListOnly() { return; /* commissions removed */
   const form = document.getElementById('adminCommissionsForm');
   const pager = document.getElementById('adminCommPager');
   const countEl = document.getElementById('adminCommCount');
@@ -7459,7 +7413,7 @@ function renderAdminCommissionsListOnly() {
   }
 }
 
-function renderAdminCommissions() {
+function renderAdminCommissions() { return; /* commissions removed */
   if (!currentUser || currentUser.role !== 'admin') return;
   try {
     if (!window._adminCommState) window._adminCommState = { q: '', sort: 'name', page: 1, pageSize: 100, _searchTimer: null };
@@ -7526,7 +7480,7 @@ function renderAdminCommissions() {
   }
 }
 
-async function saveAdminCommissions() {
+async function saveAdminCommissions() { return; /* commissions removed */
   try {
     if (!adminConfig.commissions) adminConfig.commissions = {};
     const def = adminConfig.defaultCommission != null ? Number(adminConfig.defaultCommission) : 0;
@@ -7776,30 +7730,10 @@ async function sendSuggestionToAdmin() {
 }
 
 function applyCommissionOnSale(product, lineAmount) {
-  // Calcul pur : le chiffre d'affaires de commission est crédité par Supabase
-  // uniquement lorsque la commande est réellement livrée.
-  if (!product || !lineAmount) return 0;
-  const pct = getProductCommissionRate(product);
-  return Math.round(lineAmount * pct / 100);
+  return 0;
 }
 
 async function creditAdminCommission(amount, orderId) {
-  amount = Math.round(Number(amount) || 0);
-  if (amount <= 0 || !orderId) return true;
-  if (typeof USE_SUPABASE === 'undefined' || !USE_SUPABASE || !sb || !alloUuid(orderId)) return false;
-  const { data, error } = await sb.rpc('add_admin_commission', {
-    p_amount: amount,
-    p_order_id: orderId
-  });
-  if (error) {
-    console.error('[Allo] admin commission release', error);
-    throw error;
-  }
-  const total = Number(data?.total);
-  if (Number.isFinite(total)) {
-    adminConfig.commissionRevenue = total;
-    if (currentUser && currentUser.role === 'admin') currentUser.wallet = total;
-  }
   return true;
 }
 
@@ -8015,6 +7949,7 @@ function buildSidebarNav() {
       { view: 'withdraws', label: 'Retraits', ico: '📤' },
       { view: 'transactions', label: 'Transactions', ico: '📜' },
       { view: 'analytics', label: t('analytics'), ico: '📊' },
+      { view: 'shop-activation', label: 'Activation & formules', ico: '🔑' },
       { view: 'notifs', label: t('notifs'), ico: '🔔' },
       { view: 'account', label: 'Ma boutique', ico: '🏪' },
       { view: '__personal', label: 'Mon compte utilisateur', ico: '👤' },
@@ -8029,7 +7964,7 @@ function buildSidebarNav() {
       { view: 'orders', label: 'Mes commandes', ico: '📋' },
       { view: 'promos', label: 'Faire une promo', ico: '🏷' },
       { view: 'promos', label: 'Mes promotions', ico: '🔥' },
-      { view: 'company-activation', label: 'Activation compte', ico: '🔑' },
+      { view: 'company-activation', label: 'Activation & formules', ico: '🔑' },
       { view: 'analytics', label: t('analytics'), ico: '📊' },
       { view: 'messages', label: t('messages'), ico: '💬' },
       { view: 'notifs', label: t('notifs'), ico: '🔔' },
@@ -8067,8 +8002,8 @@ function buildSidebarNav() {
       { view: 'admin-certify', label: t('adminCertify'), ico: '✅' },
       { view: 'admin-categories', label: t('adminCategories'), ico: '🏷' },
       { view: 'admin-zones', label: lang==='en'?'Delivery zones':'Zones livraison', ico: '📍' },
-      { view: 'admin-commissions', label: t('adminCommissions'), ico: '💸' },
-      { view: 'admin-company-activation', label: 'Activation entreprises', ico: '🔑' },
+      
+      { view: 'admin-company-activation', label: lang==='en'?'Activation plans':'Formules d\'activation', ico: '🔑' },
       { view: 'admin-topups', label: 'Recharges', ico: '➕' },
       { view: 'admin-withdraws', label: 'Retraits', ico: '📤' },
       { view: 'admin-paymethods', label: 'Modes de paiement', ico: '💳' },
@@ -8176,7 +8111,7 @@ function buildNav() {
     items = [
       { view: 'home', label: t('home'), icon: icons.home },
       { view: 'admin-accounts', label: t('adminAccounts'), icon: icons.clients },
-      { view: 'admin-commissions', label: t('adminCommissions'), icon: icons.cart },
+      
       { view: 'admin-feedback', label: t('adminFeedback'), icon: icons.messages },
       { view: 'account', label: t('account'), icon: icons.account }
     ];
@@ -8488,13 +8423,15 @@ function renderAll() {
   if (currentUser && currentUser.role === 'entreprise') {
     try { renderCompanyActivation(); } catch (e) {}
   }
+  if (currentUser && currentUser.role === 'boutique') {
+    try { renderShopActivation(); } catch (e) {}
+  }
   if (currentUser && currentUser.role === 'admin') {
     renderAdminHome();
     renderAdminAccounts();
     renderAdminCategories();
     renderAdminHashtags();
     renderAdminZones();
-    renderAdminCommissions();
     try { renderAdminCompanyActivations(); } catch (e) {}
     renderAdminNotifs();
     renderAdminFeedback();
@@ -8555,11 +8492,19 @@ function renderHome() {
     const orders = data.orders.filter(o => orderBelongsToSeller(o, sellerShopIds));
     const myShopId = currentUser.shopId || (data.shops.find(s => sellerShopIds.includes(String(s.id))) || {}).id;
     const subCount = typeof countShopSubscribers === 'function' ? countShopSubscribers(myShopId) : 0;
+    const remaining = myShopId && typeof getShopOrdersRemaining === 'function' ? getShopOrdersRemaining(myShopId) : '—';
+    const locked = myShopId && typeof isShopAccountActive === 'function' && !isShopAccountActive(myShopId);
     stats.innerHTML = `
       <div class="hero-stat"><b>${prods.length}</b><span>${t('productsCount')}</span></div>
       <div class="hero-stat"><b>${prods.reduce((s,p) => s + p.stock, 0)}</b><span>${t('stock')}</span></div>
       <div class="hero-stat"><b>${orders.length}</b><span>${t('ordersCount')}</span></div>
-      <div class="hero-stat"><b>${subCount}</b><span>${t('subscribersCount')}</span></div>`;
+      <div class="hero-stat"><b style="color:${locked?'var(--red)':'var(--green)'}">${remaining}</b><span>Quota restant</span></div>`;
+    if (locked) {
+      banner.classList.remove('hidden');
+      banner.innerHTML = `<span style="font-size:22px">🔒</span>
+        <div><b>Compte boutique verrouillé</b><br>
+        Votre quota de commandes est épuisé. <a href="#" onclick="switchView('shop-activation');return false;" style="color:var(--accent-bright);font-weight:700">Choisir une formule →</a></div>`;
+    }
   } else if (role === 'entreprise') {
     const clients = data.clients.filter(c => c.companyId === currentUser.companyId);
     const shops = data.shops.filter(s => s.companyId === currentUser.companyId && s.isCompanyCatalog === true);
@@ -9799,6 +9744,12 @@ async function confirmCheckout() {
           : 'Le compte de cette entreprise est verrouillé. L’entreprise doit réactiver son compte pour recevoir des commandes.');
         return;
       }
+      if (!cid && g.shopId && typeof isShopAccountActive === 'function' && !isShopAccountActive(g.shopId)) {
+        alert(lang === 'en'
+          ? 'This shop account is locked. The shop must reactivate its account to receive orders.'
+          : 'Le compte de cette boutique est verrouillé. La boutique doit réactiver son compte pour recevoir des commandes.');
+        return;
+      }
     }
   }
   const grandRaw = groups.reduce((s, g) => s + g.subtotal, 0);
@@ -9890,10 +9841,14 @@ async function confirmCheckout() {
     }
     created.push(order);
     notifySellersOfOrder(order);
-    // Compteur d'activation entreprise
-    if (order.companyId && typeof consumeCompanyOrderQuota === 'function') {
-      try { consumeCompanyOrderQuota(order.companyId); } catch (e) { console.warn('[Allo] company quota', e); }
-    }
+    // Compteur d'activation (entreprise OU boutique)
+    try {
+      if (order.companyId && typeof consumeCompanyOrderQuota === 'function') {
+        consumeCompanyOrderQuota(order.companyId);
+      } else if (order.shopId && typeof consumeShopOrderQuota === 'function') {
+        consumeShopOrderQuota(order.shopId);
+      }
+    } catch (e) { console.warn('[Allo] seller quota', e); }
   }
 
   try {
@@ -12659,6 +12614,24 @@ function openModal(type, extra) {
       <div class="field"><label>${t('category')}</label><input type="text" id="mCatName" placeholder="Ex: Mode"></div>
       <button class="btn btn-accent btn-block" onclick="adminAddCategory()">${t('save')}</button>`;
   }
+  if (type === 'createActivationPlan') {
+    const edit = extra ? ((adminConfig.activationPlans || []).find(p => String(p.id) === String(extra))) : null;
+    html = `<button class="modal-close" onclick="closeModal()">×</button>
+      <h3>${edit ? (lang==='en'?'Edit plan':'Modifier la formule') : (lang==='en'?'New activation plan':'Nouvelle formule')}</h3>
+      <input type="hidden" id="mPlanEditId" value="${edit ? edit.id : ''}">
+      <div class="field"><label>Nom</label><input type="text" id="mPlanName" value="${edit ? (edit.name||'') : ''}" placeholder="Ex: Starter"></div>
+      <div class="field"><label>Quota de commandes</label><input type="number" id="mPlanQuota" min="1" value="${edit ? (edit.orderQuota||50) : 100}"></div>
+      <div class="field"><label>Prix (FCFA) — 0 = gratuit</label><input type="number" id="mPlanPrice" min="0" step="100" value="${edit ? (edit.price||0) : 15000}"></div>
+      <div class="field"><label>Cible</label>
+        <select id="mPlanTarget">
+          <option value="both" ${!edit || edit.target==='both'?'selected':''}>Boutiques & Entreprises</option>
+          <option value="boutique" ${edit && edit.target==='boutique'?'selected':''}>Boutiques seulement</option>
+          <option value="entreprise" ${edit && edit.target==='entreprise'?'selected':''}>Entreprises seulement</option>
+        </select>
+      </div>
+      <div class="field"><label>Description</label><textarea id="mPlanDesc" rows="2" placeholder="Courte description">${edit ? (edit.description||'') : ''}</textarea></div>
+      <button class="btn btn-accent btn-block" onclick="saveActivationPlanFromModal()">${t('save')}</button>`;
+  }
   if (type === 'addZone') {
     html = `<button class="modal-close" onclick="closeModal()">×</button>
       <h3>${lang==='en'?'New delivery zone':'Nouvelle zone de livraison'}</h3>
@@ -13528,6 +13501,7 @@ function ensureBoutiqueShop() {
       private: false,
       isCompanyCatalog: false
     };
+    if (typeof ensureShopActivationFields === 'function') ensureShopActivationFields(shop);
     if (!data.shops) data.shops = [];
     data.shops.push(shop);
   }
@@ -15301,30 +15275,62 @@ function deleteProductVariant(productId, variantId) {
 
 
 
-// ===== ACTIVATION COMPTE ENTREPRISE (quota de commandes) =====
+// ===== ACTIVATION & FORMULES (boutiques + entreprises) =====
+function getActivationPlans(target) {
+  const plans = (adminConfig && Array.isArray(adminConfig.activationPlans))
+    ? adminConfig.activationPlans.slice()
+    : [];
+  const list = plans.filter(p => p && p.active !== false);
+  if (!target) return list;
+  return list.filter(p => {
+    const t = String(p.target || 'both').toLowerCase();
+    return t === 'both' || t === target;
+  });
+}
+
+function getActivationPlanById(id) {
+  if (!id) return null;
+  const plans = (adminConfig && adminConfig.activationPlans) || [];
+  return plans.find(p => String(p.id) === String(id)) || null;
+}
+
+function getDefaultFreePlan(target) {
+  const plans = getActivationPlans(target);
+  const free = plans.find(p => Number(p.price || 0) <= 0);
+  return free || plans[0] || { id: 'plan_free', name: 'Découverte', orderQuota: 50, price: 0, target: 'both' };
+}
+
+/** @deprecated compat — mappe vers les formules */
 function getCompanyActivationConfig() {
-  const cfg = (typeof adminConfig !== 'undefined' && adminConfig.companyActivation) ? adminConfig.companyActivation : {};
+  const free = getDefaultFreePlan('entreprise');
+  const paid = getActivationPlans('entreprise').find(p => Number(p.price || 0) > 0) || free;
   return {
-    freeOrderQuota: Math.max(1, Number(cfg.freeOrderQuota) || 50),
-    reactivationOrderQuota: Math.max(1, Number(cfg.reactivationOrderQuota) || 100),
-    reactivationPrice: Math.max(0, Number(cfg.reactivationPrice) || 20000)
+    freeOrderQuota: Math.max(1, Number(free.orderQuota) || 50),
+    reactivationOrderQuota: Math.max(1, Number(paid.orderQuota) || 100),
+    reactivationPrice: Math.max(0, Number(paid.price) || 0)
   };
 }
 
-function ensureCompanyActivationFields(company) {
-  if (!company) return null;
-  if (company.activationInitialized) return company;
-  const cfg = getCompanyActivationConfig();
-  // Première ouverture gratuite
-  if (company.orderQuotaTotal == null) company.orderQuotaTotal = cfg.freeOrderQuota;
-  if (company.ordersUsed == null) company.ordersUsed = 0;
-  if (company.activationLocked == null) company.activationLocked = false;
-  if (!company.activationPhase) company.activationPhase = 'free'; // free | paid | locked
-  company.activationInitialized = true;
-  return company;
+function ensureSellerActivationFields(entity, target) {
+  if (!entity) return null;
+  if (entity.activationInitialized) return entity;
+  const free = getDefaultFreePlan(target);
+  if (entity.orderQuotaTotal == null) entity.orderQuotaTotal = Number(free.orderQuota) || 50;
+  if (entity.ordersUsed == null) entity.ordersUsed = 0;
+  if (entity.activationLocked == null) entity.activationLocked = false;
+  if (!entity.activationPhase) entity.activationPhase = 'free';
+  if (!entity.currentPlanId) entity.currentPlanId = free.id;
+  entity.activationInitialized = true;
+  return entity;
 }
 
-/** Nombre de commandes REÇUES par l'entreprise (indépendant du statut livré / vu). */
+function ensureCompanyActivationFields(company) {
+  return ensureSellerActivationFields(company, 'entreprise');
+}
+function ensureShopActivationFields(shop) {
+  return ensureSellerActivationFields(shop, 'boutique');
+}
+
 function countCompanyReceivedOrders(companyId) {
   if (!companyId) return 0;
   const cid = String(companyId);
@@ -15341,22 +15347,39 @@ function countCompanyReceivedOrders(companyId) {
   }).length;
 }
 
-/**
- * Aligne ordersUsed sur le max(stocké, commandes réelles).
- * Ainsi le quota avance dès la réception, même si « livré » n'est jamais cliqué.
- */
+function countShopReceivedOrders(shopId) {
+  if (!shopId) return 0;
+  const sid = String(shopId);
+  return (data.orders || []).filter(o => {
+    if (!o) return false;
+    if (String(o.shopId || '') === sid) return true;
+    return (o.items || []).some(it => {
+      if (String(it.shopId || '') === sid) return true;
+      const p = (data.products || []).find(x => String(x.id) === String(it.productId));
+      return p && String(p.shopId || '') === sid;
+    });
+  }).length;
+}
+
+function syncSellerOrdersUsed(entity, receivedCount) {
+  if (!entity) return;
+  const stored = Number(entity.ordersUsed || 0);
+  if (receivedCount > stored) entity.ordersUsed = receivedCount;
+  if (Number(entity.ordersUsed || 0) >= Number(entity.orderQuotaTotal || 0)) {
+    entity.activationLocked = true;
+    entity.activationPhase = 'locked';
+  }
+}
+
 function syncCompanyOrdersUsedFromReceived(company) {
   if (!company) return;
   ensureCompanyActivationFields(company);
-  const received = countCompanyReceivedOrders(company.id);
-  const stored = Number(company.ordersUsed || 0);
-  if (received > stored) {
-    company.ordersUsed = received;
-  }
-  if (Number(company.ordersUsed || 0) >= Number(company.orderQuotaTotal || 0)) {
-    company.activationLocked = true;
-    company.activationPhase = 'locked';
-  }
+  syncSellerOrdersUsed(company, countCompanyReceivedOrders(company.id));
+}
+function syncShopOrdersUsedFromReceived(shop) {
+  if (!shop) return;
+  ensureShopActivationFields(shop);
+  syncSellerOrdersUsed(shop, countShopReceivedOrders(shop.id));
 }
 
 function getCompanyOrdersRemaining(companyId) {
@@ -15366,6 +15389,14 @@ function getCompanyOrdersRemaining(companyId) {
   try { syncCompanyOrdersUsedFromReceived(company); } catch (e) {}
   if (company.activationLocked) return 0;
   return Math.max(0, Number(company.orderQuotaTotal || 0) - Number(company.ordersUsed || 0));
+}
+function getShopOrdersRemaining(shopId) {
+  const shop = (data.shops || []).find(s => String(s.id) === String(shopId));
+  if (!shop) return 0;
+  ensureShopActivationFields(shop);
+  try { syncShopOrdersUsedFromReceived(shop); } catch (e) {}
+  if (shop.activationLocked) return 0;
+  return Math.max(0, Number(shop.orderQuotaTotal || 0) - Number(shop.ordersUsed || 0));
 }
 
 function isCompanyAccountActive(companyId) {
@@ -15377,39 +15408,51 @@ function isCompanyAccountActive(companyId) {
   if (company.activationLocked) return false;
   return getCompanyOrdersRemaining(companyId) > 0;
 }
+function isShopAccountActive(shopId) {
+  if (!shopId) return true;
+  const shop = (data.shops || []).find(s => String(s.id) === String(shopId));
+  if (!shop) return false;
+  // Boutiques liées à une entreprise : le quota est géré au niveau entreprise
+  if (shop.companyId) return isCompanyAccountActive(shop.companyId);
+  ensureShopActivationFields(shop);
+  try { syncShopOrdersUsedFromReceived(shop); } catch (e) {}
+  if (shop.activationLocked) return false;
+  return getShopOrdersRemaining(shopId) > 0;
+}
 
-/** Persiste le quota activation entreprise (app_records). Indépendant du statut livré. */
-async function persistCompanyActivationState(company) {
-  if (!company || !company.id) return;
+async function persistSellerActivationState(entity, collection, ownerId) {
+  if (!entity || !entity.id) return;
   try { saveAppData(); } catch (e) {}
-  if (!(typeof alloIsSupabaseMode === 'function' && alloIsSupabaseMode() && sb && alloUuid(company.id))) return;
-  const ownerId = company.ownerId || (currentUser && currentUser.id) || null;
-  if (!ownerId || !alloUuid(ownerId)) return;
+  if (!(typeof alloIsSupabaseMode === 'function' && alloIsSupabaseMode() && sb && alloUuid(entity.id))) return;
+  const oid = ownerId || entity.ownerId || (currentUser && currentUser.id) || null;
+  if (!oid || !alloUuid(oid)) return;
   const value = {
-    ordersUsed: Number(company.ordersUsed || 0),
-    orderQuotaTotal: Number(company.orderQuotaTotal || 0),
-    activationLocked: !!company.activationLocked,
-    activationPhase: company.activationPhase || 'free',
-    lastActivationAt: company.lastActivationAt || null
+    ordersUsed: Number(entity.ordersUsed || 0),
+    orderQuotaTotal: Number(entity.orderQuotaTotal || 0),
+    activationLocked: !!entity.activationLocked,
+    activationPhase: entity.activationPhase || 'free',
+    currentPlanId: entity.currentPlanId || null,
+    lastActivationAt: entity.lastActivationAt || null
   };
   try {
     await sb.from('app_records').upsert({
-      user_id: ownerId,
-      collection: 'company_activation',
-      record_key: String(company.id),
+      user_id: oid,
+      collection: collection,
+      record_key: String(entity.id),
       value,
       updated_at: new Date().toISOString()
     }, { onConflict: 'user_id,collection,record_key' });
   } catch (e) {
-    console.warn('[Allo] persist company activation', e);
+    console.warn('[Allo] persist activation', e);
   }
 }
+async function persistCompanyActivationState(company) {
+  return persistSellerActivationState(company, 'company_activation', company && company.ownerId);
+}
+async function persistShopActivationState(shop) {
+  return persistSellerActivationState(shop, 'shop_activation', shop && shop.ownerId);
+}
 
-/**
- * Compte UNE commande reçue dans le quota entreprise.
- * Déclenché à la création de la commande (pas à la consultation, pas à la livraison).
- * Marquer livré ou non n'a AUCUN impact sur ce compteur.
- */
 function consumeCompanyOrderQuota(companyId) {
   const company = (data.companies || []).find(c => String(c.id) === String(companyId));
   if (!company) return;
@@ -15422,131 +15465,262 @@ function consumeCompanyOrderQuota(companyId) {
       pushUserNotif(company.ownerId,
         lang === 'en' ? 'Company account locked' : 'Compte entreprise verrouillé',
         lang === 'en'
-          ? 'Your order quota is exhausted (received orders). Reactivate your account from Activation — marking orders delivered does not free the quota.'
-          : 'Votre quota de commandes reçues est épuisé. Réactivez votre compte depuis Activation — marquer livré ne libère pas le quota.');
+          ? 'Your order quota is exhausted. Choose a new plan from Activation.'
+          : 'Votre quota de commandes est épuisé. Choisissez une nouvelle formule dans Activation.');
     }
   }
   try { persistCompanyActivationState(company); } catch (e) {}
 }
 
-function requestCompanyReactivation() {
-  if (!currentUser || currentUser.role !== 'entreprise') return;
-  const company = (data.companies || []).find(c => String(c.id) === String(currentUser.companyId));
-  if (!company) { alert(lang==='en'?'Company not found':'Entreprise introuvable'); return; }
-  ensureCompanyActivationFields(company);
-  const cfg = getCompanyActivationConfig();
-  if (!company.activationLocked && getCompanyOrdersRemaining(company.id) > 0) {
+function consumeShopOrderQuota(shopId) {
+  const shop = (data.shops || []).find(s => String(s.id) === String(shopId));
+  if (!shop) return;
+  if (shop.companyId) {
+    consumeCompanyOrderQuota(shop.companyId);
+    return;
+  }
+  ensureShopActivationFields(shop);
+  shop.ordersUsed = Number(shop.ordersUsed || 0) + 1;
+  if (shop.ordersUsed >= Number(shop.orderQuotaTotal || 0)) {
+    shop.activationLocked = true;
+    shop.activationPhase = 'locked';
+    if (shop.ownerId) {
+      pushUserNotif(shop.ownerId,
+        lang === 'en' ? 'Shop account locked' : 'Compte boutique verrouillé',
+        lang === 'en'
+          ? 'Your order quota is exhausted. Choose a new plan from Activation.'
+          : 'Votre quota de commandes est épuisé. Choisissez une nouvelle formule dans Activation.');
+    }
+  }
+  try { persistShopActivationState(shop); } catch (e) {}
+}
+
+function requestSellerActivation(entityType, planId) {
+  if (!currentUser) return;
+  const plan = getActivationPlanById(planId);
+  if (!plan) {
+    alert(lang === 'en' ? 'Plan not found' : 'Formule introuvable');
+    return;
+  }
+  let entity = null;
+  let ownerId = currentUser.id;
+  let entityName = '';
+  if (entityType === 'entreprise') {
+    if (currentUser.role !== 'entreprise') return;
+    entity = (data.companies || []).find(c => String(c.id) === String(currentUser.companyId));
+    if (!entity) { alert(lang==='en'?'Company not found':'Entreprise introuvable'); return; }
+    ensureCompanyActivationFields(entity);
+    entityName = entity.name || 'Entreprise';
+  } else {
+    if (currentUser.role !== 'boutique') return;
+    const shopIds = typeof getSellerShopIds === 'function' ? getSellerShopIds() : [];
+    entity = (data.shops || []).find(s => shopIds.map(String).includes(String(s.id)) && !s.companyId);
+    if (!entity) { alert(lang==='en'?'Shop not found':'Boutique introuvable'); return; }
+    ensureShopActivationFields(entity);
+    entityName = entity.name || 'Boutique';
+  }
+  if (!entity.activationLocked && (
+    (entityType === 'entreprise' ? getCompanyOrdersRemaining(entity.id) : getShopOrdersRemaining(entity.id)) > 0
+  )) {
     alert(lang==='en'?'Your account is still active.':'Votre compte est encore actif.');
     return;
   }
+  if (!data.activationRequests) data.activationRequests = [];
   if (!data.companyActivationRequests) data.companyActivationRequests = [];
-  const existing = data.companyActivationRequests.find(r =>
-    String(r.companyId) === String(company.id) && r.status === 'pending');
+  const existing = (data.activationRequests || []).concat(data.companyActivationRequests || [])
+    .find(r => String(r.entityId || r.companyId) === String(entity.id) && r.status === 'pending');
   if (existing) {
-    alert(lang==='en'?'A reactivation request is already pending.':'Une demande de réactivation est déjà en attente.');
+    alert(lang==='en'?'A request is already pending.':'Une demande est déjà en attente.');
     return;
   }
   const req = {
-    id: 'car' + Date.now(),
-    companyId: company.id,
-    companyName: company.name,
-    ownerId: currentUser.id,
+    id: 'act' + Date.now(),
+    entityType: entityType,
+    entityId: entity.id,
+    companyId: entityType === 'entreprise' ? entity.id : null,
+    shopId: entityType === 'boutique' ? entity.id : null,
+    companyName: entityName,
+    entityName: entityName,
+    ownerId: ownerId,
     ownerName: currentUser.name || currentUser.identifier || '',
-    amount: cfg.reactivationPrice,
-    orderQuota: cfg.reactivationOrderQuota,
+    planId: plan.id,
+    planName: plan.name,
+    amount: Number(plan.price || 0),
+    orderQuota: Number(plan.orderQuota || 0),
     status: 'pending',
     date: new Date().toISOString()
   };
-  data.companyActivationRequests.push(req);
+  data.activationRequests.push(req);
+  data.companyActivationRequests.push(req); // compat admin list
   try { saveAppData(); } catch (e) {}
   alert(lang==='en'
-    ? ('Reactivation request sent. Pay ' + formatMoney(cfg.reactivationPrice) + ' then wait for Super Admin validation.')
-    : ('Demande de réactivation envoyée. Payez ' + formatMoney(cfg.reactivationPrice) + ' puis attendez la validation du Super Admin.'));
+    ? ('Request sent for plan « ' + plan.name + ' » (' + formatMoney(req.amount) + '). Wait for Super Admin validation.')
+    : ('Demande envoyée pour la formule « ' + plan.name + ' » (' + formatMoney(req.amount) + '). Attendez la validation du Super Admin.'));
+  if (entityType === 'entreprise') renderCompanyActivation();
+  else renderShopActivation();
+}
+
+function requestCompanyReactivation() {
+  // Compat : ouvrir le choix de formule
   renderCompanyActivation();
 }
 
 async function adminValidateCompanyActivation(reqId) {
   if (!currentUser || currentUser.role !== 'admin') return;
-  const req = (data.companyActivationRequests || []).find(r => String(r.id) === String(reqId));
+  const req = (data.activationRequests || data.companyActivationRequests || [])
+    .find(r => String(r.id) === String(reqId))
+    || (data.companyActivationRequests || []).find(r => String(r.id) === String(reqId));
   if (!req || req.status !== 'pending') return;
-  const company = (data.companies || []).find(c => String(c.id) === String(req.companyId));
-  if (!company) { alert('Entreprise introuvable'); return; }
-  ensureCompanyActivationFields(company);
-  const quota = Number(req.orderQuota) || getCompanyActivationConfig().reactivationOrderQuota;
-  company.orderQuotaTotal = Number(company.ordersUsed || 0) + quota;
-  company.activationLocked = false;
-  company.activationPhase = 'paid';
-  company.lastActivationAt = new Date().toISOString();
+
+  const entityType = req.entityType || (req.shopId ? 'boutique' : 'entreprise');
+  let entity = null;
+  if (entityType === 'boutique') {
+    entity = (data.shops || []).find(c => String(c.id) === String(req.entityId || req.shopId));
+    if (entity) ensureShopActivationFields(entity);
+  } else {
+    entity = (data.companies || []).find(c => String(c.id) === String(req.entityId || req.companyId));
+    if (entity) ensureCompanyActivationFields(entity);
+  }
+  if (!entity) { alert('Compte introuvable'); return; }
+
+  const quota = Number(req.orderQuota) || 50;
+  entity.orderQuotaTotal = Number(entity.ordersUsed || 0) + quota;
+  entity.activationLocked = false;
+  entity.activationPhase = Number(req.amount || 0) > 0 ? 'paid' : 'free';
+  entity.currentPlanId = req.planId || null;
+  entity.lastActivationAt = new Date().toISOString();
   req.status = 'validated';
   req.reviewedAt = new Date().toISOString();
-  // Créditer le Super Admin (revenus activation)
+
   if (!adminConfig.companyActivationRevenue) adminConfig.companyActivationRevenue = 0;
   adminConfig.companyActivationRevenue = Number(adminConfig.companyActivationRevenue || 0) + Number(req.amount || 0);
   try { saveAdminConfig(); } catch (e) {}
-  try { persistCompanyActivationState(company); } catch (e) {}
+  try {
+    if (entityType === 'boutique') persistShopActivationState(entity);
+    else persistCompanyActivationState(entity);
+  } catch (e) {}
   try { saveAppData(); } catch (e) {}
   pushUserNotif(req.ownerId,
-    lang==='en'?'Company reactivated':'Entreprise réactivée',
+    lang==='en'?'Account activated':'Compte activé',
     lang==='en'
-      ? ('Your account is active for ' + quota + ' more orders.')
-      : ('Votre compte est actif pour ' + quota + ' commandes supplémentaires.'));
+      ? ('Plan « ' + (req.planName || '') + ' » active for ' + quota + ' orders.')
+      : ('Formule « ' + (req.planName || '') + ' » active pour ' + quota + ' commandes.'));
   renderAdminCompanyActivations();
-  alert(lang==='en'?'Company reactivated.':'Entreprise réactivée.');
+  alert(lang==='en'?'Account activated.':'Compte activé.');
 }
 
 async function adminRefuseCompanyActivation(reqId) {
   if (!currentUser || currentUser.role !== 'admin') return;
-  const req = (data.companyActivationRequests || []).find(r => String(r.id) === String(reqId));
+  const req = (data.activationRequests || []).find(r => String(r.id) === String(reqId))
+    || (data.companyActivationRequests || []).find(r => String(r.id) === String(reqId));
   if (!req || req.status !== 'pending') return;
   const reason = (prompt(lang==='en'?'Reason:':'Raison :') || '').trim() || (lang==='en'?'Refused':'Refusé');
   req.status = 'refused';
   req.reason = reason;
   req.reviewedAt = new Date().toISOString();
   try { saveAppData(); } catch (e) {}
-  pushUserNotif(req.ownerId, lang==='en'?'Reactivation refused':'Réactivation refusée', reason);
+  pushUserNotif(req.ownerId, lang==='en'?'Activation refused':'Activation refusée', reason);
+  renderAdminCompanyActivations();
+}
+
+function saveActivationPlanFromModal() {
+  if (!currentUser || currentUser.role !== 'admin') return;
+  const name = (document.getElementById('mPlanName')?.value || '').trim();
+  const quota = parseInt(document.getElementById('mPlanQuota')?.value, 10);
+  const price = parseInt(document.getElementById('mPlanPrice')?.value, 10);
+  const target = document.getElementById('mPlanTarget')?.value || 'both';
+  const desc = (document.getElementById('mPlanDesc')?.value || '').trim();
+  const editId = document.getElementById('mPlanEditId')?.value || '';
+  if (!name || !Number.isFinite(quota) || quota < 1) {
+    alert(lang==='en'?'Name and quota required':'Nom et quota requis');
+    return;
+  }
+  if (!adminConfig.activationPlans) adminConfig.activationPlans = [];
+  if (editId) {
+    const p = adminConfig.activationPlans.find(x => String(x.id) === String(editId));
+    if (p) {
+      p.name = name; p.orderQuota = quota; p.price = Math.max(0, price || 0);
+      p.target = target; p.description = desc; p.active = true;
+    }
+  } else {
+    adminConfig.activationPlans.push({
+      id: 'plan_' + Date.now(),
+      name, orderQuota: quota, price: Math.max(0, price || 0),
+      target, description: desc, active: true
+    });
+  }
+  try { saveAdminConfig(); } catch (e) {}
+  closeModal();
+  renderAdminCompanyActivations();
+  alert(lang==='en'?'Plan saved':'Formule enregistrée');
+}
+
+function deleteActivationPlan(planId) {
+  if (!currentUser || currentUser.role !== 'admin') return;
+  if (!confirm(lang==='en'?'Delete this plan?':'Supprimer cette formule ?')) return;
+  adminConfig.activationPlans = (adminConfig.activationPlans || []).filter(p => String(p.id) !== String(planId));
+  try { saveAdminConfig(); } catch (e) {}
+  renderAdminCompanyActivations();
+}
+
+function toggleActivationPlan(planId) {
+  if (!currentUser || currentUser.role !== 'admin') return;
+  const p = (adminConfig.activationPlans || []).find(x => String(x.id) === String(planId));
+  if (!p) return;
+  p.active = p.active === false ? true : false;
+  try { saveAdminConfig(); } catch (e) {}
   renderAdminCompanyActivations();
 }
 
 function saveCompanyActivationConfig() {
-  if (!currentUser || currentUser.role !== 'admin') return;
-  const freeQ = parseInt(document.getElementById('mCoActFreeQuota')?.value, 10);
-  const reactQ = parseInt(document.getElementById('mCoActReactQuota')?.value, 10);
-  const price = parseInt(document.getElementById('mCoActPrice')?.value, 10);
-  if (!adminConfig.companyActivation) adminConfig.companyActivation = {};
-  if (Number.isFinite(freeQ) && freeQ > 0) adminConfig.companyActivation.freeOrderQuota = freeQ;
-  if (Number.isFinite(reactQ) && reactQ > 0) adminConfig.companyActivation.reactivationOrderQuota = reactQ;
-  if (Number.isFinite(price) && price >= 0) adminConfig.companyActivation.reactivationPrice = price;
-  try { saveAdminConfig(); } catch (e) {}
-  alert(lang==='en'?'Activation settings saved.':'Paramètres d’activation enregistrés.');
+  // Conservé pour compat ; les formules sont la source de vérité
   renderAdminCompanyActivations();
 }
 
-function renderCompanyActivation() {
-  const el = document.getElementById('companyActivationContent');
-  if (!el || !currentUser || currentUser.role !== 'entreprise') return;
-  const company = (data.companies || []).find(c => String(c.id) === String(currentUser.companyId));
-  if (!company) {
-    el.innerHTML = '<div class="empty">Entreprise introuvable</div>';
-    return;
-  }
-  ensureCompanyActivationFields(company);
-  const cfg = getCompanyActivationConfig();
-  const remaining = getCompanyOrdersRemaining(company.id);
-  const used = Number(company.ordersUsed || 0);
-  const total = Number(company.orderQuotaTotal || 0);
-  const locked = !!company.activationLocked;
-  const pending = (data.companyActivationRequests || []).find(r =>
-    String(r.companyId) === String(company.id) && r.status === 'pending');
+function renderSellerActivationUI(el, entity, entityType) {
+  if (!el || !entity) return;
+  if (entityType === 'entreprise') ensureCompanyActivationFields(entity);
+  else ensureShopActivationFields(entity);
+  const remaining = entityType === 'entreprise'
+    ? getCompanyOrdersRemaining(entity.id)
+    : getShopOrdersRemaining(entity.id);
+  const used = Number(entity.ordersUsed || 0);
+  const total = Number(entity.orderQuotaTotal || 0);
+  const locked = !!entity.activationLocked;
+  const plans = getActivationPlans(entityType);
+  const currentPlan = getActivationPlanById(entity.currentPlanId);
+  const pending = (data.activationRequests || []).concat(data.companyActivationRequests || [])
+    .find(r => String(r.entityId || r.companyId || r.shopId) === String(entity.id) && r.status === 'pending');
+
+  const planCards = plans.map(p => {
+    const isCurrent = currentPlan && String(currentPlan.id) === String(p.id) && !locked;
+    const priceLabel = Number(p.price || 0) <= 0
+      ? (lang==='en'?'Free':'Gratuit')
+      : formatMoney(p.price);
+    const btn = locked && !pending
+      ? `<button class="btn btn-sm btn-accent" style="width:100%;margin-top:8px" onclick="requestSellerActivation('${entityType}','${p.id}')">Choisir</button>`
+      : (isCurrent ? `<div style="margin-top:8px;font-size:11px;color:var(--green);font-weight:700">✓ Formule actuelle</div>` : '');
+    return `<div class="card" style="margin-bottom:8px;${isCurrent?'border-color:rgba(52,211,153,.45)':''}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div>
+          <b>${p.name}</b>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:4px">${p.description || (p.orderQuota + ' commandes')}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-family:JetBrains Mono,monospace;font-weight:800;color:var(--accent-bright)">${priceLabel}</div>
+          <div style="font-size:11px;color:var(--text-muted)">${p.orderQuota} cmd</div>
+        </div>
+      </div>
+      ${btn}
+    </div>`;
+  }).join('');
+
   el.innerHTML = `
     <div class="card">
-      <b>🔑 Activation du compte entreprise</b>
+      <b>🔑 ${entityType === 'entreprise' ? 'Activation entreprise' : 'Activation boutique'}</b>
       <p style="font-size:12.5px;color:var(--text-muted);margin-top:8px;line-height:1.45">
-        La première ouverture est <b style="color:var(--green)">gratuite</b> pour
-        <b>${cfg.freeOrderQuota}</b> commandes <b>reçues</b>. Ensuite, une réactivation de
-        <b>${formatMoney(cfg.reactivationPrice)}</b> débloque
-        <b>${cfg.reactivationOrderQuota}</b> commandes.
-        Le quota est compté dès qu’un client passe commande — <b>voir</b> ou <b>marquer livré</b> ne change pas le compteur.
-        Quand le quota est atteint, le compte doit être réactivé même si des commandes ne sont pas marquées livrées.
+        Chaque formule donne un <b>quota de commandes reçues</b>. Quand le quota est atteint, choisissez une nouvelle formule.
+        Le Super Admin valide la demande. <b>Voir</b> ou <b>marquer livré</b> ne change pas le compteur.
       </p>
       <div class="stat-grid" style="margin-top:12px">
         <div class="stat-card"><b>${used}</b><span>Commandes reçues</span></div>
@@ -15554,50 +15728,81 @@ function renderCompanyActivation() {
         <div class="stat-card"><b>${total}</b><span>Quota total</span></div>
         <div class="stat-card"><b style="color:${locked?'var(--red)':'var(--green)'}">${locked?'Verrouillé':'Actif'}</b><span>Statut</span></div>
       </div>
-      ${locked ? `<div style="margin-top:14px;padding:12px;border-radius:12px;background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);font-size:13px">
-        Votre quota est épuisé. Réactivez pour ${formatMoney(cfg.reactivationPrice)}
-        (${cfg.reactivationOrderQuota} commandes).
-      </div>
-      ${pending
-        ? '<div style="margin-top:10px" class="status-pill status-pending">Demande en attente de validation</div>'
-        : '<button class="btn btn-accent btn-block" style="margin-top:12px" onclick="requestCompanyReactivation()">🔑 Demander la réactivation</button>'
-      }` : `<div style="margin-top:12px;font-size:12px;color:var(--green)">✓ Compte actif — vos clients peuvent commander.</div>`}
-    </div>`;
+      ${currentPlan ? `<div style="margin-top:10px;font-size:12.5px">Formule en cours : <b>${currentPlan.name}</b></div>` : ''}
+      ${pending ? '<div style="margin-top:10px" class="status-pill status-pending">Demande en attente de validation</div>' : ''}
+      ${!locked ? `<div style="margin-top:12px;font-size:12px;color:var(--green)">✓ Compte actif — vos clients peuvent commander.</div>` : ''}
+    </div>
+    <div class="section-head" style="margin-top:16px"><h2><span class="bar"></span> Formules disponibles</h2></div>
+    ${planCards || '<div class="empty">Aucune formule définie par le Super Admin</div>'}`;
+}
+
+function renderCompanyActivation() {
+  const el = document.getElementById('companyActivationContent');
+  if (!el || !currentUser || currentUser.role !== 'entreprise') return;
+  const company = (data.companies || []).find(c => String(c.id) === String(currentUser.companyId));
+  if (!company) { el.innerHTML = '<div class="empty">Entreprise introuvable</div>'; return; }
+  renderSellerActivationUI(el, company, 'entreprise');
+}
+
+function renderShopActivation() {
+  const el = document.getElementById('shopActivationContent');
+  if (!el || !currentUser || currentUser.role !== 'boutique') return;
+  const shopIds = typeof getSellerShopIds === 'function' ? getSellerShopIds() : [];
+  const shop = (data.shops || []).find(s => shopIds.map(String).includes(String(s.id)) && !s.companyId);
+  if (!shop) { el.innerHTML = '<div class="empty">Boutique introuvable</div>'; return; }
+  renderSellerActivationUI(el, shop, 'boutique');
 }
 
 function renderAdminCompanyActivations() {
-  const cfgEl = document.getElementById('adminCompanyActivationConfig');
+  const plansEl = document.getElementById('adminActivationPlansList');
   const listEl = document.getElementById('adminCompanyActivationList');
-  if (!cfgEl && !listEl) return;
-  const cfg = getCompanyActivationConfig();
-  if (cfgEl) {
-    cfgEl.innerHTML = `
-      <div class="card">
-        <b>⚙️ Paramètres d’activation entreprise</b>
-        <p style="font-size:12px;color:var(--text-muted);margin:6px 0 12px">
-          Première ouverture gratuite, puis réactivation payante définie ici.
-        </p>
-        <div class="field"><label>Quota gratuit (1ère ouverture)</label>
-          <input type="number" id="mCoActFreeQuota" min="1" value="${cfg.freeOrderQuota}"></div>
-        <div class="field"><label>Quota après réactivation</label>
-          <input type="number" id="mCoActReactQuota" min="1" value="${cfg.reactivationOrderQuota}"></div>
-        <div class="field"><label>Prix de réactivation (FCFA)</label>
-          <input type="number" id="mCoActPrice" min="0" step="100" value="${cfg.reactivationPrice}"></div>
-        <button class="btn btn-accent btn-block" onclick="saveCompanyActivationConfig()">Enregistrer</button>
-        <div style="margin-top:10px;font-size:12px;color:var(--text-muted)">
-          Revenus activations : <b style="color:var(--accent-bright)">${formatMoney(adminConfig.companyActivationRevenue||0)}</b>
-        </div>
-      </div>`;
-  }
-  if (listEl) {
-    const list = (data.companyActivationRequests || []).slice().reverse();
-    if (!list.length) {
-      listEl.innerHTML = '<div class="empty">Aucune demande de réactivation</div>';
+  const allEl = document.getElementById('adminCompaniesStatusList');
+  // legacy config container — clear
+  const cfgEl = document.getElementById('adminCompanyActivationConfig');
+  if (cfgEl) cfgEl.innerHTML = '';
+
+  if (plansEl) {
+    const plans = (adminConfig.activationPlans || []).slice();
+    if (!plans.length) {
+      plansEl.innerHTML = '<div class="empty">Aucune formule — créez-en une</div>';
     } else {
-      listEl.innerHTML = list.map(r => `
+      plansEl.innerHTML = plans.map(p => {
+        const targetLabel = p.target === 'boutique' ? 'Boutique' : (p.target === 'entreprise' ? 'Entreprise' : 'Les deux');
+        const active = p.active !== false;
+        return `<div class="card" style="${active?'':'opacity:.55'}">
+          <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
+            <div>
+              <b>${p.name}</b>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:4px">${p.description || ''}</div>
+              <div style="font-size:12px;margin-top:6px">
+                <b>${p.orderQuota}</b> commandes · <b>${formatMoney(p.price||0)}</b> · ${targetLabel}
+              </div>
+            </div>
+            <span class="status-pill ${active?'status-ok':'status-refused'}">${active?'Active':'Off'}</span>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <button class="btn btn-sm btn-ghost" style="flex:1" onclick="openModal('createActivationPlan','${p.id}')">Modifier</button>
+            <button class="btn btn-sm btn-ghost" style="flex:1" onclick="toggleActivationPlan('${p.id}')">${active?'Désactiver':'Activer'}</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteActivationPlan('${p.id}')">✕</button>
+          </div>
+        </div>`;
+      }).join('');
+    }
+  }
+
+  if (listEl) {
+    const list = (data.activationRequests || data.companyActivationRequests || []).slice().reverse();
+    // dedupe by id
+    const seen = new Set();
+    const unique = [];
+    list.forEach(r => { if (!seen.has(String(r.id))) { seen.add(String(r.id)); unique.push(r); } });
+    if (!unique.length) {
+      listEl.innerHTML = '<div class="empty">Aucune demande d’activation</div>';
+    } else {
+      listEl.innerHTML = unique.map(r => `
         <div class="card">
-          <div style="display:flex;justify-content:space-between"><b>${r.companyName||'Entreprise'}</b>${statusPillReq(r.status)}</div>
-          <div style="font-size:13px;margin-top:6px"><b>${formatMoney(r.amount)}</b> · ${r.orderQuota} commandes</div>
+          <div style="display:flex;justify-content:space-between"><b>${r.entityName||r.companyName||'Compte'}</b>${statusPillReq(r.status)}</div>
+          <div style="font-size:13px;margin-top:6px"><b>${formatMoney(r.amount)}</b> · ${r.orderQuota} commandes · ${r.planName||r.entityType||''}</div>
           <div style="font-size:12px;color:var(--text-muted)">${r.ownerName||''} · ${r.date?new Date(r.date).toLocaleString('fr-FR'):''}</div>
           ${r.status==='pending'
             ? `<div style="display:flex;gap:8px;margin-top:10px">
@@ -15608,19 +15813,43 @@ function renderAdminCompanyActivations() {
         </div>`).join('');
     }
   }
-  // Also list all companies status
-  const allEl = document.getElementById('adminCompaniesStatusList');
+
   if (allEl) {
     const cos = data.companies || [];
-    allEl.innerHTML = cos.length ? cos.map(c => {
-      ensureCompanyActivationFields(c);
-      const rem = getCompanyOrdersRemaining(c.id);
-      return `<div class="list-row">
-        <div class="c-info"><div class="c-name">${c.name||'Entreprise'}</div>
-        <div class="c-sub">${c.ordersUsed||0}/${c.orderQuotaTotal||0} commandes · reste ${rem}</div></div>
-        <span class="status-pill ${c.activationLocked?'status-refused':'status-ok'}">${c.activationLocked?'Verrouillé':'Actif'}</span>
-      </div>`;
-    }).join('') : '<div class="empty">Aucune entreprise</div>';
+    const shops = (data.shops || []).filter(s => !s.companyId);
+    let htmlOut = '';
+    if (cos.length) {
+      htmlOut += '<div class="section-label">Entreprises</div>';
+      htmlOut += cos.map(c => {
+        ensureCompanyActivationFields(c);
+        const rem = getCompanyOrdersRemaining(c.id);
+        return `<div class="list-row">
+          <div class="c-info"><div class="c-name">${c.name||'Entreprise'}</div>
+          <div class="c-sub">${c.ordersUsed||0}/${c.orderQuotaTotal||0} cmd · reste ${rem}</div></div>
+          <span class="status-pill ${c.activationLocked?'status-refused':'status-ok'}">${c.activationLocked?'Verrouillé':'Actif'}</span>
+        </div>`;
+      }).join('');
+    }
+    if (shops.length) {
+      htmlOut += '<div class="section-label" style="margin-top:12px">Boutiques</div>';
+      htmlOut += shops.map(s => {
+        ensureShopActivationFields(s);
+        const rem = getShopOrdersRemaining(s.id);
+        return `<div class="list-row">
+          <div class="c-info"><div class="c-name">${s.name||'Boutique'}</div>
+          <div class="c-sub">${s.ordersUsed||0}/${s.orderQuotaTotal||0} cmd · reste ${rem}</div></div>
+          <span class="status-pill ${s.activationLocked?'status-refused':'status-ok'}">${s.activationLocked?'Verrouillé':'Actif'}</span>
+        </div>`;
+      }).join('');
+    }
+    allEl.innerHTML = htmlOut || '<div class="empty">Aucun compte vendeur</div>';
+  }
+
+  // Revenus
+  if (plansEl) {
+    const rev = Number(adminConfig.companyActivationRevenue || 0);
+    plansEl.insertAdjacentHTML('beforeend',
+      `<div style="margin-top:10px;font-size:12px;color:var(--text-muted)">Revenus activations : <b style="color:var(--accent-bright)">${formatMoney(rev)}</b></div>`);
   }
 }
 
