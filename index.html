@@ -10053,8 +10053,9 @@ async function confirmCheckout() {
     const orderTotal = Math.round(g.subtotal * ratio);
     const hours = (shop && shop.deliveryHours) ? Number(shop.deliveryHours) : 48;
     const isCompanyOrder = !!(shop && (shop.companyId || shop.isCompanyCatalog)) || method === 'company_free';
-    // Entreprise : pas de code de validation livraison
-    const deliveryCode = isCompanyOrder ? null : String(Math.floor(100000 + Math.random() * 900000));
+    // Entreprise + espèces (COD) : pas de code de validation livraison
+    // Solde Allo (et autres paiements online) : code requis pour libérer l'escrow
+    const deliveryCode = (isCompanyOrder || method === 'cod') ? null : String(Math.floor(100000 + Math.random() * 900000));
     const order = {
       id: 'o' + Date.now() + Math.random().toString(36).slice(2, 5),
       userId: currentUser.id,
@@ -10378,6 +10379,91 @@ async function markCompanyOrderDelivered(orderId) {
   }
 }
 
+
+/** Boutique : marquage livré en un clic pour commandes en espèces (pas de suivi ni de code). */
+async function markCodOrderDelivered(orderId) {
+  if (!currentUser) return;
+  if (currentUser.role !== 'boutique' && currentUser.role !== 'entreprise' && currentUser.role !== 'employe') return;
+  const o = (data.orders || []).find(x => String(x.id) === String(orderId));
+  if (!o) return;
+  if (o.payment !== 'cod') return;
+  if (orderIsDelivered(o) || normalizeOrderStatus(o.status) === 'annulé') {
+    alert(lang === 'en' ? 'This order is already closed.' : 'Cette commande est déjà clôturée.');
+    try { renderOrders(); } catch (e) {}
+    return;
+  }
+  const ok = confirm(lang === 'en'
+    ? 'Mark this cash order as delivered? This cannot be undone (avoids serving the same order twice).'
+    : 'Marquer cette commande en espèces comme livrée ? Action définitive (évite de servir deux fois la même commande).');
+  if (!ok) return;
+  if (o._deliveringLock) return;
+  o._deliveringLock = true;
+  try {
+    const btn = document.querySelector('[data-cod-deliver-btn="' + String(orderId).replace(/"/g, '') + '"]');
+    if (btn) { btn.disabled = true; btn.textContent = lang === 'en' ? 'Saving…' : 'Enregistrement…'; }
+  } catch (e) {}
+
+  const now = new Date().toISOString();
+  const sellerShopIds = (typeof getSellerShopIds === 'function' ? getSellerShopIds() : []).map(String);
+  const items = (typeof orderItemsForSeller === 'function') ? orderItemsForSeller(o) : (o.items || []);
+  if (!o.shopStatus || typeof o.shopStatus !== 'object') o.shopStatus = {};
+  const nextShopStatus = Object.assign({}, o.shopStatus);
+  items.forEach(it => {
+    const p = (data.products || []).find(x => String(x.id) === String(it.productId));
+    const sid = String(it.shopId || (p && p.shopId) || '');
+    if (sid && (!sellerShopIds.length || sellerShopIds.includes(sid))) nextShopStatus[sid] = 'livré';
+  });
+  if (!Object.keys(nextShopStatus).length && o.shopId) nextShopStatus[String(o.shopId)] = 'livré';
+
+  const nextTimeline = Array.isArray(o.timeline) ? o.timeline.slice() : [];
+  if (!nextTimeline.some(t => t && (t.status === 'livré' || t.status === 'delivered'))) {
+    nextTimeline.push({ status: 'livré', date: now, by: currentUser.id });
+  }
+
+  o.shopStatus = nextShopStatus;
+  o.status = 'livré';
+  o.timeline = nextTimeline;
+  o.deliveryCode = null;
+  o.paidHeld = false;
+  o._walletDone = true;
+  o.commissionTotal = 0;
+
+  try {
+    if (typeof alloIsSupabaseMode === 'function' && alloIsSupabaseMode() && typeof sbUpsertOrder === 'function') {
+      try {
+        await sbUpsertOrder(o);
+      } catch (e) {
+        console.error('[Allo] markCodOrderDelivered sync', e);
+        alert(lang === 'en'
+          ? 'Could not save delivered status. Check connection and try again.'
+          : 'Impossible d’enregistrer « livré ». Vérifiez la connexion et réessayez.');
+        o._deliveringLock = false;
+        try { renderOrders(); } catch (e2) {}
+        return;
+      }
+      try { await sbSyncRuntimeState(); } catch (e2) {}
+      try { await refreshOrdersFromSupabase(); } catch (e2) {}
+    } else {
+      try { saveAppData(); } catch (e) {}
+    }
+
+    if (o.userId && typeof pushUserNotif === 'function') {
+      pushUserNotif(o.userId,
+        lang === 'en' ? 'Delivered' : 'Livré',
+        lang === 'en' ? 'Your cash order has been delivered' : 'Votre commande en espèces a été livrée'
+      );
+    }
+    try { renderOrders(); } catch (e) {}
+    try { updateAllBadges(); } catch (e) {}
+  } catch (e) {
+    console.error('[Allo] markCodOrderDelivered', e);
+    alert(lang === 'en' ? 'Could not mark as delivered.' : 'Impossible de marquer comme livré.');
+    try { renderOrders(); } catch (e2) {}
+  } finally {
+    o._deliveringLock = false;
+  }
+}
+
 function orderStatusLabel(st) {
   const map = {
     'en cours': t('pending'),
@@ -10492,9 +10578,10 @@ async function advanceOrderStatus(orderId) {
       : (rank[normalizeOrderStatus(o.status)] ?? 0);
     o.status = Object.keys(rank).find(k => rank[k] === minRank) || 'en cours';
 
-    // Entreprise : pas de code de livraison. Boutique publique : générer le code.
+    // Entreprise / COD : pas de code de livraison. Boutique + solde Allo : générer le code.
     const isCompanySeller = currentUser.role === 'entreprise' || currentUser.role === 'employe' || !!o.companyId;
-    if (!isCompanySeller && relevantShopIds.some(sid => normalizeOrderStatus(o.shopStatus[sid]) === 'livraison') && !o.deliveryCode) {
+    const isCodOrder = o.payment === 'cod';
+    if (!isCompanySeller && !isCodOrder && relevantShopIds.some(sid => normalizeOrderStatus(o.shopStatus[sid]) === 'livraison') && !o.deliveryCode) {
       o.deliveryCode = generateDeliveryCode();
     }
     // Entreprise : si le vendeur avance depuis « livraison », passer en « livré » sans code
@@ -10813,17 +10900,19 @@ function _paintOrdersList() {
     if (!nxtSeller && isCompanyOrderEarly && displayStatus === 'livraison' && isEnterpriseSpace && !isCompanyOrder) {
       nxtSeller = 'livré';
     }
-    const canAdvance = seller && nxtSeller && !(isEnterpriseSpace && isCompanyOrder);
+    const isCodOrder = o.payment === 'cod';
+    // Espèces : pas de suivi multi-étapes — marquage livré en un clic uniquement
+    const canAdvance = seller && nxtSeller && !(isEnterpriseSpace && isCompanyOrder) && !isCodOrder;
     const isBuyer = currentUser.role === 'user' || currentUser.role === 'client';
     const statusIsDelivery = (displayStatus === 'livraison' || o.status === 'livraison');
-    // Entreprise : pas de validation par code
-    const canConfirmDelivery = !isCompanyOrder && isBuyer && statusIsDelivery && o.status !== 'livré' && o.status !== 'annulé' && o.deliveryCode;
+    // Entreprise / COD : pas de validation par code
+    const canConfirmDelivery = !isCompanyOrder && !isCodOrder && isBuyer && statusIsDelivery && o.status !== 'livré' && o.status !== 'annulé' && o.deliveryCode;
     const payLabel = isCompanyOrder
       ? ''
       : (o.payment ? ({ balance: t('payBalance'), wave: t('payWave'), orange: t('payOrange'), mtn: t('payMtn'), cod: t('payCod'), company_free: '' }[o.payment] || o.payment) : '');
     // Messages « aucun paiement / code » retirés pour les commandes entreprise
     const cashOrderHint = (!isCompanyOrder && o.payment === 'cod')
-      ? `<div style="font-size:11px;color:var(--green);margin-top:5px">💵 ${lang==='en' ? 'Cash order: no Allo balance is charged and no Allo commission is released.' : 'Commande espèces : aucun solde Allo n’est débité et aucune commission Allo n’est libérée.'}</div>`
+      ? `<div style="font-size:11px;color:var(--green);margin-top:5px">💵 ${lang==='en' ? 'Cash order: no tracking code. Mark delivered in one click after delivery (no Allo balance / commission).' : 'Commande espèces : pas de code de suivi. Marquez livré en un clic après la livraison (hors solde / commission Allo).'}</div>`
       : '';
     const sellerSeen = orderHasSellerSeen(o);
     const seenAtStr = (() => {
@@ -10850,7 +10939,7 @@ function _paintOrdersList() {
         </div>
       </div>`;
     })() : '';
-    const sellerCodeBlock = (seller && statusIsDelivery && o.deliveryCode)
+    const sellerCodeBlock = (seller && !isCodOrder && statusIsDelivery && o.deliveryCode)
       ? `<div class="card" style="margin-top:8px;padding:14px;background:linear-gradient(135deg,rgba(34,211,238,.16),rgba(52,211,153,.08));border:1px solid rgba(34,211,238,.4)">
           <div style="font-size:12px;font-weight:700;color:var(--cyan);margin-bottom:4px">🔑 ${t('showCodeToDriver')}</div>
           <div style="font-size:11px;color:var(--text-muted);line-height:1.4;margin-bottom:8px">${lang==='en'
@@ -10858,7 +10947,7 @@ function _paintOrdersList() {
             : 'Présentez ce code à l’acheteur quand vous livrez. Il le saisit dans l’app pour libérer votre paiement.'}</div>
           <div style="font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:800;letter-spacing:6px;color:var(--cyan);text-align:center;padding:8px 0">${o.deliveryCode}</div>
         </div>` : '';
-    const waitHint = (seller && statusIsDelivery && !isCompanyOrder && o.deliveryCode)
+    const waitHint = (seller && !isCodOrder && statusIsDelivery && !isCompanyOrder && o.deliveryCode)
       ? `<div style="font-size:11px;color:var(--gold);margin-top:6px">⏳ ${t('waitingBuyerConfirm')}</div>` : '';
     // Bloc visible pour l'acheteur : saisie du code inline (plus seulement un bouton discret)
     const buyerConfirmBlock = canConfirmDelivery ? `
@@ -10893,7 +10982,7 @@ function _paintOrdersList() {
           : `<span class="status-pill status-pending">${lang==='en'?'SENT':'ENVOYÉE'}</span>`;
       }
     }
-    const timelineHtml = (isCompanyOrder && (isEnterpriseSpace || isBuyer))
+    const timelineHtml = ((isCompanyOrder && (isEnterpriseSpace || isBuyer)) || isCodOrder)
       ? ''
       : orderTimelineHTML(Object.assign({}, o, { status: displayStatus }));
     const seenHintBuyer = companyDelivered && isBuyer
@@ -10917,7 +11006,7 @@ function _paintOrdersList() {
           <div style="font-weight:700;font-size:14px">${t('order')} #${String(o.id).slice(-6)}</div>
           <div style="font-size:11px;color:var(--text-muted)">${new Date(o.date).toLocaleString(locale)}${payLabel ? ' · ' + payLabel : ''}</div>
           ${cashOrderHint}
-          ${(!isCompanyOrder && deadlineStr) ? `<div style="font-size:11px;color:var(--cyan);margin-top:2px">⏱ ${t('deliveryDeadline')} : ${deadlineStr}</div>` : ''}
+          ${(!isCompanyOrder && !isCodOrder && deadlineStr) ? `<div style="font-size:11px;color:var(--cyan);margin-top:2px">⏱ ${t('deliveryDeadline')} : ${deadlineStr}</div>` : ''}
           ${(seller && !isCompanyOrder) ? `<div style="font-size:11px;color:var(--cyan);margin-top:2px">${t('onlyYourItems')}</div>` : ''}
         </div>
         ${statusPillHtml}
@@ -10935,6 +11024,7 @@ function _paintOrdersList() {
       ${(!isCompanyOrder) ? (buyerConfirmBlock || '') : ''}
       ${canAdvance ? `<button class="btn btn-sm btn-accent" style="width:100%;margin-top:8px" onclick="advanceOrderStatus('${o.id}')">${t('advanceStatus')} → ${orderStatusLabel(nxtSeller)}</button>` : ''}
       ${canMarkCompanyDelivered ? `<button type="button" class="btn btn-sm btn-accent" data-deliver-btn="${o.id}" style="width:100%;margin-top:10px;min-height:44px" onclick="event.preventDefault();event.stopPropagation();markCompanyOrderDelivered('${o.id}')">${lang==='en'?'Mark as delivered':'Marquer comme livré'}</button>` : ''}
+      ${(seller && isCodOrder && !orderIsDelivered(o) && normalizeOrderStatus(o.status) !== 'annulé') ? `<button type="button" class="btn btn-sm btn-accent" data-cod-deliver-btn="${o.id}" style="width:100%;margin-top:10px;min-height:44px" onclick="event.preventDefault();event.stopPropagation();markCodOrderDelivered('${o.id}')">${lang==='en'?'Mark as delivered (cash)':'Marquer comme livré (espèces)'}</button>` : ''}
       ${isBuyer ? `
         <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
           <button class="btn btn-sm btn-ghost" style="flex:1" onclick="reorderOrder('${o.id}')">↺ ${t('reorder')}</button>
