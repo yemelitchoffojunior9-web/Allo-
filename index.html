@@ -433,18 +433,6 @@ main::-webkit-scrollbar { display: none; }
   font-size: 42px; overflow: hidden; position: relative;
 }
 .product-img img { width: 100%; height: 100%; object-fit: cover; }
-
-.order-item-thumb {
-  width: 52px; height: 52px; border-radius: 12px; flex-shrink: 0;
-  overflow: hidden; background: var(--bg);
-  border: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer; padding: 0;
-}
-.order-item-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.order-item-thumb .emoji-fallback { font-size: 22px; line-height: 1; }
-.order-item-thumb:active { transform: scale(.96); }
-
 .product-img .badge-stock {
   position: absolute; bottom: 6px; left: 6px;
   background: rgba(0,0,0,.55); color: #fff; font-size: 9px; font-weight: 700;
@@ -7856,14 +7844,13 @@ function enterApp() {
     if (el === shopsBtn) el.style.display = 'none';
   });
 
-  // Portefeuille : boutiques uniquement (plus d'entreprise)
-  if (currentUser.role === 'boutique') {
+  // Portefeuille : boutique ET entreprise (crédité à la livraison Solde Allo)
+  if (currentUser.role === 'boutique' || currentUser.role === 'entreprise') {
     if (currentUser.wallet === undefined) currentUser.wallet = 0;
     if (wChip) { wChip.classList.add('show'); updateWalletChip(); }
   }
   if (currentUser.role === 'entreprise') {
     if (msgBtn) msgBtn.classList.add('show');
-    // Pas d'onglet boutiques publiques dans l'espace entreprise
     if (shopsBtn) { shopsBtn.classList.remove('show'); shopsBtn.style.display = 'none'; }
   }
   if (currentUser.role === 'user') {
@@ -10774,6 +10761,14 @@ async function confirmDeliveryByBuyer() {
 
   window._lastOrdersRefresh = Date.now();
   closeModal();
+  // Libérer réellement le séquestre vers le portefeuille boutique / entreprise
+  try {
+    if (o.payment !== 'cod' && o.payment !== 'company_free') {
+      await releaseOrderEscrowToSellers(o);
+    }
+  } catch (e) {
+    console.error('[Allo] escrow release after buyer confirm', e);
+  }
   alert(o.payment === 'cod'
     ? (lang==='en' ? 'Delivery confirmed. Cash payment remains outside Allo.' : 'Livraison confirmée. Le paiement en espèces reste hors portefeuille Allo.')
     : (lang==='en' ? 'Delivery confirmed. Seller has been paid.' : 'Livraison confirmée. Le vendeur a été payé.'));
@@ -10939,19 +10934,9 @@ function _paintOrdersList() {
         const has = (data.reviews || []).some(r => r.orderId === o.id && r.productId === p.id && r.userId === currentUser.id);
         if (!has) reviewBtn = `<button class="btn btn-sm btn-ghost" style="margin-top:4px" onclick="openModal('review','${p.id}|${o.id}')">⭐ ${t('rateProduct')}</button>`;
       }
-      const thumbSrc = (typeof getOrderItemImage === 'function') ? getOrderItemImage(p, it) : ((p && p.image) || null);
-      const pid = p ? String(p.id) : '';
-      const thumbClick = thumbSrc
-        ? (pid && p && typeof getProductImages === 'function' && getProductImages(p).length > 1
-            ? `openProductGallery('${pid}')`
-            : `openImageLightbox(this.querySelector('img').src)`)
-        : '';
-      const thumbHtml = thumbSrc
-        ? `<button type="button" class="order-item-thumb" title="${lang==='en'?'View photo':'Voir la photo'}" onclick="event.preventDefault();event.stopPropagation();${thumbClick}"><img src="${thumbSrc}" alt=""></button>`
-        : `<div class="order-item-thumb" style="cursor:default"><span class="emoji-fallback">${icon}</span></div>`;
       return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
-        ${thumbHtml}
-        <div style="flex:1;min-width:0"><b style="font-size:12.5px">${name}</b>
+        <span style="font-size:20px">${icon}</span>
+        <div style="flex:1"><b style="font-size:12.5px">${name}</b>
           <div style="font-size:11px;color:var(--text-muted)">${it.qty} × ${formatMoney(it.price)}${(!seller && shopName) ? ' · 🏪 ' + shopName : ''}</div>
           ${reviewBtn}
         </div>
@@ -11104,6 +11089,73 @@ function _paintOrdersList() {
   }).filter(Boolean).join('');
 }
 
+function orderEscrowAlreadyReleased(o) {
+  if (!o) return false;
+  if (o._walletDone) return true;
+  const tl = Array.isArray(o.timeline) ? o.timeline : [];
+  return tl.some(t => t && (t.status === 'wallet_released' || t.status === 'escrow_released'));
+}
+
+async function releaseOrderEscrowToSellers(o) {
+  if (!o) return false;
+  if (o.payment === 'cod' || o.payment === 'company_free') return false;
+  if (orderEscrowAlreadyReleased(o)) return true;
+
+  const shopTotals = {};
+  (o.items || []).forEach(it => {
+    const p = (data.products || []).find(x => String(x.id) === String(it.productId));
+    const sid = String((it && it.shopId) || (p && p.shopId) || o.shopId || '');
+    if (!sid) return;
+    const line = (Number(it.price) || 0) * (Number(it.qty) || 0);
+    shopTotals[sid] = (shopTotals[sid] || 0) + line;
+  });
+
+  let credited = 0;
+  for (const shopId of Object.keys(shopTotals)) {
+    const amount = Number(shopTotals[shopId] || 0);
+    if (amount <= 0) continue;
+    const shop = (data.shops || []).find(s => String(s.id) === String(shopId));
+    if (!shop) continue;
+    let walletCtx = null;
+    let ownerId = shop.ownerId;
+    if (shop.isCompanyCatalog || shop.companyId) {
+      const company = (data.companies || []).find(c => String(c.id) === String(shop.companyId || o.companyId));
+      if (company) {
+        ownerId = company.ownerId;
+        walletCtx = { scope: 'entreprise', entityId: company.id, ownerId: company.ownerId, name: company.name };
+      }
+    }
+    if (!walletCtx) {
+      walletCtx = { scope: 'boutique', entityId: shop.id, ownerId: shop.ownerId, name: shop.name };
+      ownerId = shop.ownerId;
+    }
+    if (!ownerId || !walletCtx.entityId) continue;
+    try {
+      await creditWallet(ownerId, amount, (typeof t === 'function' ? t('saleDelivered') : 'Vente livrée') + ' #' + String(o.id).slice(-6), walletCtx);
+      credited++;
+    } catch (e) {
+      console.error('[Allo] crédit portefeuille vendeur', shopId, e);
+    }
+  }
+
+  if (credited > 0) {
+    o._walletDone = true;
+    o.paidHeld = false;
+    if (!Array.isArray(o.timeline)) o.timeline = [];
+    if (!o.timeline.some(t => t && t.status === 'wallet_released')) {
+      o.timeline.push({ status: 'wallet_released', date: new Date().toISOString(), by: currentUser && currentUser.id });
+    }
+    try {
+      if (typeof alloIsSupabaseMode === 'function' && alloIsSupabaseMode() && typeof sbUpsertOrder === 'function') {
+        await sbUpsertOrder(o);
+      } else {
+        saveAppData();
+      }
+    } catch (e) { console.warn('[Allo] persist wallet_released', e); }
+  }
+  return credited > 0;
+}
+
 function markDelivered(orderId, fromAdvance) {
   const o = data.orders.find(x => x.id === orderId);
   if (!o) return;
@@ -11116,8 +11168,7 @@ function markDelivered(orderId, fromAdvance) {
   pushUserNotif(o.userId, lang==='en'?'Delivered':'Livré',
     lang==='en'?'Your order has been delivered':'Votre commande a été livrée');
 
-  // Entreprise : pas de portefeuille ni de commission
-  if (o.companyId || o.payment === 'company_free') {
+  if (o.payment === 'company_free') {
     o._walletDone = true;
     o.commissionTotal = 0;
     renderOrders();
@@ -11125,49 +11176,15 @@ function markDelivered(orderId, fromAdvance) {
     return;
   }
 
-  // Credit seller wallet(s) based on products sold
-  const shopTotals = {};
-  (o.items || []).forEach(it => {
-    const p = data.products.find(x => x.id === it.productId);
-    if (!p) return;
-    const line = (it.price || 0) * (it.qty || 0);
-    shopTotals[p.shopId] = (shopTotals[p.shopId] || 0) + line;
-  });
-
-  if (o._walletDone) {
+  releaseOrderEscrowToSellers(o).then(function(){
     renderOrders();
-    renderWallet();
-    updateWalletChip();
-    return;
-  }
-  o._walletDone = true;
-  Object.keys(shopTotals).forEach(shopId => {
-    const shop = data.shops.find(s => s.id === shopId);
-    if (!shop) return;
-    let amount = shopTotals[shopId];
-    // Aucune commission : le vendeur reçoit 100% du montant de la vente.
-    // amount reste intégral
-    // Une vente crédite toujours le portefeuille de l'espace vendeur qui porte le catalogue.
-    // Une boutique rattachée à une entreprise conserve donc son portefeuille propre.
-    let walletCtx = null;
-    let ownerId = shop.ownerId;
-    if (shop.isCompanyCatalog) {
-      const company = data.companies.find(c => String(c.id) === String(shop.companyId));
-      if (company) {
-        ownerId = company.ownerId;
-        walletCtx = { scope: 'entreprise', entityId: company.id, ownerId: company.ownerId, name: company.name };
-      }
-    } else {
-      walletCtx = { scope: 'boutique', entityId: shop.id, ownerId: shop.ownerId, name: shop.name };
-    }
-    creditWallet(ownerId, amount, t('saleDelivered') + ' #' + String(o.id).slice(-6), walletCtx)
-      .catch(e => console.error('[Allo] crédit portefeuille vendeur', e));
+    try { renderWallet(); } catch(e) {}
+    try { updateWalletChip(); } catch(e) {}
+    try { updateAllBadges(); } catch(e) {}
+  }).catch(function(e){
+    console.error('[Allo] markDelivered escrow', e);
+    renderOrders();
   });
-
-  renderOrders();
-  renderWallet();
-  updateWalletChip();
-  try { updateAllBadges(); } catch(e) {}
 }
 
 function getActiveWalletContext() {
@@ -11184,8 +11201,13 @@ function getActiveWalletContext() {
     }
     return shop && shop.id ? { scope: 'boutique', entityId: shop.id, ownerId: shop.ownerId || currentUser.id, name: shop.name } : null;
   }
-  // Entreprise : plus de portefeuille (revenus via activation de compte uniquement)
   if (currentUser.role === 'entreprise') {
+    const company = currentUser.companyId
+      ? (data.companies || []).find(c => String(c.id) === String(currentUser.companyId))
+      : (data.companies || []).find(c => String(c.ownerId || '') === uid);
+    if (company && company.id) {
+      return { scope: 'entreprise', entityId: company.id, ownerId: company.ownerId || currentUser.id, name: company.name };
+    }
     return null;
   }
   return null;
@@ -13595,22 +13617,6 @@ function isRealImageData(src) {
   if (!src || typeof src !== 'string') return false;
   if (src.indexOf('__kept__') === 0) return false;
   return src.startsWith('data:image') || src.startsWith('blob:') || src.startsWith('http://') || src.startsWith('https://');
-}
-
-
-function getOrderItemImage(p, it) {
-  if (it && it.variantId && p && Array.isArray(p.variants)) {
-    const v = p.variants.find(x => String(x.id) === String(it.variantId));
-    if (v && typeof isRealImageData === 'function' && isRealImageData(v.image)) return v.image;
-    if (v && v.image) return v.image;
-  }
-  if (p && typeof getProductImages === 'function') {
-    const imgs = getProductImages(p);
-    if (imgs && imgs.length) return imgs[0];
-  }
-  if (p && p.image) return p.image;
-  if (it && it.image) return it.image;
-  return null;
 }
 
 function getProductImages(p) {
