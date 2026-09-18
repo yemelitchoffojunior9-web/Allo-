@@ -3901,7 +3901,7 @@ function buildOrderRow(o) {
     user_id: o.userId || null,
     shop_id: alloUuid(o.shopId) ? o.shopId : null,
     company_id: alloUuid(o.companyId) ? o.companyId : null,
-    status: ({'preparation':'confirmé','livraison':'expédié'}[String(o.status || '').toLowerCase()] || o.status || 'en cours'),
+    status: ({'preparation':'confirmé','livraison':'expédié','livré':'livré','livre':'livré','delivered':'livré'}[String(o.status || '').toLowerCase()] || o.status || 'en cours'),
     total: Math.round(Number(o.total || 0)),
     delivery_address: o.deliveryAddress || null,
     delivery_zone: o.deliveryZone || null,
@@ -3941,7 +3941,7 @@ async function sbUpsertOrder(o) {
       o.items = normalizeOrderItems(o.items || [], o);
       const orderRow = buildOrderRow(o);
       // Forcer les champs critiques explicitement
-      orderRow.status = ({'preparation':'confirmé','livraison':'expédié'}[String(o.status || '').toLowerCase()] || o.status || 'en cours');
+      orderRow.status = ({'preparation':'confirmé','livraison':'expédié','livré':'livré','livre':'livré','delivered':'livré'}[String(o.status || '').toLowerCase()] || o.status || 'en cours');
       orderRow.delivery_code = o.deliveryCode ? String(o.deliveryCode) : null;
       orderRow.shop_status = o.shopStatus && typeof o.shopStatus === 'object' ? o.shopStatus : {};
       orderRow.timeline = Array.isArray(o.timeline) ? o.timeline : [];
@@ -10249,14 +10249,9 @@ async function markCompanyOrderDelivered(orderId) {
   const isCompany = !!(o.companyId || o.payment === 'company_free');
   if (!isCompany) return;
   if (orderIsDelivered(o)) {
-    alert(lang === 'en' ? 'This order is already closed.' : 'Cette commande est déjà clôturée.');
     try { renderOrders(); } catch (e) {}
     return;
   }
-  const ok = confirm(lang === 'en'
-    ? 'Mark this order as delivered? This cannot be undone.'
-    : 'Marquer cette commande comme livrée ? Cette action est définitive.');
-  if (!ok) return;
   if (o._deliveringLock) return;
   o._deliveringLock = true;
   try {
@@ -10381,23 +10376,65 @@ async function markCompanyOrderDelivered(orderId) {
 
 
 /** Boutique : marquage livré en un clic pour commandes en espèces (pas de suivi ni de code). */
+function isCodPayment(o) {
+  if (!o) return false;
+  const pay = String(o.payment || o.paymentMethod || '').toLowerCase().trim()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return pay === 'cod' || pay === 'cash' || pay === 'especes' || pay === 'cash_on_delivery' || pay === 'paiement a la livraison';
+}
+
+async function persistOrderDelivered(o, nextShopStatus, nextTimeline, now) {
+  if (!(typeof alloIsSupabaseMode === 'function' && alloIsSupabaseMode() && sb && alloUuid(o.id))) {
+    try { saveAppData(); } catch (e) {}
+    return { ok: true, data: null };
+  }
+  const statusCandidates = ['livré', 'livre', 'delivered', 'done'];
+  let res = { error: null, data: null };
+  for (const st of statusCandidates) {
+    res = await sb.from('orders').update({
+      status: st,
+      shop_status: nextShopStatus,
+      timeline: nextTimeline,
+      delivery_code: null,
+      paid_held: false,
+      commission_total: 0,
+      updated_at: now
+    }).eq('id', o.id).select('*').maybeSingle();
+    if (!res.error && res.data) return { ok: true, data: res.data };
+    console.warn('[Allo] persist delivered status try', st, res && res.error);
+  }
+  // Timeline-only (si l'enum status refuse toutes les valeurs)
+  res = await sb.from('orders').update({
+    shop_status: nextShopStatus,
+    timeline: nextTimeline,
+    delivery_code: null,
+    paid_held: false,
+    updated_at: now
+  }).eq('id', o.id).select('*').maybeSingle();
+  if (!res.error && res.data) return { ok: true, data: res.data };
+  if (typeof sbUpsertOrder === 'function') {
+    await sbUpsertOrder(o);
+    res = await sb.from('orders').select('*').eq('id', o.id).maybeSingle();
+    if (!res.error && res.data) return { ok: true, data: res.data };
+  }
+  return { ok: false, error: (res && res.error) || new Error('Update not confirmed') };
+}
+
 async function markCodOrderDelivered(orderId) {
   if (!currentUser) return;
   if (currentUser.role !== 'boutique' && currentUser.role !== 'entreprise' && currentUser.role !== 'employe') return;
   const o = (data.orders || []).find(x => String(x.id) === String(orderId));
   if (!o) return;
-  if (o.payment !== 'cod') return;
+  if (!isCodPayment(o)) return;
   if (orderIsDelivered(o) || normalizeOrderStatus(o.status) === 'annulé') {
-    alert(lang === 'en' ? 'This order is already closed.' : 'Cette commande est déjà clôturée.');
     try { renderOrders(); } catch (e) {}
     return;
   }
-  const ok = confirm(lang === 'en'
-    ? 'Mark this cash order as delivered? This cannot be undone (avoids serving the same order twice).'
-    : 'Marquer cette commande en espèces comme livrée ? Action définitive (évite de servir deux fois la même commande).');
-  if (!ok) return;
   if (o._deliveringLock) return;
   o._deliveringLock = true;
+  const prevStatus = o.status;
+  const prevShopStatus = o.shopStatus && typeof o.shopStatus === 'object' ? Object.assign({}, o.shopStatus) : {};
+  const prevTimeline = Array.isArray(o.timeline) ? o.timeline.slice() : [];
   try {
     const btn = document.querySelector('[data-cod-deliver-btn="' + String(orderId).replace(/"/g, '') + '"]');
     if (btn) { btn.disabled = true; btn.textContent = lang === 'en' ? 'Saving…' : 'Enregistrement…'; }
@@ -10416,7 +10453,7 @@ async function markCodOrderDelivered(orderId) {
   if (!Object.keys(nextShopStatus).length && o.shopId) nextShopStatus[String(o.shopId)] = 'livré';
 
   const nextTimeline = Array.isArray(o.timeline) ? o.timeline.slice() : [];
-  if (!nextTimeline.some(t => t && (t.status === 'livré' || t.status === 'delivered'))) {
+  if (!nextTimeline.some(t => t && (t.status === 'livré' || t.status === 'delivered' || t.status === 'livre'))) {
     nextTimeline.push({ status: 'livré', date: now, by: currentUser.id });
   }
 
@@ -10429,26 +10466,26 @@ async function markCodOrderDelivered(orderId) {
   o.commissionTotal = 0;
 
   try {
-    if (typeof alloIsSupabaseMode === 'function' && alloIsSupabaseMode() && typeof sbUpsertOrder === 'function') {
-      try {
-        await sbUpsertOrder(o);
-      } catch (e) {
-        console.error('[Allo] markCodOrderDelivered sync', e);
-        alert(lang === 'en'
-          ? 'Could not save delivered status. Check connection and try again.'
-          : 'Impossible d’enregistrer « livré ». Vérifiez la connexion et réessayez.');
-        o._deliveringLock = false;
-        try { renderOrders(); } catch (e2) {}
-        return;
+    const saved = await persistOrderDelivered(o, nextShopStatus, nextTimeline, now);
+    if (!saved.ok) throw saved.error || new Error('persist failed');
+    if (saved.data) {
+      try { await refreshSingleOrderFromSupabase(o.id); } catch (e) {
+        try {
+          const itemsRes = await sb.from('order_items').select('*').eq('order_id', o.id);
+          mergeRealtimeOrderRow(saved.data, (itemsRes && itemsRes.data) || []);
+        } catch (e2) {}
       }
-      try { await sbSyncRuntimeState(); } catch (e2) {}
-      try { await refreshOrdersFromSupabase(); } catch (e2) {}
-    } else {
-      try { saveAppData(); } catch (e) {}
     }
-
-    if (o.userId && typeof pushUserNotif === 'function') {
-      pushUserNotif(o.userId,
+    let final = (data.orders || []).find(x => String(x.id) === String(o.id)) || o;
+    if (!orderIsDelivered(final)) {
+      final.status = 'livré';
+      final.timeline = nextTimeline;
+      final.shopStatus = nextShopStatus;
+      const idx = (data.orders || []).findIndex(x => String(x.id) === String(o.id));
+      if (idx >= 0) data.orders[idx] = final;
+    }
+    if (final.userId && typeof pushUserNotif === 'function') {
+      pushUserNotif(final.userId,
         lang === 'en' ? 'Delivered' : 'Livré',
         lang === 'en' ? 'Your cash order has been delivered' : 'Votre commande en espèces a été livrée'
       );
@@ -10457,8 +10494,15 @@ async function markCodOrderDelivered(orderId) {
     try { updateAllBadges(); } catch (e) {}
   } catch (e) {
     console.error('[Allo] markCodOrderDelivered', e);
-    alert(lang === 'en' ? 'Could not mark as delivered.' : 'Impossible de marquer comme livré.');
+    o.status = prevStatus;
+    o.shopStatus = prevShopStatus;
+    o.timeline = prevTimeline;
+    try { if (typeof refreshOrdersFromSupabase === 'function') await refreshOrdersFromSupabase(); } catch (e2) {}
     try { renderOrders(); } catch (e2) {}
+    try { updateAllBadges(); } catch (e2) {}
+    alert(lang === 'en'
+      ? 'Could not save delivered status. Check connection and try again.'
+      : 'Impossible d’enregistrer « livré ». Vérifiez la connexion et réessayez.');
   } finally {
     o._deliveringLock = false;
   }
@@ -10580,7 +10624,7 @@ async function advanceOrderStatus(orderId) {
 
     // Entreprise / COD : pas de code de livraison. Boutique + solde Allo : générer le code.
     const isCompanySeller = currentUser.role === 'entreprise' || currentUser.role === 'employe' || !!o.companyId;
-    const isCodOrder = o.payment === 'cod';
+    const isCodOrder = (typeof isCodPayment === 'function') ? isCodPayment(o) : (o.payment === 'cod');
     if (!isCompanySeller && !isCodOrder && relevantShopIds.some(sid => normalizeOrderStatus(o.shopStatus[sid]) === 'livraison') && !o.deliveryCode) {
       o.deliveryCode = generateDeliveryCode();
     }
@@ -10900,7 +10944,7 @@ function _paintOrdersList() {
     if (!nxtSeller && isCompanyOrderEarly && displayStatus === 'livraison' && isEnterpriseSpace && !isCompanyOrder) {
       nxtSeller = 'livré';
     }
-    const isCodOrder = o.payment === 'cod';
+    const isCodOrder = (typeof isCodPayment === 'function') ? isCodPayment(o) : (o.payment === 'cod');
     // Espèces : pas de suivi multi-étapes — marquage livré en un clic uniquement
     const canAdvance = seller && nxtSeller && !(isEnterpriseSpace && isCompanyOrder) && !isCodOrder;
     const isBuyer = currentUser.role === 'user' || currentUser.role === 'client';
