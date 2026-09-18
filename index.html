@@ -433,6 +433,18 @@ main::-webkit-scrollbar { display: none; }
   font-size: 42px; overflow: hidden; position: relative;
 }
 .product-img img { width: 100%; height: 100%; object-fit: cover; }
+
+.order-item-thumb {
+  width: 52px; height: 52px; border-radius: 12px; flex-shrink: 0;
+  overflow: hidden; background: var(--bg);
+  border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; padding: 0;
+}
+.order-item-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.order-item-thumb .emoji-fallback { font-size: 22px; line-height: 1; }
+.order-item-thumb:active { transform: scale(.96); }
+
 .product-img .badge-stock {
   position: absolute; bottom: 6px; left: 6px;
   background: rgba(0,0,0,.55); color: #fff; font-size: 9px; font-weight: 700;
@@ -10927,9 +10939,19 @@ function _paintOrdersList() {
         const has = (data.reviews || []).some(r => r.orderId === o.id && r.productId === p.id && r.userId === currentUser.id);
         if (!has) reviewBtn = `<button class="btn btn-sm btn-ghost" style="margin-top:4px" onclick="openModal('review','${p.id}|${o.id}')">⭐ ${t('rateProduct')}</button>`;
       }
+      const thumbSrc = (typeof getOrderItemImage === 'function') ? getOrderItemImage(p, it) : ((p && p.image) || null);
+      const pid = p ? String(p.id) : '';
+      const thumbClick = thumbSrc
+        ? (pid && p && typeof getProductImages === 'function' && getProductImages(p).length > 1
+            ? `openProductGallery('${pid}')`
+            : `openImageLightbox(this.querySelector('img').src)`)
+        : '';
+      const thumbHtml = thumbSrc
+        ? `<button type="button" class="order-item-thumb" title="${lang==='en'?'View photo':'Voir la photo'}" onclick="event.preventDefault();event.stopPropagation();${thumbClick}"><img src="${thumbSrc}" alt=""></button>`
+        : `<div class="order-item-thumb" style="cursor:default"><span class="emoji-fallback">${icon}</span></div>`;
       return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
-        <span style="font-size:20px">${icon}</span>
-        <div style="flex:1"><b style="font-size:12.5px">${name}</b>
+        ${thumbHtml}
+        <div style="flex:1;min-width:0"><b style="font-size:12.5px">${name}</b>
           <div style="font-size:11px;color:var(--text-muted)">${it.qty} × ${formatMoney(it.price)}${(!seller && shopName) ? ' · 🏪 ' + shopName : ''}</div>
           ${reviewBtn}
         </div>
@@ -13573,6 +13595,22 @@ function isRealImageData(src) {
   if (!src || typeof src !== 'string') return false;
   if (src.indexOf('__kept__') === 0) return false;
   return src.startsWith('data:image') || src.startsWith('blob:') || src.startsWith('http://') || src.startsWith('https://');
+}
+
+
+function getOrderItemImage(p, it) {
+  if (it && it.variantId && p && Array.isArray(p.variants)) {
+    const v = p.variants.find(x => String(x.id) === String(it.variantId));
+    if (v && typeof isRealImageData === 'function' && isRealImageData(v.image)) return v.image;
+    if (v && v.image) return v.image;
+  }
+  if (p && typeof getProductImages === 'function') {
+    const imgs = getProductImages(p);
+    if (imgs && imgs.length) return imgs[0];
+  }
+  if (p && p.image) return p.image;
+  if (it && it.image) return it.image;
+  return null;
 }
 
 function getProductImages(p) {
