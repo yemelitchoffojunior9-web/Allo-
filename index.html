@@ -7844,13 +7844,14 @@ function enterApp() {
     if (el === shopsBtn) el.style.display = 'none';
   });
 
-  // Portefeuille : boutique ET entreprise (crédité à la livraison Solde Allo)
+  // Portefeuille unique : boutique et entreprise
   if (currentUser.role === 'boutique' || currentUser.role === 'entreprise') {
     if (currentUser.wallet === undefined) currentUser.wallet = 0;
     if (wChip) { wChip.classList.add('show'); updateWalletChip(); }
   }
   if (currentUser.role === 'entreprise') {
     if (msgBtn) msgBtn.classList.add('show');
+    // Pas d'onglet boutiques publiques dans l'espace entreprise
     if (shopsBtn) { shopsBtn.classList.remove('show'); shopsBtn.style.display = 'none'; }
   }
   if (currentUser.role === 'user') {
@@ -7911,9 +7912,7 @@ function enterApp() {
 function updateWalletChip() {
   const el = document.getElementById('walletChipAmount');
   if (!el || !currentUser) return;
-  const ctx = getActiveWalletContext();
-  const account = findWalletAccount(ctx);
-  const w = ctx ? Number(account?.balance || 0) : Number(currentUser.wallet || 0);
+  const w = Number(getUnifiedUserWalletBalance(currentUser.id) || currentUser.wallet || 0);
   currentUser.wallet = w;
   el.textContent = w >= 1000 ? (Math.round(w/1000) + 'k') : String(w);
 }
@@ -10761,14 +10760,6 @@ async function confirmDeliveryByBuyer() {
 
   window._lastOrdersRefresh = Date.now();
   closeModal();
-  // Libérer réellement le séquestre vers le portefeuille boutique / entreprise
-  try {
-    if (o.payment !== 'cod' && o.payment !== 'company_free') {
-      await releaseOrderEscrowToSellers(o);
-    }
-  } catch (e) {
-    console.error('[Allo] escrow release after buyer confirm', e);
-  }
   alert(o.payment === 'cod'
     ? (lang==='en' ? 'Delivery confirmed. Cash payment remains outside Allo.' : 'Livraison confirmée. Le paiement en espèces reste hors portefeuille Allo.')
     : (lang==='en' ? 'Delivery confirmed. Seller has been paid.' : 'Livraison confirmée. Le vendeur a été payé.'));
@@ -11089,73 +11080,6 @@ function _paintOrdersList() {
   }).filter(Boolean).join('');
 }
 
-function orderEscrowAlreadyReleased(o) {
-  if (!o) return false;
-  if (o._walletDone) return true;
-  const tl = Array.isArray(o.timeline) ? o.timeline : [];
-  return tl.some(t => t && (t.status === 'wallet_released' || t.status === 'escrow_released'));
-}
-
-async function releaseOrderEscrowToSellers(o) {
-  if (!o) return false;
-  if (o.payment === 'cod' || o.payment === 'company_free') return false;
-  if (orderEscrowAlreadyReleased(o)) return true;
-
-  const shopTotals = {};
-  (o.items || []).forEach(it => {
-    const p = (data.products || []).find(x => String(x.id) === String(it.productId));
-    const sid = String((it && it.shopId) || (p && p.shopId) || o.shopId || '');
-    if (!sid) return;
-    const line = (Number(it.price) || 0) * (Number(it.qty) || 0);
-    shopTotals[sid] = (shopTotals[sid] || 0) + line;
-  });
-
-  let credited = 0;
-  for (const shopId of Object.keys(shopTotals)) {
-    const amount = Number(shopTotals[shopId] || 0);
-    if (amount <= 0) continue;
-    const shop = (data.shops || []).find(s => String(s.id) === String(shopId));
-    if (!shop) continue;
-    let walletCtx = null;
-    let ownerId = shop.ownerId;
-    if (shop.isCompanyCatalog || shop.companyId) {
-      const company = (data.companies || []).find(c => String(c.id) === String(shop.companyId || o.companyId));
-      if (company) {
-        ownerId = company.ownerId;
-        walletCtx = { scope: 'entreprise', entityId: company.id, ownerId: company.ownerId, name: company.name };
-      }
-    }
-    if (!walletCtx) {
-      walletCtx = { scope: 'boutique', entityId: shop.id, ownerId: shop.ownerId, name: shop.name };
-      ownerId = shop.ownerId;
-    }
-    if (!ownerId || !walletCtx.entityId) continue;
-    try {
-      await creditWallet(ownerId, amount, (typeof t === 'function' ? t('saleDelivered') : 'Vente livrée') + ' #' + String(o.id).slice(-6), walletCtx);
-      credited++;
-    } catch (e) {
-      console.error('[Allo] crédit portefeuille vendeur', shopId, e);
-    }
-  }
-
-  if (credited > 0) {
-    o._walletDone = true;
-    o.paidHeld = false;
-    if (!Array.isArray(o.timeline)) o.timeline = [];
-    if (!o.timeline.some(t => t && t.status === 'wallet_released')) {
-      o.timeline.push({ status: 'wallet_released', date: new Date().toISOString(), by: currentUser && currentUser.id });
-    }
-    try {
-      if (typeof alloIsSupabaseMode === 'function' && alloIsSupabaseMode() && typeof sbUpsertOrder === 'function') {
-        await sbUpsertOrder(o);
-      } else {
-        saveAppData();
-      }
-    } catch (e) { console.warn('[Allo] persist wallet_released', e); }
-  }
-  return credited > 0;
-}
-
 function markDelivered(orderId, fromAdvance) {
   const o = data.orders.find(x => x.id === orderId);
   if (!o) return;
@@ -11168,7 +11092,8 @@ function markDelivered(orderId, fromAdvance) {
   pushUserNotif(o.userId, lang==='en'?'Delivered':'Livré',
     lang==='en'?'Your order has been delivered':'Votre commande a été livrée');
 
-  if (o.payment === 'company_free') {
+  // Entreprise : pas de portefeuille ni de commission
+  if (o.companyId || o.payment === 'company_free') {
     o._walletDone = true;
     o.commissionTotal = 0;
     renderOrders();
@@ -11176,39 +11101,91 @@ function markDelivered(orderId, fromAdvance) {
     return;
   }
 
-  releaseOrderEscrowToSellers(o).then(function(){
-    renderOrders();
-    try { renderWallet(); } catch(e) {}
-    try { updateWalletChip(); } catch(e) {}
-    try { updateAllBadges(); } catch(e) {}
-  }).catch(function(e){
-    console.error('[Allo] markDelivered escrow', e);
-    renderOrders();
+  // Credit seller wallet(s) based on products sold
+  const shopTotals = {};
+  (o.items || []).forEach(it => {
+    const p = data.products.find(x => x.id === it.productId);
+    if (!p) return;
+    const line = (it.price || 0) * (it.qty || 0);
+    shopTotals[p.shopId] = (shopTotals[p.shopId] || 0) + line;
   });
+
+  if (o._walletDone) {
+    renderOrders();
+    renderWallet();
+    updateWalletChip();
+    return;
+  }
+  o._walletDone = true;
+  Object.keys(shopTotals).forEach(shopId => {
+    const shop = data.shops.find(s => s.id === shopId);
+    if (!shop) return;
+    let amount = shopTotals[shopId];
+    // Aucune commission : le vendeur reçoit 100% du montant de la vente.
+    // amount reste intégral
+    // Une vente crédite toujours le portefeuille de l'espace vendeur qui porte le catalogue.
+    // Une boutique rattachée à une entreprise conserve donc son portefeuille propre.
+    let walletCtx = null;
+    let ownerId = shop.ownerId;
+    if (shop.isCompanyCatalog) {
+      const company = data.companies.find(c => String(c.id) === String(shop.companyId));
+      if (company) {
+        ownerId = company.ownerId;
+        walletCtx = { scope: 'entreprise', entityId: company.id, ownerId: company.ownerId, name: company.name };
+      }
+    } else {
+      walletCtx = { scope: 'boutique', entityId: shop.id, ownerId: shop.ownerId, name: shop.name };
+    }
+    creditWallet(ownerId, amount, t('saleDelivered') + ' #' + String(o.id).slice(-6), walletCtx)
+      .catch(e => console.error('[Allo] crédit portefeuille vendeur', e));
+  });
+
+  renderOrders();
+  renderWallet();
+  updateWalletChip();
+  try { updateAllBadges(); } catch(e) {}
+}
+
+function getOwnerWalletAccounts(ownerId) {
+  const uid = String(ownerId || '');
+  return (data.walletAccounts || []).filter(w => String(w.ownerUserId || '') === uid);
+}
+
+function getOwnerWalletTransactions(ownerId) {
+  const uid = String(ownerId || '');
+  return (data.walletTx || []).filter(t => String(t.ownerId || t.userId || '') === uid);
+}
+
+function getUnifiedUserWalletBalance(ownerId) {
+  const accSum = getOwnerWalletAccounts(ownerId).reduce((s, w) => s + Number(w.balance || 0), 0);
+  const txNet = getOwnerWalletTransactions(ownerId).reduce((s, t) => s + Number(t.amount || 0), 0);
+  const profileW = (currentUser && String(currentUser.id) === String(ownerId))
+    ? Number(currentUser.wallet || 0) : 0;
+  return Math.max(accSum, txNet, profileW, 0);
+}
+
+function getOwnerWalletContext(ownerId) {
+  const uid = String(ownerId || '');
+  if (!uid) return null;
+  const accounts = getOwnerWalletAccounts(uid).slice().sort((a, b) => Number(b.balance || 0) - Number(a.balance || 0));
+  if (accounts.length) {
+    const best = accounts[0];
+    return { scope: best.scopeType, entityId: best.scopeId, ownerId: uid, name: 'Allo' };
+  }
+  const shop = (data.shops || []).find(s => String(s.ownerId || '') === uid && !s.isCompanyCatalog);
+  if (shop && shop.id) return { scope: 'boutique', entityId: shop.id, ownerId: uid, name: shop.name };
+  const company = (data.companies || []).find(c => String(c.ownerId || '') === uid);
+  if (company && company.id) return { scope: 'entreprise', entityId: company.id, ownerId: uid, name: company.name };
+  if (typeof alloUuid === 'function' && alloUuid(uid)) {
+    return { scope: 'user', entityId: uid, ownerId: uid, name: 'Allo' };
+  }
+  return null;
 }
 
 function getActiveWalletContext() {
   if (!currentUser) return null;
-  const uid = String(currentUser.id || '');
-  if (currentUser.role === 'boutique') {
-    let shop = currentUser.shopId
-      ? (data.shops || []).find(s => String(s.id) === String(currentUser.shopId))
-      : null;
-    if (!shop || shop.isCompanyCatalog || String(shop.ownerId || '') !== uid) {
-      shop = (data.shops || []).find(s =>
-        String(s.ownerId || '') === uid && !s.isCompanyCatalog
-      ) || null;
-    }
-    return shop && shop.id ? { scope: 'boutique', entityId: shop.id, ownerId: shop.ownerId || currentUser.id, name: shop.name } : null;
-  }
-  if (currentUser.role === 'entreprise') {
-    const company = currentUser.companyId
-      ? (data.companies || []).find(c => String(c.id) === String(currentUser.companyId))
-      : (data.companies || []).find(c => String(c.ownerId || '') === uid);
-    if (company && company.id) {
-      return { scope: 'entreprise', entityId: company.id, ownerId: company.ownerId || currentUser.id, name: company.name };
-    }
-    return null;
+  if (currentUser.role === 'boutique' || currentUser.role === 'entreprise' || currentUser.role === 'admin') {
+    return getOwnerWalletContext(currentUser.id);
   }
   return null;
 }
@@ -11276,8 +11253,14 @@ async function adjustSpaceWallet(ctx, amount, label) {
   if (txErr) return false;
 
   if (currentUser && String(currentUser.id) === String(ctx.ownerId)) {
-    currentUser.wallet = account.balance;
+    currentUser.wallet = getUnifiedUserWalletBalance(ctx.ownerId);
   }
+  try {
+    if (USE_SUPABASE && sb && alloUuid(ctx.ownerId)) {
+      const unified = getUnifiedUserWalletBalance(ctx.ownerId);
+      sb.from('profiles').update({ wallet: unified }).eq('id', ctx.ownerId).then(function(){});
+    }
+  } catch (e) {}
   return true;
 }
 
@@ -11346,6 +11329,31 @@ async function debitUserBalance(userId, amount, label, walletCtx) {
   return true;
 }
 
+function sellerWalletTxs(walletCtx) {
+  if (!currentUser) return [];
+  return getOwnerWalletTransactions(currentUser.id);
+}
+
+async function reconcileSellerWalletBalance(ctx, account, txs) {
+  const net = (txs || []).reduce((s, t) => s + Number(t.amount || 0), 0);
+  if (!ctx) return net;
+  const current = Number(account && account.balance || 0);
+  if (net === current) return current;
+  // L'historique serveur fait foi : on aligne le compte espace
+  if (account) account.balance = net;
+  if (typeof USE_SUPABASE !== 'undefined' && USE_SUPABASE && sb && alloUuid(ctx.entityId)) {
+    try {
+      await ensureWalletAccount(ctx);
+      await sb.from('wallet_accounts')
+        .update({ balance: net, updated_at: new Date().toISOString() })
+        .eq('scope_type', ctx.scope).eq('scope_id', ctx.entityId);
+    } catch (e) {
+      console.warn('[Allo] reconcile wallet_accounts', e);
+    }
+  }
+  return net;
+}
+
 function renderWallet() {
   if (!currentUser) return;
   const balEl = document.getElementById('walletBalance');
@@ -11357,10 +11365,22 @@ function renderWallet() {
   if ((currentUser.role === 'boutique' || currentUser.role === 'entreprise') && walletCtx && !spaceAccount && USE_SUPABASE && sb) {
     ensureWalletAccount(walletCtx).then(() => { if (currentUser) { renderWallet(); updateWalletChip(); } }).catch(e => console.warn('[Allo] wallet init', e));
   }
-  // Le portefeuille vendeur appartient à l'espace actif, jamais au profil personnel.
-  const amount = isSeller
-    ? Number(spaceAccount?.balance || 0)
+  const sellerTxs = isSeller ? sellerWalletTxs(walletCtx) : [];
+  const txNet = sellerTxs.reduce((s, t) => s + Number(t.amount || 0), 0);
+  // Un seul portefeuille par utilisateur, tous espaces confondus.
+  let amount = isSeller
+    ? getUnifiedUserWalletBalance(currentUser.id)
     : (currentUser.role === 'admin' ? Number(currentUser.wallet || 0) : Number(currentUser.balance || 0));
+  if (isSeller && walletCtx && Number(spaceAccount?.balance || 0) !== txNet) {
+    reconcileSellerWalletBalance(walletCtx, spaceAccount, sellerTxs)
+      .then(function(n){
+        if (!currentUser) return;
+        currentUser.wallet = Number(n || 0);
+        const el = document.getElementById('walletBalance');
+        if (el) el.textContent = formatMoney(Number(n || 0));
+        try { updateWalletChip(); } catch (e) {}
+      }).catch(function(){});
+  }
   if (isSeller) currentUser.wallet = amount;
   balEl.textContent = formatMoney(amount);
   updateWalletChip();
@@ -11384,14 +11404,9 @@ function renderWallet() {
     }
   }
 
-  const txs = (data.walletTx || []).filter(t => {
-    if (isSeller) {
-      return String(t.ownerId || '') === String(currentUser.id)
-        && t.walletScope === walletCtx?.scope
-        && String(t.walletEntityId || '') === String(walletCtx?.entityId || '');
-    }
+  const txs = (isSeller ? sellerTxs.slice() : (data.walletTx || []).filter(t => {
     return String(t.ownerId || '') === String(currentUser.id) && (!t.walletScope || t.walletScope === 'profile');
-  }).slice().sort((a,b) => new Date(b.date || 0) - new Date(a.date || 0));
+  })).slice().sort((a,b) => new Date(b.date || 0) - new Date(a.date || 0));
   if (!histEl) return;
   if (!txs.length) {
     histEl.innerHTML = `<div class="empty">${isSeller ? t('noRevenue') : (lang==='en'?'No transactions':'Aucune transaction')}</div>`;
