@@ -7844,8 +7844,8 @@ function enterApp() {
     if (el === shopsBtn) el.style.display = 'none';
   });
 
-  // Portefeuille unique : boutique et entreprise
-  if (currentUser.role === 'boutique' || currentUser.role === 'entreprise') {
+  // Portefeuille : boutiques uniquement (plus d'entreprise)
+  if (currentUser.role === 'boutique') {
     if (currentUser.wallet === undefined) currentUser.wallet = 0;
     if (wChip) { wChip.classList.add('show'); updateWalletChip(); }
   }
@@ -7912,7 +7912,9 @@ function enterApp() {
 function updateWalletChip() {
   const el = document.getElementById('walletChipAmount');
   if (!el || !currentUser) return;
-  const w = Number(getUnifiedUserWalletBalance(currentUser.id) || currentUser.wallet || 0);
+  const ctx = getActiveWalletContext();
+  const account = findWalletAccount(ctx);
+  const w = ctx ? Number(account?.balance || 0) : Number(currentUser.wallet || 0);
   currentUser.wallet = w;
   el.textContent = w >= 1000 ? (Math.round(w/1000) + 'k') : String(w);
 }
@@ -10839,6 +10841,37 @@ function orderItemsForSeller(o) {
   });
 }
 
+
+function copyDeliveryCode(orderId, code) {
+  const value = String(code || '').trim();
+  if (!value) return;
+  const done = function() {
+    const btn = document.getElementById('copyCodeBtn-' + orderId);
+    if (btn) {
+      const prev = btn.textContent;
+      btn.textContent = lang === 'en' ? 'Copied' : 'Code copié';
+      setTimeout(function(){ if (btn) btn.textContent = prev; }, 1600);
+    }
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(value).then(done).catch(function(){
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = value; ta.style.position='fixed'; ta.style.opacity='0';
+        document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+        document.body.removeChild(ta); done();
+      } catch (e) {}
+    });
+    return;
+  }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = value; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta); done();
+  } catch (e) {}
+}
+
 function renderOrders() {
   try { processExpiredOrders(); } catch(e) {}
   const el = document.getElementById('ordersList');
@@ -10886,7 +10919,12 @@ function _paintOrdersList() {
   } else if (currentUser.role === 'admin') {
     orders = data.orders.slice();
   }
-  orders = orders.slice().reverse();
+  orders = orders.slice().sort(function(a, b) {
+    const ta = new Date(a.date || a.createdAt || a.created_at || a.deadlineAt || 0).getTime();
+    const tb = new Date(b.date || b.createdAt || b.created_at || b.deadlineAt || 0).getTime();
+    if (tb !== ta) return tb - ta; // plus récente en haut
+    return String(b.id || '').localeCompare(String(a.id || ''));
+  });
   if (!orders.length) {
     el.innerHTML = `<div class="empty">${t('noOrder')}</div>`;
     return;
@@ -10988,6 +11026,7 @@ function _paintOrdersList() {
             ? 'Show this code to the buyer when you deliver. They enter it in the app to release your payment.'
             : 'Présentez ce code à l’acheteur quand vous livrez. Il le saisit dans l’app pour libérer votre paiement.'}</div>
           <div style="font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:800;letter-spacing:6px;color:var(--cyan);text-align:center;padding:8px 0">${o.deliveryCode}</div>
+          <button type="button" class="btn btn-sm btn-ghost btn-block" id="copyCodeBtn-${o.id}" onclick="copyDeliveryCode('${o.id}','${String(o.deliveryCode).replace(/'/g,'')}')">${lang==='en'?'Copy code':'Copier le code'}</button>
         </div>` : '';
     const waitHint = (seller && !isCodOrder && statusIsDelivery && !isCompanyOrder && o.deliveryCode)
       ? `<div style="font-size:11px;color:var(--gold);margin-top:6px">⏳ ${t('waitingBuyerConfirm')}</div>` : '';
@@ -11146,46 +11185,23 @@ function markDelivered(orderId, fromAdvance) {
   try { updateAllBadges(); } catch(e) {}
 }
 
-function getOwnerWalletAccounts(ownerId) {
-  const uid = String(ownerId || '');
-  return (data.walletAccounts || []).filter(w => String(w.ownerUserId || '') === uid);
-}
-
-function getOwnerWalletTransactions(ownerId) {
-  const uid = String(ownerId || '');
-  return (data.walletTx || []).filter(t => String(t.ownerId || t.userId || '') === uid);
-}
-
-function getUnifiedUserWalletBalance(ownerId) {
-  const accSum = getOwnerWalletAccounts(ownerId).reduce((s, w) => s + Number(w.balance || 0), 0);
-  const txNet = getOwnerWalletTransactions(ownerId).reduce((s, t) => s + Number(t.amount || 0), 0);
-  const profileW = (currentUser && String(currentUser.id) === String(ownerId))
-    ? Number(currentUser.wallet || 0) : 0;
-  return Math.max(accSum, txNet, profileW, 0);
-}
-
-function getOwnerWalletContext(ownerId) {
-  const uid = String(ownerId || '');
-  if (!uid) return null;
-  const accounts = getOwnerWalletAccounts(uid).slice().sort((a, b) => Number(b.balance || 0) - Number(a.balance || 0));
-  if (accounts.length) {
-    const best = accounts[0];
-    return { scope: best.scopeType, entityId: best.scopeId, ownerId: uid, name: 'Allo' };
-  }
-  const shop = (data.shops || []).find(s => String(s.ownerId || '') === uid && !s.isCompanyCatalog);
-  if (shop && shop.id) return { scope: 'boutique', entityId: shop.id, ownerId: uid, name: shop.name };
-  const company = (data.companies || []).find(c => String(c.ownerId || '') === uid);
-  if (company && company.id) return { scope: 'entreprise', entityId: company.id, ownerId: uid, name: company.name };
-  if (typeof alloUuid === 'function' && alloUuid(uid)) {
-    return { scope: 'user', entityId: uid, ownerId: uid, name: 'Allo' };
-  }
-  return null;
-}
-
 function getActiveWalletContext() {
   if (!currentUser) return null;
-  if (currentUser.role === 'boutique' || currentUser.role === 'entreprise' || currentUser.role === 'admin') {
-    return getOwnerWalletContext(currentUser.id);
+  const uid = String(currentUser.id || '');
+  if (currentUser.role === 'boutique') {
+    let shop = currentUser.shopId
+      ? (data.shops || []).find(s => String(s.id) === String(currentUser.shopId))
+      : null;
+    if (!shop || shop.isCompanyCatalog || String(shop.ownerId || '') !== uid) {
+      shop = (data.shops || []).find(s =>
+        String(s.ownerId || '') === uid && !s.isCompanyCatalog
+      ) || null;
+    }
+    return shop && shop.id ? { scope: 'boutique', entityId: shop.id, ownerId: shop.ownerId || currentUser.id, name: shop.name } : null;
+  }
+  // Entreprise : plus de portefeuille (revenus via activation de compte uniquement)
+  if (currentUser.role === 'entreprise') {
+    return null;
   }
   return null;
 }
@@ -11253,14 +11269,8 @@ async function adjustSpaceWallet(ctx, amount, label) {
   if (txErr) return false;
 
   if (currentUser && String(currentUser.id) === String(ctx.ownerId)) {
-    currentUser.wallet = getUnifiedUserWalletBalance(ctx.ownerId);
+    currentUser.wallet = account.balance;
   }
-  try {
-    if (USE_SUPABASE && sb && alloUuid(ctx.ownerId)) {
-      const unified = getUnifiedUserWalletBalance(ctx.ownerId);
-      sb.from('profiles').update({ wallet: unified }).eq('id', ctx.ownerId).then(function(){});
-    }
-  } catch (e) {}
   return true;
 }
 
@@ -11329,31 +11339,6 @@ async function debitUserBalance(userId, amount, label, walletCtx) {
   return true;
 }
 
-function sellerWalletTxs(walletCtx) {
-  if (!currentUser) return [];
-  return getOwnerWalletTransactions(currentUser.id);
-}
-
-async function reconcileSellerWalletBalance(ctx, account, txs) {
-  const net = (txs || []).reduce((s, t) => s + Number(t.amount || 0), 0);
-  if (!ctx) return net;
-  const current = Number(account && account.balance || 0);
-  if (net === current) return current;
-  // L'historique serveur fait foi : on aligne le compte espace
-  if (account) account.balance = net;
-  if (typeof USE_SUPABASE !== 'undefined' && USE_SUPABASE && sb && alloUuid(ctx.entityId)) {
-    try {
-      await ensureWalletAccount(ctx);
-      await sb.from('wallet_accounts')
-        .update({ balance: net, updated_at: new Date().toISOString() })
-        .eq('scope_type', ctx.scope).eq('scope_id', ctx.entityId);
-    } catch (e) {
-      console.warn('[Allo] reconcile wallet_accounts', e);
-    }
-  }
-  return net;
-}
-
 function renderWallet() {
   if (!currentUser) return;
   const balEl = document.getElementById('walletBalance');
@@ -11365,22 +11350,10 @@ function renderWallet() {
   if ((currentUser.role === 'boutique' || currentUser.role === 'entreprise') && walletCtx && !spaceAccount && USE_SUPABASE && sb) {
     ensureWalletAccount(walletCtx).then(() => { if (currentUser) { renderWallet(); updateWalletChip(); } }).catch(e => console.warn('[Allo] wallet init', e));
   }
-  const sellerTxs = isSeller ? sellerWalletTxs(walletCtx) : [];
-  const txNet = sellerTxs.reduce((s, t) => s + Number(t.amount || 0), 0);
-  // Un seul portefeuille par utilisateur, tous espaces confondus.
-  let amount = isSeller
-    ? getUnifiedUserWalletBalance(currentUser.id)
+  // Le portefeuille vendeur appartient à l'espace actif, jamais au profil personnel.
+  const amount = isSeller
+    ? Number(spaceAccount?.balance || 0)
     : (currentUser.role === 'admin' ? Number(currentUser.wallet || 0) : Number(currentUser.balance || 0));
-  if (isSeller && walletCtx && Number(spaceAccount?.balance || 0) !== txNet) {
-    reconcileSellerWalletBalance(walletCtx, spaceAccount, sellerTxs)
-      .then(function(n){
-        if (!currentUser) return;
-        currentUser.wallet = Number(n || 0);
-        const el = document.getElementById('walletBalance');
-        if (el) el.textContent = formatMoney(Number(n || 0));
-        try { updateWalletChip(); } catch (e) {}
-      }).catch(function(){});
-  }
   if (isSeller) currentUser.wallet = amount;
   balEl.textContent = formatMoney(amount);
   updateWalletChip();
@@ -11404,9 +11377,14 @@ function renderWallet() {
     }
   }
 
-  const txs = (isSeller ? sellerTxs.slice() : (data.walletTx || []).filter(t => {
+  const txs = (data.walletTx || []).filter(t => {
+    if (isSeller) {
+      return String(t.ownerId || '') === String(currentUser.id)
+        && t.walletScope === walletCtx?.scope
+        && String(t.walletEntityId || '') === String(walletCtx?.entityId || '');
+    }
     return String(t.ownerId || '') === String(currentUser.id) && (!t.walletScope || t.walletScope === 'profile');
-  })).slice().sort((a,b) => new Date(b.date || 0) - new Date(a.date || 0));
+  }).slice().sort((a,b) => new Date(b.date || 0) - new Date(a.date || 0));
   if (!histEl) return;
   if (!txs.length) {
     histEl.innerHTML = `<div class="empty">${isSeller ? t('noRevenue') : (lang==='en'?'No transactions':'Aucune transaction')}</div>`;
