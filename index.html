@@ -3327,7 +3327,7 @@ nav.bottom,
         <p class="sub" style="margin-top:-4px">Accédez à votre espace Allo</p>
         <div class="field">
           <label>Numéro de téléphone</label>
-          <input type="tel" id="loginPhone" placeholder="Ex : 690123456" autocomplete="tel" inputmode="tel" autocapitalize="off" spellcheck="false">
+          <input type="text" id="loginId" placeholder="653199986" autocomplete="username" inputmode="text" autocapitalize="off" spellcheck="false">
         </div>
         <div class="field">
           <label>Mot de passe</label>
@@ -3337,7 +3337,7 @@ nav.bottom,
           </div>
         </div>
         <button class="btn btn-accent btn-block" id="btnDoLogin" type="button" onclick="doLogin()">Se connecter</button>
-        <p class="error-msg" id="loginError">Numéro de téléphones incorrects</p>
+        <p class="error-msg" id="loginError">Identifiants incorrects</p>
 
 
       </div>
@@ -3351,8 +3351,8 @@ nav.bottom,
         </div>
         <div class="field">
           <label>Numéro de téléphone</label>
-          <input type="tel" id="regPhone" placeholder="Ex : 690123456" autocomplete="tel" inputmode="tel" autocapitalize="off" spellcheck="false">
-          <small>Numéro camerounais : 6XXXXXXXX (ou +237 6XXXXXXXX)</small>
+          <input type="text" id="regId" placeholder="653199986" autocomplete="username" inputmode="text" autocapitalize="off" spellcheck="false">
+          
         </div>
         <div class="field">
           <label>Mot de passe</label>
@@ -3955,11 +3955,7 @@ let sb = null;
 let USE_SUPABASE = false;
 
 function alloAuthEmail(identifier) {
-  // Identifiant technique interne : le numéro reste l'identifiant utilisateur,
-  // mais l'adresse Auth est une adresse email synthétique strictement compatible.
-  const raw = String(identifier || '').trim().toLowerCase();
-  const normalized = raw.replace(/[^a-z0-9]/g, '');
-  return normalized + '@' + ALLO_AUTH_DOMAIN;
+  return String(identifier || '').trim().toLowerCase().replace(/\s+/g, '') + '@' + ALLO_AUTH_DOMAIN;
 }
 
 function initSupabaseClient() {
@@ -3975,9 +3971,14 @@ function initSupabaseClient() {
       return false;
     }
     sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      // Session persistante : le navigateur/appareil conserve la session Supabase
-      // et la restaure automatiquement au prochain lancement.
-      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+      auth: {
+        // Mémorise la session sur cet appareil : après création/connexion,
+        // l'utilisateur retrouve automatiquement son compte au prochain lancement.
+        // Un appel explicite à sb.auth.signOut() supprime cette session.
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true
+      }
     });
     USE_SUPABASE = true;
     console.log('[Allo] Supabase connecté');
@@ -5452,7 +5453,7 @@ const I18N = {
     otherShops: 'Autres boutiques', allShops: 'Toutes les boutiques', backShops: '← Boutiques',
     delivered: 'Livré', pending: 'En cours', markDelivered: 'Marquer livré',
     walletHint: 'Argent reçu des ventes livrées', revenueHistory: 'Historique des revenus',
-    wrongLogin: 'Numéro de téléphones incorrects', fillFields: 'Remplissez les champs obligatoires',
+    wrongLogin: 'Identifiants incorrects', fillFields: 'Remplissez les champs obligatoires',
     msgSent: 'Message envoyé !', msgSentAll: 'Message envoyé à tous les clients !', replySent: 'Réponse envoyée !',
     translating: 'Traduction…', original: 'Original', translated: 'Traduit',
     userRole: 'Utilisateur', shopRole: 'Boutique', companyRole: 'Entreprise', clientRole: 'Client',
@@ -5492,7 +5493,7 @@ const I18N = {
     adminNewPass: 'Nouveau mot de passe',
     adminConfirmPass: 'Confirmer mot de passe',
     adminSaved: 'Enregistré !',
-    adminCredsUpdated: 'Numéro de téléphones mis à jour. Utilisez les nouveaux pour vous connecter.',
+    adminCredsUpdated: 'Identifiants mis à jour. Utilisez les nouveaux pour vous connecter.',
     adminFeedbackHint: 'Messages des utilisateurs (améliorations)',
     adminNotifTitle: 'Titre',
     adminNotifBody: 'Message',
@@ -5552,7 +5553,7 @@ you: 'Vous', product: 'Produit', shopOnAllora: 'Boutique sur Allo',
     iconEmoji: 'Icône (emoji)', productImage: 'Image du produit', createProduct: 'Créer le produit',
     deleteProduct: 'Supprimer le produit', newClient: 'Nouveau client',
     createPrivateClient: 'Ajouter un compte Allo existant comme client de votre entreprise',
-    fullName: 'Nom complet', identifier: 'Numéro de téléphone', initialBalance: 'Solde initial (FCFA)',
+    fullName: 'Nom complet', identifier: 'Identifiant', initialBalance: 'Solde initial (FCFA)',
     createClient: 'Créer le client', editBalance: 'Modifier le solde', currentBalance: 'Solde actuel',
     newBalance: 'Nouveau solde (FCFA)', messageTo: 'Message à', individualMsg: 'Envoi individuel au client',
     messageToCompany: 'Message à', sendToCompany: 'Votre message sera envoyé à votre entreprise',
@@ -5785,8 +5786,10 @@ const EXTRA_I18N_PAIRS = {
   'Rejoignez Allo en quelques secondes': 'Join Allo in a few seconds',
   'Nom complet': 'Full name',
   'Votre nom complet': 'Your full name',
-  'Numéro de téléphone': 'Identifier',
+  'Identifiant': 'Identifier',
   'Ex : jean001': 'Ex: jean001',
+  'Numéro de téléphone': 'Phone number',
+  '653199986': '653199986',
   'Mot de passe': 'Password',
   'Minimum 6 caractères': 'Minimum 6 characters',
   'Retapez le mot de passe': 'Re-enter your password',
@@ -6046,7 +6049,7 @@ function applyLoginI18n() {
   const demoH = document.querySelector('.demo-accounts h4');
   if (demoH) demoH.textContent = t('demoAccounts') || '';
   const loginFields = document.querySelectorAll('#loginFormCard .field label');
-  if (loginFields[0]) loginFields[0].textContent = (lang === 'en' ? 'Identifier' : 'Numéro de téléphone');
+  if (loginFields[0]) loginFields[0].textContent = (lang === 'en' ? 'Phone number' : 'Numéro de téléphone');
   if (loginFields[1]) loginFields[1].textContent = t('password');
   document.getElementById('loginError') && (document.getElementById('loginError').textContent = t('wrongLogin'));
   const regBtn = document.querySelector('#registerFormCard .btn-accent');
@@ -6054,7 +6057,7 @@ function applyLoginI18n() {
   // Inscription : un seul compte utilisateur, sans sélection de type.
   const regFields = document.querySelectorAll('#registerFormCard .field label');
   if (regFields[0]) regFields[0].textContent = (lang === 'en' ? 'Full name' : 'Nom complet');
-  if (regFields[1]) regFields[1].textContent = (lang === 'en' ? 'Identifier' : 'Numéro de téléphone');
+  if (regFields[1]) regFields[1].textContent = (lang === 'en' ? 'Phone number' : 'Numéro de téléphone');
   if (regFields[2]) regFields[2].textContent = t('password');
   if (regFields[3]) regFields[3].textContent = t('confirm');
   // Demo buttons
@@ -6254,18 +6257,11 @@ function init() {
       _autoSaveListenersBound = true;
     }
   } catch (e) {}
-  // Restaurer automatiquement la session Supabase persistante.
-  // Si l'utilisateur ne s'est pas déconnecté, il ne reverra pas le formulaire de connexion.
-  if (USE_SUPABASE && sb) {
-    try { restoreSupabaseSession().catch(function(e) { console.warn('[Allo] session restore', e); }); } catch (e) { console.warn('[Allo] session restore', e); }
-  }
   // Splash
   setTimeout(() => {
     document.getElementById('splash').classList.add('hide');
-    if (!currentUser) {
-      document.getElementById('loginView').style.opacity = '1';
-      applyLoginI18n();
-    }
+    document.getElementById('loginView').style.opacity = '1';
+    applyLoginI18n();
   }, 4200);
 }
 
@@ -6315,7 +6311,7 @@ function findAccount(email, password) {
   const factoryId = String(factory.id).trim().toLowerCase();
   const factoryPass = String(factory.password);
 
-  // Numéro de téléphones d'usine désactivés (admin uniquement via Supabase profiles.role)
+  // Identifiants d'usine désactivés (admin uniquement via Supabase profiles.role)
   if (factory.id && factory.password && emailNorm === factoryId && (passTrim === factoryPass || passNorm === factoryPass)) {
     adminConfig = Object.assign({}, defaultsSafeMerge(loadAdminConfig(), factory), {
       id: factory.id,
@@ -6337,7 +6333,7 @@ function findAccount(email, password) {
     };
   }
 
-  // Numéro de téléphones enregistrés (si modifiés dans les paramètres)
+  // Identifiants enregistrés (si modifiés dans les paramètres)
   if (emailNorm && adminId && emailNorm === adminId && (passTrim === adminPass.trim() || passNorm === adminPass)) {
     return {
       id: 'admin',
@@ -6422,12 +6418,7 @@ function isValidPhone(phone) {
   return /^\+[1-9]\d{7,14}$/.test(phone);
 }
 
-/** Normalize the phone used as the account login identifier. */
-function normalizeAuthPhone(value) {
-  return normalizeCameroonPhone(value);
-}
-
-/** Normalize user-facing ID → technical email (legacy compatibility only). */
+/** Normalize user-facing ID → technical email (local auth helper) */
 function normalizeIdentifier(raw) {
   return String(raw || '').trim().toLowerCase().replace(/\s+/g, '');
 }
@@ -6526,103 +6517,41 @@ function finishLoginLocal() {
   return false;
 }
 
-async function restoreSupabaseSession() {
-  if (!(typeof USE_SUPABASE !== 'undefined' && USE_SUPABASE && sb)) return false;
-  try {
-    const { data: sessionData, error } = await sb.auth.getSession();
-    if (error || !sessionData || !sessionData.session || !sessionData.session.user) return false;
-    const uid = sessionData.session.user.id;
-    let { data: profile } = await sb.from('profiles').select('*').eq('id', uid).maybeSingle();
-    if (!profile) return false;
-    if (profile.is_active === false) { await sb.auth.signOut(); return false; }
-    currentUser = mapProfileToUser(profile);
-    cart = [];
-    await sbLoadAllIntoData();
-    enterApp();
-    try { startOrderRealtime(); } catch (e) {}
-    return true;
-  } catch (e) {
-    console.warn('[Allo] restore Supabase session', e);
-    return false;
-  }
-}
-
 async function doLogin() {
-  // === SUPABASE AUTH (numéro de téléphone + mot de passe) ===
+  // === SUPABASE AUTH (identifiant + mot de passe) ===
   if (typeof USE_SUPABASE !== 'undefined' && USE_SUPABASE && sb) {
-    const rawPhone = (document.getElementById('loginPhone')?.value || '').trim();
+    const rawId = (document.getElementById('loginId')?.value || '').trim();
     const password = document.getElementById('loginPassword')?.value || '';
     const errEl = document.getElementById('loginError');
     if (errEl) errEl.classList.remove('show');
-
-    const phone = normalizeAuthPhone(rawPhone);
-    if (!phone || !password) {
-      if (errEl) {
-        errEl.textContent = (typeof lang!=='undefined'&&lang==='en')
-          ? 'Enter your phone number and password'
-          : 'Entrez votre numéro de téléphone et votre mot de passe';
-        errEl.classList.add('show');
-      }
-      return;
-    }
-    if (!isValidPhone(phone)) {
-      if (errEl) {
-        errEl.textContent = lang === 'en' ? 'Invalid phone number' : 'Numéro de téléphone invalide';
-        errEl.classList.add('show');
-      }
+    if (!rawId || !password) {
+      if (errEl) { errEl.textContent = (typeof lang!=='undefined'&&lang==='en')?'Fill all fields':'Remplissez tous les champs'; errEl.classList.add('show'); }
       return;
     }
     if (typeof authBusy !== 'undefined' && authBusy) return;
-
     try { authBusy = true; } catch(e) {}
     try { if (typeof setAuthLoading==='function') setAuthLoading('login', true); } catch(e) {}
-
     try {
-      // Supabase Auth accepte directement le téléphone pour l'authentification
-      // par mot de passe. La session est persistée par le client Supabase.
-      const authEmail = alloAuthEmail(phone);
-      const { data: authData, error } = await sb.auth.signInWithPassword({ email: authEmail, password });
+      const ident = (typeof normalizeIdentifier === 'function') ? normalizeIdentifier(rawId) : rawId.toLowerCase().replace(/\s+/g,'');
+      const email = alloAuthEmail(ident);
+      const { data: authData, error } = await sb.auth.signInWithPassword({ email, password });
       if (error) {
-        if (errEl) {
-          errEl.textContent = error.message || (lang==='en' ? 'Invalid credentials' : 'Numéro de téléphones incorrects');
-          errEl.classList.add('show');
-        }
+        if (errEl) { errEl.textContent = error.message || ((typeof lang!=='undefined'&&lang==='en')?'Invalid credentials':'Identifiants incorrects'); errEl.classList.add('show'); }
         return;
       }
-
       const uid = authData.user.id;
       let { data: profile } = await sb.from('profiles').select('*').eq('id', uid).maybeSingle();
-
       if (!profile) {
-        const emailCompat = alloAuthEmail(phone);
-        await sb.from('profiles').upsert({
-          id: uid,
-          identifier: phone,
-          phone: phone,
-          name: phone,
-          role: 'user',
-          email: emailCompat
-        });
+        await sb.from('profiles').upsert({ id: uid, identifier: ident, name: ident, role: 'user', email });
         const again = await sb.from('profiles').select('*').eq('id', uid).maybeSingle();
         profile = again.data;
-      } else if (!profile.phone) {
-        await sb.from('profiles').update({ phone: phone, identifier: phone }).eq('id', uid);
-        profile.phone = phone;
-        profile.identifier = phone;
       }
-
       currentUser = mapProfileToUser(profile);
       if (currentUser && currentUser.is_active === false) {
         await sb.auth.signOut();
-        if (errEl) {
-          errEl.textContent = lang==='en'
-            ? 'This account is disabled by the administrator.'
-            : 'Ce compte a été désactivé par le Super Admin.';
-          errEl.classList.add('show');
-        }
+        if (errEl) { errEl.textContent = lang==='en' ? 'This account is disabled by the administrator.' : 'Ce compte a été désactivé par le Super Admin.'; errEl.classList.add('show'); }
         return;
       }
-
       cart = [];
       await sbLoadAllIntoData();
       enterApp();
@@ -6630,16 +6559,14 @@ async function doLogin() {
       return;
     } catch (e) {
       console.error(e);
-      if (errEl) {
-        errEl.textContent = String(e.message || e);
-        errEl.classList.add('show');
-      }
+      if (errEl) { errEl.textContent = String(e.message || e); errEl.classList.add('show'); }
+      return;
     } finally {
       try { authBusy = false; } catch(e) {}
       try { if (typeof setAuthLoading==='function') setAuthLoading('login', false); } catch(e) {}
     }
   }
-
+  // Aucun mode hors-ligne : Supabase est obligatoire pour se connecter.
   const unavailable = document.getElementById('loginError');
   if (unavailable) {
     unavailable.textContent = lang === 'en'
@@ -6651,133 +6578,101 @@ async function doLogin() {
 }
 
 async function doRegister() {
-  // === SUPABASE REGISTER (numéro de téléphone + mot de passe, sans Phone Auth) ===
+  // === SUPABASE REGISTER (identifiant + mot de passe) ===
   if (typeof USE_SUPABASE !== 'undefined' && USE_SUPABASE && sb) {
+    // Une inscription = un seul compte utilisateur.
     const role = 'user';
     const name = (document.getElementById('regName')?.value || '').trim();
-    const rawPhone = (document.getElementById('regPhone')?.value || '').trim();
+    const rawId = (document.getElementById('regId')?.value || '').trim();
     const pass = document.getElementById('regPassword')?.value || '';
     const pass2 = document.getElementById('regPassword2')?.value || '';
     const errEl = document.getElementById('regError');
     if (errEl) errEl.classList.remove('show');
-
-    const phone = normalizeAuthPhone(rawPhone);
-
-    if (!name || !phone || !pass) {
-      if (errEl) {
-        errEl.textContent = typeof t === 'function' ? t('fillFields') : 'Champs requis';
-        errEl.classList.add('show');
-      }
+    const ident = (typeof normalizeIdentifier === 'function') ? normalizeIdentifier(rawId) : rawId.toLowerCase().replace(/\s+/g,'');
+    if (!name || !ident || !pass) {
+      if (errEl) { errEl.textContent = (typeof t==='function'?t('fillFields'):'Champs requis'); errEl.classList.add('show'); }
       return;
     }
-    if (!isValidPhone(phone)) {
-      if (errEl) {
-        errEl.textContent = lang === 'en' ? 'Invalid phone number' : 'Numéro de téléphone invalide';
-        errEl.classList.add('show');
-      }
+    if (typeof isValidIdentifier === 'function' && !isValidIdentifier(ident)) {
+      if (errEl) { errEl.textContent = 'Identifiant invalide (3–32: lettres, chiffres, _ -)'; errEl.classList.add('show'); }
       return;
     }
     if (pass.length < 6 || pass !== pass2) {
-      if (errEl) {
-        errEl.textContent = pass !== pass2 ? 'Mots de passe différents' : 'Mot de passe min. 6 caractères';
-        errEl.classList.add('show');
-      }
+      if (errEl) { errEl.textContent = pass!==pass2 ? 'Mots de passe différents' : 'Mot de passe min. 6 caractères'; errEl.classList.add('show'); }
       return;
     }
     if (typeof authBusy !== 'undefined' && authBusy) return;
-    try { authBusy = true; } catch (e) {}
-    try { if (typeof setAuthLoading === 'function') setAuthLoading('register', true); } catch (e) {}
-
+    try { authBusy = true; } catch(e) {}
+    try { if (typeof setAuthLoading==='function') setAuthLoading('register', true); } catch(e) {}
     try {
-      const authEmail = alloAuthEmail(phone);
-      const { data: authData, error } = await withTimeout(
-        sb.auth.signUp({
-          email: authEmail,
-          password: pass,
-          options: { data: { phone, identifier: phone, name, role } }
-        }),
-        20000,
-        'Inscription'
-      );
-
-      if (error) {
-        console.error('[Allo] Supabase signUp error:', error);
-        if (errEl) {
-          const low = String(error.message || '').toLowerCase();
-          let msg = error.message || (lang === 'en' ? 'Account creation failed.' : 'Création du compte impossible.');
-          if (low.includes('database error saving new user')) {
-            msg = lang === 'en'
-              ? 'Supabase rejected the new account while saving it. Check the Auth/database trigger on this project.'
-              : 'Supabase refuse l’enregistrement du nouveau compte. Vérifiez le déclencheur Auth/base de données de ce projet.';
-          } else if (low.includes('user already registered') || low.includes('already registered')) {
-            msg = lang === 'en' ? 'This phone number is already registered.' : 'Ce numéro de téléphone est déjà enregistré.';
-          }
-          errEl.textContent = msg;
-          errEl.classList.add('show');
+      const email = alloAuthEmail(ident);
+      const { data: authData, error } = await sb.auth.signUp({
+        email,
+        password: pass,
+        options: {
+          data: { identifier: ident, name: name, role: 'user' },
+          emailRedirectTo: (typeof window !== 'undefined' ? window.location.origin : undefined)
         }
+      });
+      if (error) {
+        if (errEl) { errEl.textContent = error.message; errEl.classList.add('show'); }
         return;
       }
       if (!authData || !authData.user) {
-        if (errEl) {
-          errEl.textContent = lang === 'en' ? 'Account creation failed: no Auth user was returned.' : 'Création échouée : aucun utilisateur Auth retourné.';
-          errEl.classList.add('show');
-        }
+        if (errEl) { errEl.textContent = 'Inscription échouée (pas d\'utilisateur Auth)'; errEl.classList.add('show'); }
         return;
       }
-
       const uid = authData.user.id;
-      const emailCompat = authEmail;
+
+      // Session obligatoire pour écrire shops/companies (RLS)
       if (!authData.session) {
-        if (errEl) {
-          errEl.textContent = lang === 'en'
-            ? 'Account created, but Supabase requires email confirmation. Disable email confirmation for this project, then try again.'
-            : 'Compte créé, mais Supabase exige une confirmation email. Désactivez la confirmation email sur ce projet, puis réessayez.';
-          errEl.classList.add('show');
+        // Tenter login immédiat (si confirmation email désactivée)
+        const { data: loginData, error: loginErr } = await sb.auth.signInWithPassword({ email, password: pass });
+        if (loginErr || !loginData.session) {
+          if (errEl) {
+            errEl.textContent = (lang==='en'
+              ? 'Confirm your email first, or disable "Confirm email" in Supabase Auth settings.'
+              : 'Confirmez votre e-mail, ou désactivez « Confirm email » dans Supabase → Authentication.');
+            errEl.classList.add('show');
+          }
+          return;
         }
-        return;
       }
 
-      const profilePayload = {
-        id: uid, identifier: phone, phone, name, role: 'user', email: emailCompat,
-        balance: 0, wallet: 0
-      };
-      const { error: profileError } = await sb.from('profiles').upsert(profilePayload, { onConflict: 'id' });
-      if (profileError) {
-        console.error('[Allo] profiles upsert after signup:', profileError);
-        if (errEl) {
-          errEl.textContent = (lang === 'en' ? 'Account created, but the profile could not be saved: ' : 'Compte créé, mais le profil n’a pas pu être enregistré : ') + (profileError.message || 'database error');
-          errEl.classList.add('show');
-        }
-        return;
-      }
+      // Le profil principal reste toujours « user ».
+      await sb.from('profiles').upsert({
+        id: uid,
+        identifier: ident,
+        name: name,
+        role: 'user',
+        email: email,
+        balance: 0,
+        wallet: 0
+      }, { onConflict: 'id' });
 
-      const { data: profile, error: profileReadError } = await sb.from('profiles').select('*').eq('id', uid).maybeSingle();
-      if (profileReadError) console.error('[Allo] profile read after signup:', profileReadError);
-      currentUser = mapProfileToUser(profile || profilePayload);
-
-      if (currentUser && currentUser.is_active === false) {
-        await sb.auth.signOut();
-        if (errEl) {
-          errEl.textContent = lang === 'en' ? 'This account is disabled by the administrator.' : 'Ce compte a été désactivé par le Super Admin.';
-          errEl.classList.add('show');
-        }
-        return;
+      const { data: profile } = await sb.from('profiles').select('*').eq('id', uid).maybeSingle();
+      if (profile && profile.role !== 'user') {
+        await sb.from('profiles').update({ role: 'user' }).eq('id', uid);
+        profile.role = 'user';
       }
+      currentUser = mapProfileToUser(profile || { id: uid, identifier: ident, name, role: 'user', email });
       cart = [];
       await sbLoadAllIntoData();
       enterApp();
       try { startOrderRealtime(); } catch (e) {}
-      try { await ensureProfileCompletion(true); } catch (e) { console.warn('[Allo] profile completion', e); }
+      // Nouveau compte : le questionnaire de profil s'ouvre immédiatement.
+      try { await ensureProfileCompletion(true); } catch(e) { console.warn('[Allo] profile completion', e); }
       return;
     } catch (e) {
-      console.error('[Allo] doRegister:', e);
-      if (errEl) { errEl.textContent = String(e && e.message ? e.message : e); errEl.classList.add('show'); }
+      console.error(e);
+      if (errEl) { errEl.textContent = String(e.message || e); errEl.classList.add('show'); }
+      return;
     } finally {
-      try { authBusy = false; } catch (e) {}
-      try { if (typeof setAuthLoading === 'function') setAuthLoading('register', false); } catch (e) {}
+      try { authBusy = false; } catch(e) {}
+      try { if (typeof setAuthLoading==='function') setAuthLoading('register', false); } catch(e) {}
     }
   }
-
+  // Aucun mode hors-ligne : Supabase est obligatoire pour créer un compte.
   const unavailable = document.getElementById('regError');
   if (unavailable) {
     unavailable.textContent = lang === 'en'
@@ -6787,6 +6682,7 @@ async function doRegister() {
   }
   return;
 }
+
 function defaultsSafeMerge(cfg, factory) {
   try {
     return Object.assign({}, factory || defaultAdminConfig(), cfg || {});
@@ -12642,7 +12538,7 @@ async function addEmployee() {
   const pass = document.getElementById('mEmpPass')?.value || '';
   const job = document.getElementById('mEmpJob')?.value || 'autre';
   if (!ident || !pass) { alert(lang==='en' ? 'Enter the existing employee account ID and password.' : 'Entrez l’identifiant et le mot de passe du compte de la personne.'); return; }
-  if (typeof isValidIdentifier === 'function' && !isValidIdentifier(ident)) { alert(lang==='en'?'Invalid identifier.':'Numéro de téléphone invalide.'); return; }
+  if (typeof isValidIdentifier === 'function' && !isValidIdentifier(ident)) { alert(lang==='en'?'Invalid identifier.':'Identifiant invalide.'); return; }
   if (pass.length < 6) { alert(lang==='en'?'Password must contain at least 6 characters.':'Le mot de passe doit contenir au moins 6 caractères.'); return; }
   let features = defaultStaffFeatures(job);
   if (document.querySelectorAll('input[name="staffFeat"]').length > 0) features = readStaffFeaturesFromForm();
@@ -13998,7 +13894,7 @@ function openModal(type, extra) {
     html = `<button class="modal-close" onclick="closeModal()">×</button>
       <h3>👤 ${lang === 'en' ? 'Add an existing client' : 'Ajouter un client existant'}</h3>
       <p class="sub">${lang === 'en' ? 'The person must already have an Allo account. Their credentials are used only to verify the account; no new account is created.' : 'La personne doit déjà avoir un compte Allo. Ses identifiants servent uniquement à vérifier son compte ; aucun nouveau compte ne sera créé.'}</p>
-      <div class="field"><label>${lang === 'en' ? 'Allo identifier' : 'Numéro de téléphone Allo'}</label>
+      <div class="field"><label>${lang === 'en' ? 'Allo identifier' : 'Identifiant Allo'}</label>
         <input id="mClientId" type="text" placeholder="Ex: jean_dupont" autocomplete="username" autocapitalize="off" spellcheck="false"></div>
       <div class="field"><label>${lang === 'en' ? 'Account password' : 'Mot de passe du compte'}</label>
         <input id="mPass" type="password" placeholder="••••••••" autocomplete="current-password"></div>
@@ -14014,7 +13910,7 @@ function openModal(type, extra) {
     html = `<button class="modal-close" onclick="closeModal()">×</button>
       <h3>${t('createEmployee')}</h3>
       <p class="sub">${lang === 'en' ? 'The employee must already have an Allo account. Enter their credentials to verify and attach that account to your company.' : 'L’employé doit déjà avoir un compte Allo. Entrez ses identifiants pour vérifier et rattacher ce compte à votre entreprise.'}</p>
-      <div class="field"><label>${t('identifier') || 'Numéro de téléphone Allo'}</label>
+      <div class="field"><label>${t('identifier') || 'Identifiant Allo'}</label>
         <input id="mEmpId" type="text" placeholder="Ex: jean_dupont" autocomplete="username" autocapitalize="off" spellcheck="false"></div>
       <div class="field"><label>${lang === 'en' ? 'Account password' : 'Mot de passe du compte'}</label>
         <input id="mEmpPass" type="password" placeholder="••••••••" autocomplete="current-password"></div>
@@ -15534,7 +15430,7 @@ async function addClient() {
   const ident = (typeof normalizeIdentifier === 'function') ? normalizeIdentifier(rawId) : String(rawId).trim().toLowerCase().replace(/\s+/g, '');
   const pass = document.getElementById('mPass')?.value || '';
   if (!ident || !pass) { alert(lang==='en' ? 'Enter the existing client account ID and password.' : 'Entrez l’identifiant et le mot de passe du compte du client.'); return; }
-  if (typeof isValidIdentifier === 'function' && !isValidIdentifier(ident)) { alert(lang==='en'?'Invalid identifier.':'Numéro de téléphone invalide.'); return; }
+  if (typeof isValidIdentifier === 'function' && !isValidIdentifier(ident)) { alert(lang==='en'?'Invalid identifier.':'Identifiant invalide.'); return; }
   if (pass.length < 6) { alert(lang==='en'?'Password must contain at least 6 characters.':'Le mot de passe doit contenir au moins 6 caractères.'); return; }
   if (!(USE_SUPABASE && sb)) { alert(lang==='en' ? 'Internet connection required.' : 'Une connexion Internet est nécessaire.'); return; }
   try {
