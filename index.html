@@ -9707,7 +9707,7 @@ function productCardHTML(p, showAdd, manage) {
       <button type="button" class="yc-btn price-btn" onclick="event.stopPropagation();${canBuy ? `addToCart('${p.id}', this)` : `openProductOptions('${p.id}')`}"><span class="ico">🛒</span><span class="add-lbl">${canBuy ? (inCart ? (lang==='en'?'IN CART':'DANS PANIER') : (lang==='en'?'ADD CART':'+ PANIER')) : (lang==='en'?'OPTIONS':'OPTIONS')}</span></button>
       <button type="button" class="yc-btn" onclick="event.stopPropagation();openProductGallery('${p.id}')"><span class="ico">📷</span>${lang==='en'?'PHOTOS':'PHOTOS'}</button>
       <button type="button" class="yc-btn" onclick="event.stopPropagation();shareProduct('${p.id}')"><span class="ico">🔗</span>${lang==='en'?'SHARE':'PART.'}</button>
-      <button type="button" class="yc-btn" onclick="event.stopPropagation();${canFav ? `toggleWishlist('${p.id}');if(typeof renderHomeProductsOnly==='function')renderHomeProductsOnly();` : ''}" ${canFav ? '' : 'disabled'}><span class="ico">${isFav ? '❤️' : '🤍'}</span>FAV</button>
+      <button type="button" class="yc-btn" onclick="event.stopPropagation();${canFav ? `toggleWishlist('${p.id}');` : ''}" ${canFav ? '' : 'disabled'}><span class="ico">${isFav ? '❤️' : '🤍'}</span>FAV</button>
       <button type="button" class="yc-btn" onclick="event.stopPropagation();openProductReviews('${p.id}')"><span class="ico">💬</span>${lang==='en'?'REVIEWS':'AVIS'}</button>
     </div>
     <div class="yc-cyan-row">
@@ -17463,6 +17463,52 @@ window._appliedPromo = null;
 function isInWishlist(productId) {
   return (data.wishlist || []).some(w => w.userId === currentUser.id && w.productId === productId);
 }
+
+/** Met à jour le bouton FAV sur les cartes déjà affichées, sans re-render de la grille (évite le flash/disparition). */
+function updateWishlistCardUI(productId) {
+  if (!productId) return;
+  const isFav = currentUser && isInWishlist(productId);
+  const favCount = (data.wishlist || []).filter(w => String(w.productId) === String(productId)).length;
+  const key = String(productId);
+  const safe = key.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  document.querySelectorAll('.product-card[data-product-id="' + safe + '"]').forEach(card => {
+    // Boutons FAV dans la carte ycard
+    card.querySelectorAll('button.yc-btn').forEach(btn => {
+      const ico = btn.querySelector('.ico');
+      const txt = (btn.textContent || '').toUpperCase();
+      if (!ico) return;
+      if (txt.indexOf('FAV') === -1 && (ico.textContent || '').indexOf('❤') === -1 && (ico.textContent || '').indexOf('🤍') === -1) return;
+      ico.textContent = isFav ? '❤️' : '🤍';
+    });
+    // Stats FAV si présentes (dls-style)
+    card.querySelectorAll('.dls-fav-btn, .yc-stat').forEach(stat => {
+      const lbl = stat.querySelector('.lbl');
+      if (lbl) {
+        const t = (lbl.textContent || '').toUpperCase();
+        if (t.indexOf('FAV') === -1) return;
+        const val = stat.querySelector('.val');
+        if (val) val.textContent = String(favCount > 99 ? 99 : favCount);
+        if (isFav) stat.classList.add('high');
+        else stat.classList.remove('high');
+      }
+    });
+  });
+  // Modal détail produit ouvert
+  const modalBtn = document.querySelector('#modalContent button[onclick*="toggleWishlist"]');
+  if (modalBtn && String(modalBtn.getAttribute('onclick') || '').indexOf(String(productId)) !== -1) {
+    modalBtn.innerHTML = isFav
+      ? ('❤️ ' + (typeof t === 'function' ? t('removeWishlist') : 'Retirer'))
+      : ('🤍 ' + (typeof t === 'function' ? t('addWishlist') : 'Favori'));
+  }
+  // Stats FAV dans le modal dls-sign
+  document.querySelectorAll('.dls-sign-stat').forEach(stat => {
+    const span = stat.querySelector('span');
+    if (!span || (span.textContent || '').toUpperCase().indexOf('FAV') === -1) return;
+    const b = stat.querySelector('b');
+    if (b) b.textContent = isFav ? '♥' : String(favCount);
+  });
+}
+
 function toggleWishlist(productId) {
   if (!currentUser) return;
   try { ensureProductView(productId); } catch (_) {}
@@ -17477,10 +17523,16 @@ function toggleWishlist(productId) {
       if (typeof trackInteraction === 'function') trackInteraction('wishlist', { productId, shopId: p && p.shopId, cat: cats[0] });
     } catch (e) {}
   }
-  saveAppData();
-  renderHomeProductsOnly();
-  renderWishlist();
-  if (document.getElementById('view-search')?.classList.contains('active')) doSearch();
+  try { saveAppData(); } catch (e) {}
+  // Mise à jour locale stable — pas de re-render de la grille catalogue
+  try { updateWishlistCardUI(productId); } catch (e) {}
+  // Wishlist page : seulement si on y est
+  const wishView = document.getElementById('view-wishlist');
+  if (wishView && wishView.classList.contains('active') && typeof renderWishlist === 'function') {
+    try { renderWishlist(); } catch (e) {}
+  }
+  // Recherche active : mise à jour visuelle locale uniquement (pas doSearch qui reconstruit tout)
+  // Les cartes de la vue search ont aussi data-product-id, donc updateWishlistCardUI suffit.
 }
 function renderWishlist() {
   const el = document.getElementById('wishlistContent');
