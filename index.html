@@ -9707,7 +9707,7 @@ function productCardHTML(p, showAdd, manage) {
       <button type="button" class="yc-btn price-btn" onclick="event.stopPropagation();${canBuy ? `addToCart('${p.id}', this)` : `openProductOptions('${p.id}')`}"><span class="ico">🛒</span><span class="add-lbl">${canBuy ? (inCart ? (lang==='en'?'IN CART':'DANS PANIER') : (lang==='en'?'ADD CART':'+ PANIER')) : (lang==='en'?'OPTIONS':'OPTIONS')}</span></button>
       <button type="button" class="yc-btn" onclick="event.stopPropagation();openProductGallery('${p.id}')"><span class="ico">📷</span>${lang==='en'?'PHOTOS':'PHOTOS'}</button>
       <button type="button" class="yc-btn" onclick="event.stopPropagation();shareProduct('${p.id}')"><span class="ico">🔗</span>${lang==='en'?'SHARE':'PART.'}</button>
-      <button type="button" class="yc-btn" onclick="event.stopPropagation();${canFav ? `toggleWishlist('${p.id}');if(typeof renderHomeProductsOnly==='function')renderHomeProductsOnly();` : ''}" ${canFav ? '' : 'disabled'}><span class="ico">${isFav ? '❤️' : '🤍'}</span>FAV</button>
+      <button type="button" class="yc-btn yc-fav-btn" data-fav-product="${p.id}" onclick="event.stopPropagation();${canFav ? `toggleWishlist('${p.id}')` : ''}" ${canFav ? '' : 'disabled'}><span class="ico">${isFav ? '❤️' : '🤍'}</span>FAV</button>
       <button type="button" class="yc-btn" onclick="event.stopPropagation();openProductReviews('${p.id}')"><span class="ico">💬</span>${lang==='en'?'REVIEWS':'AVIS'}</button>
     </div>
     <div class="yc-cyan-row">
@@ -9833,7 +9833,7 @@ function buildProductDetailModalHTML(productId) {
     <div class="dls-sign-actions">
       ${canBuy ? `<button type="button" class="btn btn-accent btn-block dls-sign-buy" onclick="event.stopPropagation();closeModal();addToCart('${p.id}')">${lang==='en'?'Add to cart':'Ajouter au panier'} · ${formatMoney(eff)}</button>` : ''}
       ${p.shopId && currentUser && currentUser.role !== 'boutique' && currentUser.role !== 'entreprise' ? `<button type="button" class="btn btn-ghost btn-block" style="margin-top:8px" onclick="event.stopPropagation();closeModal();openShopPage('${p.shopId}')">🏪 ${t('viewShop')}</button>` : ''}
-      ${currentUser && (currentUser.role==='user'||currentUser.role==='client') ? `<button type="button" class="btn btn-ghost btn-block" style="margin-top:8px" onclick="event.stopPropagation();toggleWishlist('${p.id}');openProductDetail('${p.id}')">${isFav ? '❤️ '+t('removeWishlist') : '🤍 '+t('addWishlist')}</button>` : ''}
+      ${currentUser && (currentUser.role==='user'||currentUser.role==='client') ? `<button type="button" class="btn btn-ghost btn-block" data-wishlist-toggle="${p.id}" style="margin-top:8px" onclick="event.stopPropagation();toggleWishlist('${p.id}')">${isFav ? '❤️ '+t('removeWishlist') : '🤍 '+t('addWishlist')}</button>` : ''}
     </div>`;
 }
 
@@ -17461,13 +17461,37 @@ function notifySellersOfOrder(order) {
 window._appliedPromo = null;
 
 function isInWishlist(productId) {
-  return (data.wishlist || []).some(w => w.userId === currentUser.id && w.productId === productId);
+  if (!currentUser) return false;
+  return (data.wishlist || []).some(w => String(w.userId) === String(currentUser.id) && String(w.productId) === String(productId));
 }
+
+/** Met à jour les icônes FAV en place — sans re-render de la grille (évite le flash) */
+function updateWishlistButtonsUI(productId) {
+  const on = isInWishlist(productId);
+  const ico = on ? '❤️' : '🤍';
+  const pid = String(productId);
+  document.querySelectorAll('.yc-fav-btn[data-fav-product="' + pid.replace(/"/g, '') + '"]').forEach(btn => {
+    const span = btn.querySelector('.ico');
+    if (span) span.textContent = ico;
+    else btn.innerHTML = '<span class="ico">' + ico + '</span>FAV';
+  });
+  // Boutons favoris dans les modales / détail
+  document.querySelectorAll('[data-wishlist-toggle="' + pid.replace(/"/g, '') + '"]').forEach(btn => {
+    btn.textContent = on
+      ? ('❤️ ' + (typeof t === 'function' ? t('removeWishlist') : 'Retirer'))
+      : ('🤍 ' + (typeof t === 'function' ? t('addWishlist') : 'Favori'));
+  });
+  // Compteur FAV sur la carte (stat) si présent
+  document.querySelectorAll('.product-card[data-product-id="' + pid.replace(/"/g, '') + '"]').forEach(card => {
+    // rien d'obligatoire — le cœur suffit ; on évite de toucher au HTML de stats pour rester fluide
+  });
+}
+
 function toggleWishlist(productId) {
   if (!currentUser) return;
   try { ensureProductView(productId); } catch (_) {}
   if (!data.wishlist) data.wishlist = [];
-  const i = data.wishlist.findIndex(w => w.userId === currentUser.id && w.productId === productId);
+  const i = data.wishlist.findIndex(w => String(w.userId) === String(currentUser.id) && String(w.productId) === String(productId));
   if (i >= 0) data.wishlist.splice(i, 1);
   else {
     data.wishlist.push({ userId: currentUser.id, productId, date: new Date().toISOString() });
@@ -17477,10 +17501,16 @@ function toggleWishlist(productId) {
       if (typeof trackInteraction === 'function') trackInteraction('wishlist', { productId, shopId: p && p.shopId, cat: cats[0] });
     } catch (e) {}
   }
-  saveAppData();
-  renderHomeProductsOnly();
-  renderWishlist();
-  if (document.getElementById('view-search')?.classList.contains('active')) doSearch();
+  try { saveAppData(); } catch (e) {}
+  // Mise à jour locale immédiate (pas de flash)
+  try { updateWishlistButtonsUI(productId); } catch (e) {}
+  // Recharger la page Favoris seulement si elle est visible
+  try {
+    const wv = document.getElementById('view-wishlist');
+    if (wv && wv.classList.contains('active') && typeof renderWishlist === 'function') renderWishlist();
+  } catch (e) {}
+  // Recherche active : mettre à jour les boutons seulement, pas toute la grille
+  // (doSearch rebuilderait tout → flash)
 }
 function renderWishlist() {
   const el = document.getElementById('wishlistContent');
