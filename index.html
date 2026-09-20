@@ -9156,6 +9156,7 @@ function renderHomeProductsOnly() {
       html += searchPagerHTML(res.page, res.totalPages, res.total, 'setCatalogResultsPage');
     }
     el.innerHTML = html;
+    try { refreshAllProductViewCountsUI(); } catch (_) {}
     return;
   }
 
@@ -9188,6 +9189,7 @@ function renderHomeProductsOnly() {
     html += '</div>';
   }
   el.innerHTML = html;
+  try { refreshAllProductViewCountsUI(); } catch (_) {}
 }
 
 function updateSectionHeads() {
@@ -17699,15 +17701,89 @@ const RECENT_PURCHASE_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_INTERACT_EVENTS = 400;
 
 
-// ===== VUES PRODUIT (Supabase only — product_views) =====
-// Compteur global = nombre d'utilisateurs uniques ayant vu le produit (1 vue / user / produit)
+// ===== VUES PRODUIT (Supabase + fallback local) =====
+// Compteur global = utilisateurs uniques ayant vu le produit (1 vue / user / produit)
 window._productViewCounts = window._productViewCounts || {}; // productId -> unique view count
 window._myViewedProducts = window._myViewedProducts || new Set(); // produits déjà vus par l'utilisateur courant
 window._viewInflight = window._viewInflight || {}; // évite doubles inserts concurrents
 
+const ALLO_LOCAL_VIEWS_KEY = 'allora_product_views_v1';
+
+function loadLocalViewsStore() {
+  try {
+    const raw = (typeof alloEphemeralStorage !== 'undefined' && alloEphemeralStorage)
+      ? alloEphemeralStorage.getItem(ALLO_LOCAL_VIEWS_KEY)
+      : (typeof localStorage !== 'undefined' ? localStorage.getItem(ALLO_LOCAL_VIEWS_KEY) : null);
+    if (!raw) return { byProduct: {}, byUser: {} };
+    const o = JSON.parse(raw);
+    return {
+      byProduct: (o && o.byProduct && typeof o.byProduct === 'object') ? o.byProduct : {},
+      byUser: (o && o.byUser && typeof o.byUser === 'object') ? o.byUser : {}
+    };
+  } catch (e) {
+    return { byProduct: {}, byUser: {} };
+  }
+}
+
+function saveLocalViewsStore(store) {
+  try {
+    const payload = JSON.stringify(store || { byProduct: {}, byUser: {} });
+    if (typeof alloEphemeralStorage !== 'undefined' && alloEphemeralStorage) {
+      alloEphemeralStorage.setItem(ALLO_LOCAL_VIEWS_KEY, payload);
+    } else if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(ALLO_LOCAL_VIEWS_KEY, payload);
+    }
+  } catch (e) {}
+}
+
+/** Met à jour le chiffre 👁️ VUE sur les cartes visibles, sans re-render de la grille */
+function updateProductViewCountUI(productId) {
+  if (productId == null || productId === '') return;
+  const key = String(productId);
+  const n = Number((window._productViewCounts || {})[key]) || 0;
+  const display = n > 99 ? '99' : String(n);
+  document.querySelectorAll('.product-card[data-product-id]').forEach(card => {
+    if (String(card.getAttribute('data-product-id') || '') !== key) return;
+    card.querySelectorAll('.yc-stat').forEach(stat => {
+      const lbl = stat.querySelector('.lbl');
+      if (!lbl) return;
+      const t = (lbl.textContent || '').toUpperCase();
+      if (t.indexOf('VUE') === -1 && t.indexOf('VIEW') === -1) return;
+      const val = stat.querySelector('.val');
+      if (val) val.textContent = display;
+    });
+  });
+}
+
+/** Rafraîchit tous les badges VUE visibles (après chargement async des compteurs) */
+function refreshAllProductViewCountsUI() {
+  try {
+    document.querySelectorAll('.product-card[data-product-id]').forEach(card => {
+      const pid = card.getAttribute('data-product-id');
+      if (pid) updateProductViewCountUI(pid);
+    });
+  } catch (e) {}
+}
+
 async function loadProductViewCounts() {
+  // Mode local / hors Supabase : charger le store local
   if (!(typeof USE_SUPABASE !== 'undefined' && USE_SUPABASE && sb)) {
-    window._productViewCounts = {};
+    try {
+      const store = loadLocalViewsStore();
+      const map = {};
+      Object.keys(store.byProduct || {}).forEach(pid => {
+        const users = store.byProduct[pid];
+        map[String(pid)] = Array.isArray(users) ? users.length : (Number(users) || 0);
+      });
+      window._productViewCounts = map;
+      if (currentUser && currentUser.id) {
+        const mine = store.byUser[String(currentUser.id)] || [];
+        window._myViewedProducts = new Set((mine || []).map(String));
+      }
+    } catch (e) {
+      window._productViewCounts = window._productViewCounts || {};
+    }
+    try { refreshAllProductViewCountsUI(); } catch (_) {}
     return;
   }
   try {
@@ -17735,63 +17811,85 @@ async function loadProductViewCounts() {
         });
       }
     }
+    // Fusionner avec d'éventuels compteurs locaux déjà incrémentés (évite un flash à 0)
+    Object.keys(window._productViewCounts || {}).forEach(pid => {
+      const localN = Number(window._productViewCounts[pid]) || 0;
+      if (localN > (map[pid] || 0)) map[pid] = localN;
+    });
     window._productViewCounts = map;
     // Charger les produits déjà vus par l'utilisateur courant (unicité)
     if (currentUser && currentUser.id) {
       try {
         const mine = await sb.from('product_views').select('product_id').eq('user_id', currentUser.id);
         if (!mine.error && mine.data) {
-          window._myViewedProducts = new Set((mine.data || []).map(r => String(r.product_id)));
+          const set = new Set((mine.data || []).map(r => String(r.product_id)));
+          // conserver aussi ceux déjà marqués localement dans la session
+          (window._myViewedProducts || new Set()).forEach(id => set.add(String(id)));
+          window._myViewedProducts = set;
         }
       } catch (e2) { console.warn('[Allo] load my views', e2); }
     }
   } catch (e) { console.warn('[Allo] loadProductViewCounts', e); }
+  try { refreshAllProductViewCountsUI(); } catch (_) {}
 }
 
 function getProductViewCount(productId) {
   return Number((window._productViewCounts || {})[String(productId)]) || 0;
 }
 
-/** Met à jour le chiffre 👁️ VUE sur les cartes, sans re-render de la grille */
-function updateProductViewCountUI(productId) {
-  const key = String(productId);
-  const n = Number((window._productViewCounts || {})[key]) || 0;
-  const display = n > 99 ? '99' : String(n);
-  const safe = key.replace(/\\/g, '\\').replace(/"/g, '\\"');
-  document.querySelectorAll('.product-card[data-product-id="' + safe + '"]').forEach(card => {
-    // Cherche le badge VUE (label contient VUE)
-    card.querySelectorAll('.yc-stat').forEach(stat => {
-      const lbl = stat.querySelector('.lbl');
-      if (!lbl) return;
-      const t = (lbl.textContent || '').toUpperCase();
-      if (t.indexOf('VUE') === -1 && t.indexOf('VIEW') === -1) return;
-      const val = stat.querySelector('.val');
-      if (val) val.textContent = display;
-    });
-  });
-}
-
 /**
  * Enregistre UNE vue unique par utilisateur et par produit.
  * Relancer un clic / option sur le même produit ne rajoute pas de vue.
+ * Fonctionne avec Supabase ET en mode local (fallback).
  */
 async function recordProductView(productId, shopId) {
   if (!productId) return;
-  if (!(typeof USE_SUPABASE !== 'undefined' && USE_SUPABASE && sb)) return;
   if (!currentUser || !currentUser.id) return;
   // Seuls acheteurs (user / client) comptent comme vue
   if (currentUser.role !== 'user' && currentUser.role !== 'client') return;
 
   const key = String(productId);
   if (!window._myViewedProducts) window._myViewedProducts = new Set();
+  if (!window._productViewCounts) window._productViewCounts = {};
   if (window._myViewedProducts.has(key)) return; // déjà vu par cet utilisateur
   if (window._viewInflight[key]) return; // insert déjà en cours
   window._viewInflight[key] = true;
 
   // Marquer localement tout de suite pour éviter les doubles clics
-  // (on retire si l'insert échoue vraiment, sauf doublon)
   window._myViewedProducts.add(key);
 
+  const bumpLocal = function () {
+    window._productViewCounts[key] = (Number(window._productViewCounts[key]) || 0) + 1;
+    try { updateProductViewCountUI(productId); } catch (_) {}
+  };
+
+  // ----- Mode local (pas de Supabase) -----
+  if (!(typeof USE_SUPABASE !== 'undefined' && USE_SUPABASE && sb)) {
+    try {
+      const store = loadLocalViewsStore();
+      if (!store.byProduct[key]) store.byProduct[key] = [];
+      const uid = String(currentUser.id);
+      if (!store.byProduct[key].map(String).includes(uid)) {
+        store.byProduct[key].push(uid);
+      }
+      if (!store.byUser[uid]) store.byUser[uid] = [];
+      if (!store.byUser[uid].map(String).includes(key)) {
+        store.byUser[uid].push(key);
+      }
+      saveLocalViewsStore(store);
+      // Align local map on store length (unique users)
+      window._productViewCounts[key] = store.byProduct[key].length;
+      try { updateProductViewCountUI(productId); } catch (_) {}
+    } catch (e) {
+      window._myViewedProducts.delete(key);
+      console.warn('[Allo] local product view', e);
+    } finally {
+      delete window._viewInflight[key];
+    }
+    return;
+  }
+
+  // ----- Mode Supabase -----
   try {
     const row = {
       product_id: productId,
@@ -17803,17 +17901,15 @@ async function recordProductView(productId, shopId) {
     if (typeof alloUuid === 'function' && row.shop_id && !alloUuid(row.shop_id)) {
       row.shop_id = null;
     }
-    // Si product_id n'est pas UUID, l'insert échouera — on logue clairement
     const res = await sb.from('product_views').insert(row);
     if (res.error) {
       const msg = String(res.error.message || res.error.code || res.error.details || '');
       if (/duplicate|unique|23505|already/i.test(msg)) {
-        // Déjà en base : OK, on garde le flag local, on n'incrémente pas une 2e fois
-        // mais on s'assure que le compteur local n'est pas 0 si la vue existe
+        // Déjà en base : OK — s'assurer que le compteur n'est pas 0
         if (!window._productViewCounts[key]) {
-          // recharger les compteurs si possible
-          try { loadProductViewCounts(); } catch (_) {}
+          try { await loadProductViewCounts(); } catch (_) {}
         }
+        try { updateProductViewCountUI(productId); } catch (_) {}
       } else {
         // Échec réel : annuler le flag local pour réessayer plus tard
         window._myViewedProducts.delete(key);
@@ -17822,8 +17918,7 @@ async function recordProductView(productId, shopId) {
       return;
     }
     // Première vue unique réussie → +1 et MAJ UI immédiate
-    window._productViewCounts[key] = (window._productViewCounts[key] || 0) + 1;
-    try { updateProductViewCountUI(productId); } catch (_) {}
+    bumpLocal();
   } catch (e) {
     window._myViewedProducts.delete(key);
     console.warn('[Allo] recordProductView', e);
@@ -17840,11 +17935,10 @@ function ensureProductView(productId) {
     const p = (data.products || []).find(x => String(x.id) === String(productId));
     const shopId = p && p.shopId ? p.shopId : null;
     const cats = p && (typeof getProductCats === 'function') ? getProductCats(p) : (p && p.cat ? [p.cat] : []);
-    // Toujours enregistrer la vue serveur (unique)
+    // Toujours enregistrer la vue (unique) — local ou Supabase
     recordProductView(productId, shopId);
     // Signal reco perso (indépendant du compteur global)
     if (typeof trackInteraction === 'function') {
-      // trackInteraction re-appelle recordProductView — OK car _myViewedProducts / inflight bloque le double
       try {
         const ix = typeof getMyInteractions === 'function' ? getMyInteractions() : null;
         if (ix) {
@@ -17889,12 +17983,14 @@ function startViewsRealtime() {
           return;
         }
         window._productViewCounts[key] = (window._productViewCounts[key] || 0) + 1;
+        try { updateProductViewCountUI(pid); } catch (_) {}
       } catch (e) {}
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'product_view_counts' }, function(payload) {
       try {
         if (payload.new && payload.new.product_id) {
           window._productViewCounts[String(payload.new.product_id)] = Number(payload.new.view_count) || 0;
+          try { updateProductViewCountUI(payload.new.product_id); } catch (_) {}
         }
       } catch (e) {}
     })
