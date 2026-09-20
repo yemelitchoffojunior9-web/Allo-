@@ -9707,7 +9707,7 @@ function productCardHTML(p, showAdd, manage) {
       <button type="button" class="yc-btn price-btn" onclick="event.stopPropagation();${canBuy ? `addToCart('${p.id}', this)` : `openProductOptions('${p.id}')`}"><span class="ico">🛒</span><span class="add-lbl">${canBuy ? (inCart ? (lang==='en'?'IN CART':'DANS PANIER') : (lang==='en'?'ADD CART':'+ PANIER')) : (lang==='en'?'OPTIONS':'OPTIONS')}</span></button>
       <button type="button" class="yc-btn" onclick="event.stopPropagation();openProductGallery('${p.id}')"><span class="ico">📷</span>${lang==='en'?'PHOTOS':'PHOTOS'}</button>
       <button type="button" class="yc-btn" onclick="event.stopPropagation();shareProduct('${p.id}')"><span class="ico">🔗</span>${lang==='en'?'SHARE':'PART.'}</button>
-      <button type="button" class="yc-btn yc-fav-btn" data-fav-product="${p.id}" onclick="event.stopPropagation();${canFav ? `toggleWishlist('${p.id}')` : ''}" ${canFav ? '' : 'disabled'}><span class="ico">${isFav ? '❤️' : '🤍'}</span>FAV</button>
+      <button type="button" class="yc-btn" onclick="event.stopPropagation();${canFav ? `toggleWishlist('${p.id}');if(typeof renderHomeProductsOnly==='function')renderHomeProductsOnly();` : ''}" ${canFav ? '' : 'disabled'}><span class="ico">${isFav ? '❤️' : '🤍'}</span>FAV</button>
       <button type="button" class="yc-btn" onclick="event.stopPropagation();openProductReviews('${p.id}')"><span class="ico">💬</span>${lang==='en'?'REVIEWS':'AVIS'}</button>
     </div>
     <div class="yc-cyan-row">
@@ -9833,7 +9833,7 @@ function buildProductDetailModalHTML(productId) {
     <div class="dls-sign-actions">
       ${canBuy ? `<button type="button" class="btn btn-accent btn-block dls-sign-buy" onclick="event.stopPropagation();closeModal();addToCart('${p.id}')">${lang==='en'?'Add to cart':'Ajouter au panier'} · ${formatMoney(eff)}</button>` : ''}
       ${p.shopId && currentUser && currentUser.role !== 'boutique' && currentUser.role !== 'entreprise' ? `<button type="button" class="btn btn-ghost btn-block" style="margin-top:8px" onclick="event.stopPropagation();closeModal();openShopPage('${p.shopId}')">🏪 ${t('viewShop')}</button>` : ''}
-      ${currentUser && (currentUser.role==='user'||currentUser.role==='client') ? `<button type="button" class="btn btn-ghost btn-block" data-wishlist-toggle="${p.id}" style="margin-top:8px" onclick="event.stopPropagation();toggleWishlist('${p.id}')">${isFav ? '❤️ '+t('removeWishlist') : '🤍 '+t('addWishlist')}</button>` : ''}
+      ${currentUser && (currentUser.role==='user'||currentUser.role==='client') ? `<button type="button" class="btn btn-ghost btn-block" style="margin-top:8px" onclick="event.stopPropagation();toggleWishlist('${p.id}');openProductDetail('${p.id}')">${isFav ? '❤️ '+t('removeWishlist') : '🤍 '+t('addWishlist')}</button>` : ''}
     </div>`;
 }
 
@@ -17461,37 +17461,13 @@ function notifySellersOfOrder(order) {
 window._appliedPromo = null;
 
 function isInWishlist(productId) {
-  if (!currentUser) return false;
-  return (data.wishlist || []).some(w => String(w.userId) === String(currentUser.id) && String(w.productId) === String(productId));
+  return (data.wishlist || []).some(w => w.userId === currentUser.id && w.productId === productId);
 }
-
-/** Met à jour les icônes FAV en place — sans re-render de la grille (évite le flash) */
-function updateWishlistButtonsUI(productId) {
-  const on = isInWishlist(productId);
-  const ico = on ? '❤️' : '🤍';
-  const pid = String(productId);
-  document.querySelectorAll('.yc-fav-btn[data-fav-product="' + pid.replace(/"/g, '') + '"]').forEach(btn => {
-    const span = btn.querySelector('.ico');
-    if (span) span.textContent = ico;
-    else btn.innerHTML = '<span class="ico">' + ico + '</span>FAV';
-  });
-  // Boutons favoris dans les modales / détail
-  document.querySelectorAll('[data-wishlist-toggle="' + pid.replace(/"/g, '') + '"]').forEach(btn => {
-    btn.textContent = on
-      ? ('❤️ ' + (typeof t === 'function' ? t('removeWishlist') : 'Retirer'))
-      : ('🤍 ' + (typeof t === 'function' ? t('addWishlist') : 'Favori'));
-  });
-  // Compteur FAV sur la carte (stat) si présent
-  document.querySelectorAll('.product-card[data-product-id="' + pid.replace(/"/g, '') + '"]').forEach(card => {
-    // rien d'obligatoire — le cœur suffit ; on évite de toucher au HTML de stats pour rester fluide
-  });
-}
-
 function toggleWishlist(productId) {
   if (!currentUser) return;
   try { ensureProductView(productId); } catch (_) {}
   if (!data.wishlist) data.wishlist = [];
-  const i = data.wishlist.findIndex(w => String(w.userId) === String(currentUser.id) && String(w.productId) === String(productId));
+  const i = data.wishlist.findIndex(w => w.userId === currentUser.id && w.productId === productId);
   if (i >= 0) data.wishlist.splice(i, 1);
   else {
     data.wishlist.push({ userId: currentUser.id, productId, date: new Date().toISOString() });
@@ -17501,16 +17477,10 @@ function toggleWishlist(productId) {
       if (typeof trackInteraction === 'function') trackInteraction('wishlist', { productId, shopId: p && p.shopId, cat: cats[0] });
     } catch (e) {}
   }
-  try { saveAppData(); } catch (e) {}
-  // Mise à jour locale immédiate (pas de flash)
-  try { updateWishlistButtonsUI(productId); } catch (e) {}
-  // Recharger la page Favoris seulement si elle est visible
-  try {
-    const wv = document.getElementById('view-wishlist');
-    if (wv && wv.classList.contains('active') && typeof renderWishlist === 'function') renderWishlist();
-  } catch (e) {}
-  // Recherche active : mettre à jour les boutons seulement, pas toute la grille
-  // (doSearch rebuilderait tout → flash)
+  saveAppData();
+  renderHomeProductsOnly();
+  renderWishlist();
+  if (document.getElementById('view-search')?.classList.contains('active')) doSearch();
 }
 function renderWishlist() {
   const el = document.getElementById('wishlistContent');
@@ -17689,32 +17659,33 @@ async function loadProductViewCounts() {
     return;
   }
   try {
-    // Agrégat unique : une ligne par (product_id, user_id) comptée une seule fois
+    let map = {};
+    // 1) Table d'agrégat si elle existe
     const res = await sb.from('product_view_counts').select('product_id, view_count');
-    if (res.error) {
-      // Fallback: compter les utilisateurs distincts depuis product_views
-      const res2 = await sb.from('product_views').select('product_id, user_id');
-      if (res2.error) { console.warn('[Allo] load views', res2.error); return; }
-      const map = {};
-      const seen = new Set();
-      (res2.data || []).forEach(r => {
-        const pid = String(r.product_id);
-        const uid = String(r.user_id || '');
-        const k = pid + '|' + uid;
-        if (seen.has(k)) return;
-        seen.add(k);
-        map[pid] = (map[pid] || 0) + 1;
-      });
-      window._productViewCounts = map;
-    } else {
-      const map = {};
+    if (!res.error && res.data && res.data.length) {
       (res.data || []).forEach(r => {
         map[String(r.product_id)] = Number(r.view_count) || 0;
       });
-      window._productViewCounts = map;
+    } else {
+      // 2) Fallback: compter les utilisateurs distincts depuis product_views
+      const res2 = await sb.from('product_views').select('product_id, user_id');
+      if (res2.error) {
+        console.warn('[Allo] load views', res2.error);
+      } else {
+        const seen = new Set();
+        (res2.data || []).forEach(r => {
+          const pid = String(r.product_id);
+          const uid = String(r.user_id || '');
+          const k = pid + '|' + uid;
+          if (seen.has(k)) return;
+          seen.add(k);
+          map[pid] = (map[pid] || 0) + 1;
+        });
+      }
     }
+    window._productViewCounts = map;
     // Charger les produits déjà vus par l'utilisateur courant (unicité)
-    if (currentUser && alloUuid(currentUser.id)) {
+    if (currentUser && currentUser.id) {
       try {
         const mine = await sb.from('product_views').select('product_id').eq('user_id', currentUser.id);
         if (!mine.error && mine.data) {
@@ -17729,6 +17700,25 @@ function getProductViewCount(productId) {
   return Number((window._productViewCounts || {})[String(productId)]) || 0;
 }
 
+/** Met à jour le chiffre 👁️ VUE sur les cartes, sans re-render de la grille */
+function updateProductViewCountUI(productId) {
+  const key = String(productId);
+  const n = Number((window._productViewCounts || {})[key]) || 0;
+  const display = n > 99 ? '99' : String(n);
+  const safe = key.replace(/\\/g, '\\').replace(/"/g, '\\"');
+  document.querySelectorAll('.product-card[data-product-id="' + safe + '"]').forEach(card => {
+    // Cherche le badge VUE (label contient VUE)
+    card.querySelectorAll('.yc-stat').forEach(stat => {
+      const lbl = stat.querySelector('.lbl');
+      if (!lbl) return;
+      const t = (lbl.textContent || '').toUpperCase();
+      if (t.indexOf('VUE') === -1 && t.indexOf('VIEW') === -1) return;
+      const val = stat.querySelector('.val');
+      if (val) val.textContent = display;
+    });
+  });
+}
+
 /**
  * Enregistre UNE vue unique par utilisateur et par produit.
  * Relancer un clic / option sur le même produit ne rajoute pas de vue.
@@ -17736,8 +17726,7 @@ function getProductViewCount(productId) {
 async function recordProductView(productId, shopId) {
   if (!productId) return;
   if (!(typeof USE_SUPABASE !== 'undefined' && USE_SUPABASE && sb)) return;
-  if (!currentUser || !alloUuid(currentUser.id)) return;
-  if (!alloUuid(productId)) return;
+  if (!currentUser || !currentUser.id) return;
   // Seuls acheteurs (user / client) comptent comme vue
   if (currentUser.role !== 'user' && currentUser.role !== 'client') return;
 
@@ -17747,28 +17736,44 @@ async function recordProductView(productId, shopId) {
   if (window._viewInflight[key]) return; // insert déjà en cours
   window._viewInflight[key] = true;
 
+  // Marquer localement tout de suite pour éviter les doubles clics
+  // (on retire si l'insert échoue vraiment, sauf doublon)
+  window._myViewedProducts.add(key);
+
   try {
     const row = {
       product_id: productId,
       user_id: currentUser.id,
-      shop_id: shopId && alloUuid(shopId) ? shopId : null,
+      shop_id: (shopId && String(shopId)) ? shopId : null,
       viewed_at: new Date().toISOString()
     };
-    // Insert strict : 1 ligne max par (user, produit). En cas de doublon → pas d'incrément.
+    // Ne pas envoyer shop_id si ce n'est pas un UUID (évite erreur cast Postgres)
+    if (typeof alloUuid === 'function' && row.shop_id && !alloUuid(row.shop_id)) {
+      row.shop_id = null;
+    }
+    // Si product_id n'est pas UUID, l'insert échouera — on logue clairement
     const res = await sb.from('product_views').insert(row);
     if (res.error) {
       const msg = String(res.error.message || res.error.code || res.error.details || '');
       if (/duplicate|unique|23505|already/i.test(msg)) {
-        window._myViewedProducts.add(key); // déjà enregistré en base
+        // Déjà en base : OK, on garde le flag local, on n'incrémente pas une 2e fois
+        // mais on s'assure que le compteur local n'est pas 0 si la vue existe
+        if (!window._productViewCounts[key]) {
+          // recharger les compteurs si possible
+          try { loadProductViewCounts(); } catch (_) {}
+        }
       } else {
+        // Échec réel : annuler le flag local pour réessayer plus tard
+        window._myViewedProducts.delete(key);
         console.warn('[Allo] product_views insert', res.error);
       }
       return;
     }
-    // Première vue unique de cet utilisateur pour ce produit
-    window._myViewedProducts.add(key);
+    // Première vue unique réussie → +1 et MAJ UI immédiate
     window._productViewCounts[key] = (window._productViewCounts[key] || 0) + 1;
+    try { updateProductViewCountUI(productId); } catch (_) {}
   } catch (e) {
+    window._myViewedProducts.delete(key);
     console.warn('[Allo] recordProductView', e);
   } finally {
     delete window._viewInflight[key];
@@ -17783,10 +17788,29 @@ function ensureProductView(productId) {
     const p = (data.products || []).find(x => String(x.id) === String(productId));
     const shopId = p && p.shopId ? p.shopId : null;
     const cats = p && (typeof getProductCats === 'function') ? getProductCats(p) : (p && p.cat ? [p.cat] : []);
+    // Toujours enregistrer la vue serveur (unique)
+    recordProductView(productId, shopId);
+    // Signal reco perso (indépendant du compteur global)
     if (typeof trackInteraction === 'function') {
-      trackInteraction('view', { productId: productId, shopId: shopId, cat: cats[0] });
-    } else {
-      recordProductView(productId, shopId);
+      // trackInteraction re-appelle recordProductView — OK car _myViewedProducts / inflight bloque le double
+      try {
+        const ix = typeof getMyInteractions === 'function' ? getMyInteractions() : null;
+        if (ix) {
+          const pid = String(productId);
+          const now = Date.now();
+          const v = ix.views[pid] || { count: 0, lastAt: 0 };
+          v.count += 1; v.lastAt = now; ix.views[pid] = v;
+          if (shopId) {
+            const s = ix.shops[String(shopId)] || { count: 0, lastAt: 0 };
+            s.count += 1; s.lastAt = now; ix.shops[String(shopId)] = s;
+          }
+          if (cats[0]) {
+            const c = ix.cats[cats[0]] || { count: 0, lastAt: 0 };
+            c.count += 1; c.lastAt = now; ix.cats[cats[0]] = c;
+          }
+          if (typeof persistMyInteractions === 'function') persistMyInteractions(ix);
+        }
+      } catch (_) {}
     }
   } catch (e) {
     try { recordProductView(productId, null); } catch (_) {}
