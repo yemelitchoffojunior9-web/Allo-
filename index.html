@@ -3955,7 +3955,11 @@ let sb = null;
 let USE_SUPABASE = false;
 
 function alloAuthEmail(identifier) {
-  return String(identifier || '').trim().toLowerCase().replace(/\s+/g, '') + '@' + ALLO_AUTH_DOMAIN;
+  // Identifiant technique interne : le numéro reste l'identifiant utilisateur,
+  // mais l'adresse Auth est une adresse email synthétique strictement compatible.
+  const raw = String(identifier || '').trim().toLowerCase();
+  const normalized = raw.replace(/[^a-z0-9]/g, '');
+  return normalized + '@' + ALLO_AUTH_DOMAIN;
 }
 
 function initSupabaseClient() {
@@ -6250,11 +6254,18 @@ function init() {
       _autoSaveListenersBound = true;
     }
   } catch (e) {}
+  // Restaurer automatiquement la session Supabase persistante.
+  // Si l'utilisateur ne s'est pas déconnecté, il ne reverra pas le formulaire de connexion.
+  if (USE_SUPABASE && sb) {
+    try { restoreSupabaseSession().catch(function(e) { console.warn('[Allo] session restore', e); }); } catch (e) { console.warn('[Allo] session restore', e); }
+  }
   // Splash
   setTimeout(() => {
     document.getElementById('splash').classList.add('hide');
-    document.getElementById('loginView').style.opacity = '1';
-    applyLoginI18n();
+    if (!currentUser) {
+      document.getElementById('loginView').style.opacity = '1';
+      applyLoginI18n();
+    }
   }, 4200);
 }
 
@@ -6515,6 +6526,27 @@ function finishLoginLocal() {
   return false;
 }
 
+async function restoreSupabaseSession() {
+  if (!(typeof USE_SUPABASE !== 'undefined' && USE_SUPABASE && sb)) return false;
+  try {
+    const { data: sessionData, error } = await sb.auth.getSession();
+    if (error || !sessionData || !sessionData.session || !sessionData.session.user) return false;
+    const uid = sessionData.session.user.id;
+    let { data: profile } = await sb.from('profiles').select('*').eq('id', uid).maybeSingle();
+    if (!profile) return false;
+    if (profile.is_active === false) { await sb.auth.signOut(); return false; }
+    currentUser = mapProfileToUser(profile);
+    cart = [];
+    await sbLoadAllIntoData();
+    enterApp();
+    try { startOrderRealtime(); } catch (e) {}
+    return true;
+  } catch (e) {
+    console.warn('[Allo] restore Supabase session', e);
+    return false;
+  }
+}
+
 async function doLogin() {
   // === SUPABASE AUTH (numéro de téléphone + mot de passe) ===
   if (typeof USE_SUPABASE !== 'undefined' && USE_SUPABASE && sb) {
@@ -6548,7 +6580,8 @@ async function doLogin() {
     try {
       // Supabase Auth accepte directement le téléphone pour l'authentification
       // par mot de passe. La session est persistée par le client Supabase.
-      const { data: authData, error } = await sb.auth.signInWithPassword({ phone, password });
+      const authEmail = alloAuthEmail(phone);
+      const { data: authData, error } = await sb.auth.signInWithPassword({ email: authEmail, password });
       if (error) {
         if (errEl) {
           errEl.textContent = error.message || (lang==='en' ? 'Invalid credentials' : 'Numéro de téléphones incorrects');
@@ -6561,7 +6594,7 @@ async function doLogin() {
       let { data: profile } = await sb.from('profiles').select('*').eq('id', uid).maybeSingle();
 
       if (!profile) {
-        const emailCompat = authData.user.email || null;
+        const emailCompat = alloAuthEmail(phone);
         await sb.from('profiles').upsert({
           id: uid,
           identifier: phone,
@@ -6618,7 +6651,7 @@ async function doLogin() {
 }
 
 async function doRegister() {
-  // === SUPABASE REGISTER (numéro de téléphone + mot de passe) ===
+  // === SUPABASE REGISTER (numéro de téléphone + mot de passe, sans Phone Auth) ===
   if (typeof USE_SUPABASE !== 'undefined' && USE_SUPABASE && sb) {
     const role = 'user';
     const name = (document.getElementById('regName')?.value || '').trim();
@@ -6632,12 +6665,11 @@ async function doRegister() {
 
     if (!name || !phone || !pass) {
       if (errEl) {
-        errEl.textContent = typeof t==='function' ? t('fillFields') : 'Champs requis';
+        errEl.textContent = typeof t === 'function' ? t('fillFields') : 'Champs requis';
         errEl.classList.add('show');
       }
       return;
     }
-
     if (!isValidPhone(phone)) {
       if (errEl) {
         errEl.textContent = lang === 'en' ? 'Invalid phone number' : 'Numéro de téléphone invalide';
@@ -6645,98 +6677,104 @@ async function doRegister() {
       }
       return;
     }
-
     if (pass.length < 6 || pass !== pass2) {
       if (errEl) {
-        errEl.textContent = pass!==pass2
-          ? 'Mots de passe différents'
-          : 'Mot de passe min. 6 caractères';
+        errEl.textContent = pass !== pass2 ? 'Mots de passe différents' : 'Mot de passe min. 6 caractères';
         errEl.classList.add('show');
       }
       return;
     }
-
     if (typeof authBusy !== 'undefined' && authBusy) return;
-    try { authBusy = true; } catch(e) {}
-    try { if (typeof setAuthLoading==='function') setAuthLoading('register', true); } catch(e) {}
+    try { authBusy = true; } catch (e) {}
+    try { if (typeof setAuthLoading === 'function') setAuthLoading('register', true); } catch (e) {}
 
     try {
-      // Le numéro devient l'identifiant Auth réel de Supabase.
-      const { data: authData, error } = await sb.auth.signUp({
-        phone,
-        password: pass,
-        options: {
-          data: { phone: phone, identifier: phone, name: name, role: role }
-        }
-      });
+      const authEmail = alloAuthEmail(phone);
+      const { data: authData, error } = await withTimeout(
+        sb.auth.signUp({
+          email: authEmail,
+          password: pass,
+          options: { data: { phone, identifier: phone, name, role } }
+        }),
+        20000,
+        'Inscription'
+      );
 
       if (error) {
-        if (errEl) { errEl.textContent = error.message; errEl.classList.add('show'); }
+        console.error('[Allo] Supabase signUp error:', error);
+        if (errEl) {
+          const low = String(error.message || '').toLowerCase();
+          let msg = error.message || (lang === 'en' ? 'Account creation failed.' : 'Création du compte impossible.');
+          if (low.includes('database error saving new user')) {
+            msg = lang === 'en'
+              ? 'Supabase rejected the new account while saving it. Check the Auth/database trigger on this project.'
+              : 'Supabase refuse l’enregistrement du nouveau compte. Vérifiez le déclencheur Auth/base de données de ce projet.';
+          } else if (low.includes('user already registered') || low.includes('already registered')) {
+            msg = lang === 'en' ? 'This phone number is already registered.' : 'Ce numéro de téléphone est déjà enregistré.';
+          }
+          errEl.textContent = msg;
+          errEl.classList.add('show');
+        }
         return;
       }
-
       if (!authData || !authData.user) {
         if (errEl) {
-          errEl.textContent = 'Inscription échouée (pas d\'utilisateur Auth)';
+          errEl.textContent = lang === 'en' ? 'Account creation failed: no Auth user was returned.' : 'Création échouée : aucun utilisateur Auth retourné.';
           errEl.classList.add('show');
         }
         return;
       }
 
       const uid = authData.user.id;
-
-      // Si la confirmation téléphone est désactivée, une session est créée
-      // immédiatement. Sinon Supabase demandera la confirmation configurée.
+      const emailCompat = authEmail;
       if (!authData.session) {
         if (errEl) {
           errEl.textContent = lang === 'en'
-            ? 'Confirm your phone number first, then sign in.'
-            : 'Confirmez votre numéro de téléphone, puis connectez-vous.';
+            ? 'Account created, but Supabase requires email confirmation. Disable email confirmation for this project, then try again.'
+            : 'Compte créé, mais Supabase exige une confirmation email. Désactivez la confirmation email sur ce projet, puis réessayez.';
           errEl.classList.add('show');
         }
         return;
       }
 
-      const emailCompat = authData.user.email || null;
-      await sb.from('profiles').upsert({
-        id: uid,
-        identifier: phone,
-        phone: phone,
-        name: name,
-        role: 'user',
-        email: emailCompat,
-        balance: 0,
-        wallet: 0
-      }, { onConflict: 'id' });
-
-      const { data: profile } = await sb.from('profiles').select('*').eq('id', uid).maybeSingle();
-
-      if (profile && profile.role !== 'user') {
-        await sb.from('profiles').update({ role: 'user' }).eq('id', uid);
-        profile.role = 'user';
+      const profilePayload = {
+        id: uid, identifier: phone, phone, name, role: 'user', email: emailCompat,
+        balance: 0, wallet: 0
+      };
+      const { error: profileError } = await sb.from('profiles').upsert(profilePayload, { onConflict: 'id' });
+      if (profileError) {
+        console.error('[Allo] profiles upsert after signup:', profileError);
+        if (errEl) {
+          errEl.textContent = (lang === 'en' ? 'Account created, but the profile could not be saved: ' : 'Compte créé, mais le profil n’a pas pu être enregistré : ') + (profileError.message || 'database error');
+          errEl.classList.add('show');
+        }
+        return;
       }
 
-      currentUser = mapProfileToUser(profile || {
-        id: uid,
-        identifier: phone,
-        phone: phone,
-        name,
-        role: 'user',
-        email: emailCompat
-      });
+      const { data: profile, error: profileReadError } = await sb.from('profiles').select('*').eq('id', uid).maybeSingle();
+      if (profileReadError) console.error('[Allo] profile read after signup:', profileReadError);
+      currentUser = mapProfileToUser(profile || profilePayload);
 
+      if (currentUser && currentUser.is_active === false) {
+        await sb.auth.signOut();
+        if (errEl) {
+          errEl.textContent = lang === 'en' ? 'This account is disabled by the administrator.' : 'Ce compte a été désactivé par le Super Admin.';
+          errEl.classList.add('show');
+        }
+        return;
+      }
       cart = [];
       await sbLoadAllIntoData();
       enterApp();
-      try { startOrderRealtime(); } catch(e) {}
-      try { await ensureProfileCompletion(true); } catch(e) { console.warn('[Allo] profile completion', e); }
+      try { startOrderRealtime(); } catch (e) {}
+      try { await ensureProfileCompletion(true); } catch (e) { console.warn('[Allo] profile completion', e); }
       return;
     } catch (e) {
-      console.error(e);
-      if (errEl) { errEl.textContent = String(e.message || e); errEl.classList.add('show'); }
+      console.error('[Allo] doRegister:', e);
+      if (errEl) { errEl.textContent = String(e && e.message ? e.message : e); errEl.classList.add('show'); }
     } finally {
-      try { authBusy = false; } catch(e) {}
-      try { if (typeof setAuthLoading==='function') setAuthLoading('register', false); } catch(e) {}
+      try { authBusy = false; } catch (e) {}
+      try { if (typeof setAuthLoading === 'function') setAuthLoading('register', false); } catch (e) {}
     }
   }
 
@@ -6749,7 +6787,6 @@ async function doRegister() {
   }
   return;
 }
-
 function defaultsSafeMerge(cfg, factory) {
   try {
     return Object.assign({}, factory || defaultAdminConfig(), cfg || {});
