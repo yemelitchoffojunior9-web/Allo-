@@ -193,7 +193,7 @@ body {
 .error-msg { color: var(--red); font-size: 12px; margin-top: 10px; text-align: center; display: none; }
 .error-msg.show { display: block; }
 
-.demo-accounts {
+.demo-accounts { display: none !important;
   margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border);
 }
 .demo-accounts h4 {
@@ -345,6 +345,9 @@ header.top {
 .login-lang {
   display: flex; justify-content: center; margin-bottom: 14px;
 }
+/* Langue : pas sur l’accueil / header — uniquement login + compte */
+#headerLang { display: none !important; }
+
 .msg-translated {
   margin-top: 8px; padding: 8px 10px; border-radius: 10px;
   background: rgba(34,211,238,.08); border: 1px solid rgba(34,211,238,.2);
@@ -1702,6 +1705,255 @@ nav.bottom, #bottomNav {
 .status-wait { background: rgba(251,191,36,.16); color: var(--gold); }
 .status-refused { background: rgba(248,113,113,.16); color: var(--red); }
 
+
+/* ===== CARTE PRODUIT YAMAL COMPACTE (2 colonnes, ~4 à l'écran) ===== */
+.product-card.ycard-wrap {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  backdrop-filter: none !important;
+}
+.product-card.ycard-wrap:hover,
+.product-card.ycard-wrap:active {
+  transform: none !important;
+  box-shadow: none !important;
+}
+.product-card.ycard-wrap::before,
+.product-card.ycard-wrap::after { display: none !important; }
+.ycard {
+  background: linear-gradient(180deg, #0c1a2e 0%, #071018 55%, #050a12 100%);
+  border: 1px solid rgba(80,120,180,.35);
+  border-radius: 14px;
+  padding: 8px 7px 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.06);
+  position: relative;
+  overflow: hidden;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.ycard::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(60,100,180,.22), transparent 60%);
+  pointer-events: none;
+}
+.yc-name {
+  font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .2px;
+  color: #e8f0ff; text-align: center; margin-bottom: 6px; line-height: 1.15;
+  text-shadow: 0 2px 6px rgba(0,0,0,.5); position: relative; z-index: 1;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 26px;
+}
+.yc-top { display: flex; gap: 5px; align-items: flex-start; margin-bottom: 5px; position: relative; z-index: 1; }
+.yc-stats { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 3px; min-width: 0; }
+.yc-stat {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  width: 100%; aspect-ratio: 1; max-width: 36px; margin: 0 auto; border-radius: 50%;
+  background: radial-gradient(circle at 32% 28%, #2a3f5c, #101828 70%);
+  border: 1.5px solid rgba(100,150,210,.5);
+  box-shadow: 0 2px 6px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.1);
+}
+.yc-stat .val {
+  font-family: 'JetBrains Mono', monospace; font-size: 9.5px; font-weight: 800;
+  color: #7CFC9A; line-height: 1;
+}
+.yc-stat .lbl {
+  font-size: 5.5px; font-weight: 800; color: rgba(190,210,240,.8);
+  text-transform: uppercase; margin-top: 0; text-align: center; line-height: 1.05;
+}
+.yc-stat.mid .val { color: #FBBF24; }
+.yc-stat.low .val { color: #F87171; }
+.yc-gold {
+  flex: 0 0 72px; width: 72px; border-radius: 10px 10px 12px 12px;
+  border: 2px solid rgba(255,210,80,.75);
+  background: linear-gradient(165deg, #e8c84a 0%, #c9a227 28%, #8a6b12 62%, #5c4708 100%);
+  overflow: hidden; box-shadow: 0 4px 14px rgba(0,0,0,.4); text-align: center; position: relative;
+}
+.yc-gold.blue { background: linear-gradient(165deg, #4a7ad0 0%, #2a4a90 40%, #1a3060 100%); border-color: rgba(140,180,255,.6); }
+.yc-gold.low { background: linear-gradient(165deg, #8a3840 0%, #4a1c22 50%, #2a1014 100%); border-color: rgba(248,113,113,.5); }
+.yc-ovr {
+  font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 800; color: #1a1200;
+  padding: 4px 0 1px; line-height: 1;
+}
+.yc-gold.blue .yc-ovr, .yc-gold.low .yc-ovr { color: #fff; }
+.yc-photo {
+  height: 56px; display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,.18); overflow: hidden; position: relative;
+}
+.yc-photo img { width: 100%; height: 100%; object-fit: cover; }
+.yc-photo .emoji-fb { font-size: 26px; }
+.yc-promo-badge {
+  position: absolute; top: 2px; left: 2px;
+  background: linear-gradient(135deg, #F472B6, #e11d48);
+  color: #fff; font-size: 7px; font-weight: 800; padding: 1px 4px; border-radius: 5px; z-index: 2;
+}
+.yc-gold-foot { display: flex; flex-direction: column; align-items: center; padding: 2px 2px 4px; background: rgba(0,0,0,.22); }
+.yc-gold-name {
+  font-size: 7.5px; font-weight: 800; text-transform: uppercase; color: #1a1200;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.yc-gold.blue .yc-gold-name, .yc-gold.low .yc-gold-name { color: #e8f0ff; }
+.yc-gold-pos { font-size: 7px; font-weight: 800; color: rgba(26,18,0,.75); }
+.yc-gold.blue .yc-gold-pos, .yc-gold.low .yc-gold-pos { color: rgba(200,220,255,.85); }
+.yc-short {
+  text-align: center; font-size: 9.5px; font-weight: 600; color: rgba(200,220,255,.9);
+  margin: 0 0 6px; position: relative; z-index: 1;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.yc-btns {
+  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; margin-bottom: 5px; position: relative; z-index: 1;
+}
+.yc-btn {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  min-height: 40px; padding: 4px 2px; border: none; border-radius: 8px;
+  background: linear-gradient(180deg, #2a4a7a 0%, #1a3060 55%, #122448 100%);
+  border: 1px solid rgba(100,150,220,.4);
+  box-shadow: 0 2px 8px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.08);
+  color: #e8f0ff; font-family: 'Outfit', sans-serif; font-size: 7.5px; font-weight: 700;
+  text-transform: uppercase; cursor: pointer; line-height: 1.1; text-align: center;
+}
+.yc-btn:active { transform: scale(.96); }
+.yc-btn:disabled { opacity: .4; cursor: not-allowed; filter: grayscale(.3); }
+.yc-btn .ico { font-size: 13px; line-height: 1; }
+.yc-btn.primary { background: linear-gradient(180deg, #3a6ab0 0%, #244a88 55%, #183868 100%); }
+.yc-btn.price-btn {
+  background: linear-gradient(180deg, #c9a227 0%, #8a6b12 60%, #5c4708 100%);
+  border-color: rgba(255,210,80,.65); color: #1a1200;
+}
+.yc-btn.price-btn .price-val { font-family: 'JetBrains Mono', monospace; font-size: 8px; font-weight: 800; line-height: 1.1; }
+.yc-btn.price-btn .add-lbl { font-size: 7px; font-weight: 800; }
+.yc-cyan {
+  background: linear-gradient(135deg, rgba(34,211,238,.18), rgba(14,116,144,.12));
+  border: 1px solid rgba(34,211,238,.4); border-radius: 8px; padding: 6px 8px;
+  margin-bottom: 5px; display: flex; align-items: center; gap: 6px; position: relative; z-index: 1;
+}
+.yc-cyan .yc-cyan-ico { font-size: 14px; flex-shrink: 0; }
+.yc-cyan .yc-cyan-title { font-size: 9px; font-weight: 800; color: #67e8f9; text-transform: uppercase; }
+.yc-cyan .yc-cyan-sub {
+  font-size: 8.5px; color: rgba(200,240,255,.85); margin-top: 1px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.yc-yellow {
+  background: linear-gradient(135deg, rgba(251,191,36,.2), rgba(180,120,20,.12));
+  border: 1px solid rgba(251,191,36,.45); border-radius: 8px; padding: 7px 6px;
+  margin-bottom: 5px; text-align: center; position: relative; z-index: 1;
+}
+.yc-yellow .yc-price-old { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: rgba(200,180,120,.7); text-decoration: line-through; margin-right: 4px; }
+.yc-yellow .yc-price-now { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 800; color: #FBBF24; }
+.yc-yellow .yc-price-pct {
+  display: inline-block; margin-left: 4px; background: rgba(248,113,113,.2); color: #FCA5A5;
+  font-size: 9px; font-weight: 800; padding: 1px 5px; border-radius: 6px;
+}
+.yc-bottom {
+  width: 100%; min-height: 34px; border: none; border-radius: 8px; margin-top: auto;
+  background: linear-gradient(180deg, #2a4a7a 0%, #1a3060 55%, #122448 100%);
+  border: 1px solid rgba(100,150,220,.45);
+  color: #e8f0ff; font-family: 'Outfit', sans-serif; font-size: 9.5px; font-weight: 800;
+  text-transform: uppercase; letter-spacing: .2px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 4px; position: relative; z-index: 1;
+}
+.yc-bottom:active { transform: scale(.98); }
+
+.yc-cyan-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  margin-bottom: 5px;
+  position: relative;
+  z-index: 1;
+}
+.yc-cyan-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 36px;
+  padding: 6px 4px;
+  border-radius: 8px;
+  border: 1px solid rgba(34,211,238,.4);
+  background: linear-gradient(135deg, rgba(34,211,238,.18), rgba(14,116,144,.12));
+  color: #67e8f9;
+  font-family: 'Outfit', sans-serif;
+  font-size: 8.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  cursor: pointer;
+  line-height: 1.1;
+  text-align: center;
+}
+.yc-cyan-btn:active { transform: scale(.96); }
+.yc-cyan-btn .ico { font-size: 14px; line-height: 1; }
+.yc-cyan-btn.qty-btn-card {
+  border-color: rgba(167,139,250,.45);
+  background: linear-gradient(135deg, rgba(139,92,246,.2), rgba(109,40,217,.12));
+  color: var(--accent-bright);
+}
+
+.yc-cart-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 5;
+  background: linear-gradient(135deg, #34D399, #059669);
+  color: #042f1a;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 3px 7px;
+  border-radius: 999px;
+  box-shadow: 0 2px 10px rgba(52,211,153,.45);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  pointer-events: none;
+}
+.yc-cart-badge .qty-n {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+}
+.product-card.ycard-wrap.in-cart .ycard {
+  border-color: rgba(52,211,153,.55);
+  box-shadow: 0 0 0 1px rgba(52,211,153,.25), 0 8px 24px rgba(0,0,0,.4);
+}
+.cart-item .thumb, .order-item-thumb {
+  width: 46px; height: 46px; border-radius: 10px;
+  background: var(--bg); display: flex; align-items: center;
+  justify-content: center; font-size: 22px; flex-shrink: 0;
+  overflow: hidden; border: 1px solid var(--border);
+}
+.cart-item .thumb img, .order-item-thumb img {
+  width: 100%; height: 100%; object-fit: cover;
+}
+.cart-qty-ctrl {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-top: 6px;
+}
+.cart-qty-ctrl button {
+  width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--surface-2); color: var(--text); font-weight: 800; cursor: pointer;
+  font-size: 14px; line-height: 1;
+}
+.cart-qty-ctrl span {
+  min-width: 22px; text-align: center; font-family: 'JetBrains Mono', monospace;
+  font-size: 13px; font-weight: 700;
+}
+
+
+.dls-sign-x { background: #e11d48 !important; color: #fff !important; font-weight: 800; z-index: 5; }
+.products-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+  align-items: stretch;
+}
+@media (max-width: 360px) {
+  .yc-gold { flex: 0 0 64px; width: 64px; }
+  .yc-photo { height: 48px; }
+  .yc-stat { max-width: 32px; }
+  .yc-stat .val { font-size: 8.5px; }
+}
+
 /* ===== DLS-STYLE PRODUCT CARDS ===== */
 .products-grid {
   display: grid;
@@ -2762,6 +3014,70 @@ input[type="text"], input[type="number"], input[type="password"], input[type="em
 .splash {
   background: radial-gradient(ellipse 80% 60% at 50% 40%, #152238 0%, #070e1a 70%) !important;
 }
+
+#catHeaderBtn.show { display: flex !important; }
+.cat-picker-overlay {
+  position: absolute; inset: 0; z-index: 92;
+  background: rgba(4,4,10,.78);
+  display: flex; align-items: center; justify-content: center; padding: 14px;
+}
+.cat-picker-overlay.hidden { display: none !important; }
+.cat-picker-panel {
+  width: 100%; max-width: 420px; max-height: 88%;
+  background: linear-gradient(165deg, #1a1a28, #0f0f18);
+  border: 1px solid rgba(251,191,36,.45); border-radius: 18px;
+  box-shadow: 0 24px 64px rgba(0,0,0,.55);
+  overflow: hidden; display: flex; flex-direction: column;
+}
+.cat-picker-panel .cph {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px 10px; border-bottom: 1px solid var(--border);
+}
+.cat-picker-panel .cph h3 {
+  font-size: 15px; font-weight: 800;
+  background: linear-gradient(90deg, #FBBF24, #F59E0B);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.cat-picker-panel .cph .sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.cat-picker-panel .cpx {
+  width: 32px; height: 32px; border: none; border-radius: 8px;
+  background: rgba(248,113,113,.15); color: var(--red); font-size: 16px; font-weight: 800; cursor: pointer;
+}
+.cat-picker-scroll {
+  display: flex; gap: 10px; overflow-x: auto; padding: 16px;
+  scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;
+}
+.cat-picker-card {
+  flex: 0 0 128px; scroll-snap-align: start; min-height: 140px;
+  border-radius: 14px; padding: 10px 8px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: linear-gradient(160deg, #2a2a3c, #1a1a28);
+  background-size: cover; background-position: center;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+  gap: 6px; cursor: pointer; text-align: center; position: relative; overflow: hidden;
+}
+.cat-picker-card::before {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,.2), rgba(0,0,0,.78));
+  pointer-events: none;
+}
+.cat-picker-card > * { position: relative; z-index: 1; }
+.cat-picker-card.active {
+  border-color: rgba(251,191,36,.8);
+  box-shadow: 0 0 0 1px rgba(251,191,36,.4);
+}
+.cat-picker-card .ck {
+  position: absolute; top: 6px; right: 6px; z-index: 2;
+  width: 18px; height: 18px; border-radius: 50%; background: var(--green);
+  color: #042f1a; font-size: 11px; font-weight: 800; display: none;
+  align-items: center; justify-content: center;
+}
+.cat-picker-card.active .ck { display: flex; }
+.cat-picker-card .ico { font-size: 26px; }
+.cat-picker-card .lbl { font-size: 11px; font-weight: 800; text-transform: uppercase; color: #fff; text-shadow: 0 1px 4px #000; }
+.cat-picker-card .cnt { font-size: 10px; color: rgba(255,255,255,.75); font-family: 'JetBrains Mono', monospace; }
+.cat-picker-card.all-card { background: linear-gradient(160deg, rgba(139,92,246,.45), rgba(34,211,238,.2)); }
+
 </style>
 
 <style id="allora-nav-fix-v2">
@@ -3069,10 +3385,8 @@ nav.bottom,
         <div class="logo">Allo</div>
       </div>
       <div class="header-right">
-        <div class="lang-switch" id="headerLang">
-          <button class="lang-btn" data-lang="fr" onclick="setLang('fr')">FR</button>
-          <button class="lang-btn" data-lang="en" onclick="setLang('en')">EN</button>
-        </div>
+        <!-- langue retirée du header (reste sur login + compte) -->
+        <div class="header-icon-btn show" id="catHeaderBtn" onclick="openCategoryPicker()" title="Catégories">📑</div>
         <div class="header-icon-btn" id="shopsHeaderBtn" onclick="switchView('shops')" title="Boutiques">🏪</div>
         <div class="header-icon-btn" id="searchHeaderBtn" onclick="switchView('search')" title="Recherche">🔍</div>
         <div class="header-icon-btn notif-bell" id="notifHeaderBtn" onclick="switchView('notifs')" title="Notifications" style="display:none">🔔<span class="n-badge" id="notifBadge" style="display:none">0</span></div>
@@ -3107,7 +3421,20 @@ nav.bottom,
 
     </aside>
 
-    <main id="mainContent">
+    
+    <div id="catPickerOverlay" class="cat-picker-overlay hidden" onclick="if(event.target===this)closeCategoryPicker()">
+      <div class="cat-picker-panel" onclick="event.stopPropagation()">
+        <div class="cph">
+          <div>
+            <h3 id="catPickerTitle">CATÉGORIES</h3>
+            <div class="sub" id="catPickerSub">Choisissez une catégorie</div>
+          </div>
+          <button type="button" class="cpx" onclick="closeCategoryPicker()">×</button>
+        </div>
+        <div class="cat-picker-scroll" id="catPickerScroll"></div>
+      </div>
+    </div>
+<main id="mainContent">
 
       <!-- HOME -->
       <div class="view active" id="view-home">
@@ -3252,6 +3579,19 @@ nav.bottom,
           <div>
             <h3 id="profileName" style="font-size:16px;margin-bottom:2px">Nom</h3>
             <p id="profileEmail" style="font-size:11.5px;color:var(--text-muted);font-family:'JetBrains Mono',monospace">email</p>
+          </div>
+        </div>
+
+        <div class="card" id="accountLangCard" style="margin-bottom:12px;padding:12px 14px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+            <div>
+              <b style="font-size:13px" id="accountLangLabel">🌐 Langue / Language</b>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:2px" id="accountLangHint">FR · EN</div>
+            </div>
+            <div class="lang-switch" id="accountLang">
+              <button class="lang-btn" data-lang="fr" onclick="setLang('fr')">FR</button>
+              <button class="lang-btn" data-lang="en" onclick="setLang('en')">EN</button>
+            </div>
           </div>
         </div>
         <div class="balance-card" id="balanceCard">
@@ -3744,7 +4084,12 @@ function mapProductRow(r) {
     variants: [],
     // null = hérite de la boutique ; true/false = override produit
     codEnabled: (r.cod_enabled === true || r.codEnabled === true) ? true
-      : ((r.cod_enabled === false || r.codEnabled === false) ? false : null)
+      : ((r.cod_enabled === false || r.codEnabled === false) ? false : null),
+    size: r.size || null, color: r.color || null,
+    capacity: r.capacity || r.volume || null, volume: r.volume || r.capacity || null,
+    warranty: r.warranty || r.garantie || null, garantie: r.garantie || r.warranty || null,
+    shortLabel: r.short_label || r.shortLabel || null, short_label: r.short_label || r.shortLabel || null,
+    attrs: (r.attrs && typeof r.attrs === 'object') ? r.attrs : {}
   };
 }
 
@@ -4589,9 +4934,10 @@ async function sbLoadAllIntoData() {
       readBy: n.read_by || [], date: n.created_at
     }));
     data.reviews = (reviews.data || []).map(r => ({
-      id: r.id, productId: r.product_id, orderId: r.order_id,
-      userId: r.user_id, userName: r.user_name, stars: r.stars,
-      text: r.text, date: r.created_at
+      id: r.id, productId: r.product_id, orderId: r.order_id || null,
+      userId: r.user_id, userName: r.user_name || null,
+      stars: Number(r.stars != null ? r.stars : (r.rating != null ? r.rating : 0)),
+      text: r.text || r.comment || '', date: r.created_at
     }));
     // user_notifications ne contient que le lien vers notifications.
     // On récupère donc le titre et le corps depuis la notification liée
@@ -4819,7 +5165,12 @@ async function sbUpsertProduct(p) {
     promo_starts_at: p.promo && p.promo.startsAt ? p.promo.startsAt : null,
     promo_ends_at: p.promo && p.promo.endsAt ? p.promo.endsAt : null,
     promo_description: p.promo && p.promo.description ? p.promo.description : null,
-    cod_enabled: (p.codEnabled === true) ? true : ((p.codEnabled === false) ? false : null)
+    cod_enabled: (p.codEnabled === true) ? true : ((p.codEnabled === false) ? false : null),
+    size: p.size || null, color: p.color || null,
+    capacity: p.capacity || p.volume || null, volume: p.volume || p.capacity || null,
+    warranty: p.warranty || p.garantie || null, garantie: p.garantie || p.warranty || null,
+    short_label: p.shortLabel || p.short_label || null,
+    attrs: (p.attrs && typeof p.attrs === 'object') ? p.attrs : {}
   };
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(p.id || ''));
   let res;
@@ -5645,6 +5996,13 @@ function setLang(l) {
   lang = l;
   alloEphemeralStorage.setItem('allora_lang', l);
   document.documentElement.lang = l;
+  document.querySelectorAll('.lang-btn').forEach(b => {
+    b.classList.toggle('active', (b.dataset.lang || b.getAttribute('data-lang')) === lang);
+  });
+  const al = document.getElementById('accountLangLabel');
+  if (al) al.textContent = lang === 'en' ? '🌐 Language' : '🌐 Langue / Language';
+  const ah = document.getElementById('accountLangHint');
+  if (ah) ah.textContent = lang === 'en' ? 'Choose app language' : 'Choisir la langue de l’application';
   applyStaticI18n();
   if (currentUser) {
     const active = document.querySelector('.view.active');
@@ -5861,6 +6219,9 @@ function init() {
     try { enterApp(); } catch (e) { console.warn('[Allo] enterApp', e); }
     try { startOrderRealtime(); } catch (e) { console.warn('[Allo] order realtime init', e); }
     try { startStockRealtime(); } catch (e) { console.warn('[Allo] stock realtime init', e); }
+    try { startReviewsRealtime(); } catch (e) { console.warn('[Allo] reviews realtime init', e); }
+    try { startViewsRealtime(); } catch (e) { console.warn('[Allo] views realtime init', e); }
+    try { loadProductViewCounts(); } catch (e) { console.warn('[Allo] load views', e); }
   }
       }).catch(function(e){ console.warn('[Allo] session', e); });
     } catch (e) { console.warn('[Allo] session init', e); }
@@ -8577,19 +8938,25 @@ function renderHome() {
   const alerts = (typeof stockAlertsHTML === 'function') ? stockAlertsHTML() : '';
   const hp = document.getElementById('homeProducts');
   const hasSearch = !!(window._catalogQ || '').trim();
+  const hasCatFilter = !!(window._catalogCat && window._catalogCat !== 'all');
 
-  if ((role === 'user' || role === 'client') && !hasSearch) {
-    // Accueil acheteur : UNIQUEMENT les sections reco (Pour vous…) — pas de doublons catalogue
+  // Titre catalogue selon catégorie active
+  if (catalogTitle && hasCatFilter && (role === 'user' || role === 'client')) {
+    catalogTitle.textContent = (lang === 'en' ? 'Category' : 'Catégorie') + ' · ' + window._catalogCat;
+  }
+
+  if ((role === 'user' || role === 'client') && !hasSearch && !hasCatFilter) {
+    // Accueil acheteur sans filtre : sections reco
     let recoHtml = (typeof renderRecommendationSectionsHTML === 'function')
       ? renderRecommendationSectionsHTML(true)
       : '';
     if (!recoHtml) {
-      // Fallback si pas encore d'historique : grille plate sans doublon
       renderHomeProductsOnly();
     } else if (hp) {
       hp.innerHTML = recoHtml;
     }
   } else {
+    // Recherche OU catégorie sélectionnée → produits filtrés strictement (jamais une autre cat)
     renderHomeProductsOnly();
     if (alerts && hp) hp.innerHTML = alerts + hp.innerHTML;
   }
@@ -8606,8 +8973,7 @@ function renderHome() {
 function renderCatalogToolbar(role) {
   const toolbar = document.getElementById('catalogToolbar');
   if (!toolbar) return;
-  // Catégories = hashtags internes (recherche / reco) — PAS de chips sur l'accueil
-  window._catalogCat = 'all';
+  // Ne JAMAIS réinitialiser _catalogCat ici — conserve le filtre catégorie choisi
   const needSearch = (role === 'client' || role === 'user' || role === 'boutique' || role === 'entreprise' || role === 'employe');
   const existing = document.getElementById('catalogSearchInput');
   if (existing && document.activeElement === existing) return;
@@ -8649,6 +9015,98 @@ function onCatalogSearchInput(el) {
   }, 200);
 }
 
+
+window._catalogCat = window._catalogCat || 'all';
+if (typeof adminConfig !== 'undefined' && adminConfig && !adminConfig.categoryImages) adminConfig.categoryImages = {};
+
+function getCategoryImage(name) {
+  try {
+    if (adminConfig && adminConfig.categoryImages && adminConfig.categoryImages[name])
+      return String(adminConfig.categoryImages[name] || '');
+  } catch (_) {}
+  return '';
+}
+function catIconFor(name) {
+  const n = String(name || '').toLowerCase();
+  if (/mode|vêt|cloth|prêt/.test(n)) return '👗';
+  if (/tech|phone|smart|pixel|iphone|itel/.test(n)) return '📱';
+  if (/alim|food/.test(n)) return '🥗';
+  if (/boisson/.test(n)) return '🥤';
+  if (/chaussure/.test(n)) return '👟';
+  if (/voiture/.test(n)) return '🚗';
+  return '📦';
+}
+function countProductsInCat(cat) {
+  const prods = (typeof getVisibleProducts === 'function') ? getVisibleProducts() : (data.products || []);
+  if (!cat || cat === 'all') return prods.length;
+  return prods.filter(p => (typeof productHasCat === 'function') ? productHasCat(p, cat) : String(p.cat||'') === String(cat)).length;
+}
+function getBrowseCategoryOptions() {
+  let cats = [];
+  try { cats = (typeof getAdminCategories === 'function') ? getAdminCategories().slice() : []; } catch (_) {}
+  const prods = (typeof getVisibleProducts === 'function') ? getVisibleProducts() : (data.products || []);
+  const fromProds = (typeof collectAllProductCats === 'function') ? collectAllProductCats(prods) : [...new Set(prods.map(p => p.cat).filter(Boolean))];
+  fromProds.forEach(c => { if (c && !cats.includes(c)) cats.push(c); });
+  return cats.filter(Boolean).sort((a, b) => String(a).localeCompare(String(b), 'fr'));
+}
+function openCategoryPicker() {
+  const overlay = document.getElementById('catPickerOverlay');
+  const scroll = document.getElementById('catPickerScroll');
+  if (!overlay || !scroll) return;
+  const fr = lang !== 'en';
+  const title = document.getElementById('catPickerTitle');
+  const sub = document.getElementById('catPickerSub');
+  if (title) title.textContent = fr ? 'CATÉGORIES' : 'CATEGORIES';
+  if (sub) sub.textContent = fr ? 'Seuls les produits de la catégorie s’affichent' : 'Only products in this category are shown';
+  const active = window._catalogCat || 'all';
+  const cats = getBrowseCategoryOptions();
+  let html = `<button type="button" class="cat-picker-card all-card ${active==='all'?'active':''}" onclick="selectBrowseCategory('all')">
+    <span class="ck">✓</span><span class="ico">✨</span>
+    <span class="lbl">${fr?'Voir tout':'See all'}</span>
+    <span class="cnt">${countProductsInCat('all')}</span>
+  </button>`;
+  cats.forEach(c => {
+    const img = getCategoryImage(c);
+    const style = img ? `background-image:url('${String(img).replace(/'/g,"\\'")}')` : '';
+    const esc = String(c).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    html += `<button type="button" class="cat-picker-card ${active===c?'active':''}" style="${style}" onclick="selectBrowseCategory('${esc}')">
+      <span class="ck">✓</span>
+      <span class="ico">${img?'':catIconFor(c)}</span>
+      <span class="lbl">${String(c).replace(/</g,'')}</span>
+      <span class="cnt">${countProductsInCat(c)}</span>
+    </button>`;
+  });
+  scroll.innerHTML = html;
+  overlay.classList.remove('hidden');
+}
+function closeCategoryPicker() {
+  const o = document.getElementById('catPickerOverlay');
+  if (o) o.classList.add('hidden');
+}
+function selectBrowseCategory(cat) {
+  window._catalogCat = cat || 'all';
+  window._catalogPage = 1;
+  // Effacer la recherche pour ne pas mélanger avec un autre filtre
+  window._catalogQ = '';
+  const searchInp = document.getElementById('catalogSearchInput');
+  if (searchInp) searchInp.value = '';
+  closeCategoryPicker();
+  const title = document.getElementById('catalogTitle');
+  if (title) {
+    if (!cat || cat === 'all') title.textContent = (typeof t === 'function' ? t('catalog') : (lang==='en'?'Catalog':'Catalogue'));
+    else title.textContent = (lang==='en'?'Category':'Catégorie') + ' · ' + cat;
+  }
+  try {
+    if (typeof switchView === 'function') {
+      const active = document.querySelector('.view.active');
+      if (!active || active.id !== 'view-home') switchView('home');
+      else if (typeof renderHome === 'function') renderHome();
+    }
+  } catch(_){}
+  // Toujours re-rendre le catalogue filtré (pas les reco d’autres catégories)
+  if (typeof renderHomeProductsOnly === 'function') renderHomeProductsOnly();
+}
+
 function setCatalogCat(cat) {
   // API conservée (reco / liens) mais plus de barre de catégories sur l'accueil
   window._catalogCat = cat || 'all';
@@ -8678,12 +9136,17 @@ function renderHomeProductsOnly() {
     window._catalogPage = res.page;
     let html = '';
     if (!res.total) {
-      html = `<div class="empty">${lang==='en'?'No products found':'Aucun produit trouvé'}</div>`;
+      const catLabel = (activeCat && activeCat !== 'all') ? activeCat : '';
+      html = `<div class="empty">${catLabel
+        ? (lang==='en'
+            ? ('No products in « ' + catLabel + ' ». Nothing else is shown.')
+            : ('Aucun produit dans « ' + catLabel + ' ». Aucune autre catégorie n’est affichée.'))
+        : (lang==='en'?'No products found':'Aucun produit trouvé')}</div>`;
     } else {
       html = `<div style="font-size:12px;color:var(--text-muted);margin:4px 0 10px">${
         lang === 'en'
-          ? (res.total + ' product' + (res.total !== 1 ? 's' : ''))
-          : (res.total + ' produit' + (res.total !== 1 ? 's' : ''))
+          ? (res.total + ' product' + (res.total !== 1 ? 's' : '') + (activeCat && activeCat !== 'all' ? (' · ' + activeCat) : ''))
+          : (res.total + ' produit' + (res.total !== 1 ? 's' : '') + (activeCat && activeCat !== 'all' ? (' · ' + activeCat) : ''))
       }</div>`;
       html += '<div class="products-grid">';
       res.items.forEach(p => { html += productCardHTML(p, canAdd); });
@@ -8710,9 +9173,14 @@ function renderHomeProductsOnly() {
 
   let html = '';
   if (!products.length) {
-    html = `<div class="empty">${lang==='en'?'No products found':'Aucun produit trouvé'}</div>`;
+    const catLabel = (activeCat && activeCat !== 'all') ? activeCat : '';
+    html = `<div class="empty">${catLabel
+      ? (lang==='en'
+          ? ('No products in « ' + catLabel + ' ». Nothing else is shown.')
+          : ('Aucun produit dans « ' + catLabel + ' ». Aucune autre catégorie n’est affichée.'))
+      : (lang==='en'?'No products found':'Aucun produit trouvé')}</div>`;
   } else {
-    // Pas de titres de catégories sur l'accueil — grille plate (cats = hashtags)
+    // Grille filtrée strictement par catégorie si active
     html = '<div class="products-grid">';
     products.forEach(p => { html += productCardHTML(p, canAdd); });
     html += '</div>';
@@ -8840,7 +9308,17 @@ function getProductCats(p) {
 
 function productHasCat(p, cat) {
   if (!cat || cat === 'all') return true;
-  return String(p && p.cat || '').trim() === String(cat).trim();
+  if (!p) return false;
+  const want = String(cat).trim().toLowerCase();
+  if (!want) return true;
+  const main = String(p.cat || '').trim().toLowerCase();
+  if (main && main === want) return true;
+  if (Array.isArray(p.cats)) {
+    for (let i = 0; i < p.cats.length; i++) {
+      if (String(p.cats[i] || '').trim().toLowerCase() === want) return true;
+    }
+  }
+  return false;
 }
 
 function collectAllProductCats(products) {
@@ -9105,142 +9583,144 @@ function productCardHTML(p, showAdd, manage) {
   const inCart = cart.find(c => c.productId === p.id);
   const promoOn = typeof isProductPromoActive === 'function' && isProductPromoActive(p);
   const eff = typeof getEffectivePriceForBuyer === 'function' ? getEffectivePriceForBuyer(p) : p.price;
+  const basePrice = Number(p.price) || 0;
+  const pctOff = promoOn && basePrice > 0 ? Math.round((1 - eff / basePrice) * 100) : 0;
   const variantsList = (p && Array.isArray(p.variants)) ? p.variants.filter(Boolean) : [];
   const hasVariants = variantsList.length > 0;
-  let addPart = '';
-  if (manage) {
-    addPart = `
-      <div class="dls-actions">
-        <button class="btn btn-sm btn-ghost add-btn" onclick="openModal('editProduct','${p.id}')">✏️ ${t('edit')}</button>
-        <button class="btn btn-sm btn-accent add-btn" onclick="openModal('createPromo','${p.id}')">🏷 Promo</button>
-        <button class="btn btn-sm btn-ghost add-btn" onclick="openModal('manageVariants','${p.id}')">🧩 Modèles</button>
-      </div>`;
-  } else if (showAdd) {
-    const qtyVal = inCart ? inCart.qty : 1;
-    const btnLabel = inCart ? t('edit') : t('add');
-    const btnClass = inCart ? 'btn btn-ghost add-btn' : 'btn btn-accent add-btn';
-    addPart = `
-      <div class="dls-actions">
-        <div class="qty-row" data-product-id="${p.id}">
-          <button type="button" class="qty-btn" onclick="changeQty(this,-1)">−</button>
-          <input type="number" class="qty-input" data-product-id="${p.id}" value="${qtyVal}" min="1" max="${p.stock}" inputmode="numeric">
-          <button type="button" class="qty-btn" onclick="changeQty(this,1)">+</button>
-        </div>
-        <button type="button" class="${btnClass}" onclick="addToCart('${p.id}', this)">${btnLabel}</button>
-      </div>`;
-  } else {
-    addPart = '';
-  }
-
-  const allImgs = (typeof getProductImages === 'function') ? getProductImages(p) : (p.image ? [p.image] : []);
-  const coverImg = allImgs[0] || p.image || null;
-  const imgInner = coverImg
-    ? `<img class="img-clickable" src="${coverImg}" alt="${(p.name||'').replace(/"/g,'')}" onclick="event.stopPropagation();openProductGallery('${p.id}')">`
-    : `<span class="emoji-fallback">${p.icon || '📦'}</span>`;
-  const multiBadge = allImgs.length > 1
-    ? `<span class="product-img-multi-badge">1/${allImgs.length}</span>`
-    : '';
-
-  // Stats réelles
   const revs = (data.reviews || []).filter(r => String(r.productId) === String(p.id));
   const avgStars = revs.length ? (revs.reduce((s, r) => s + (Number(r.stars) || 0), 0) / revs.length) : 0;
-  // VAL = note moyenne clients sur 100
+  const noteDisplay = revs.length ? avgStars.toFixed(1) : '—';
   const valScore = revs.length ? Math.min(100, Math.round(avgStars * 20)) : 0;
-  const valClass = valScore >= 80 ? 'high' : (valScore >= 50 ? 'mid' : (revs.length ? 'low' : 'mid'));
-
-  // Gros chiffre = stock réel
   const stockReal = Math.max(0, Number(p.stock) || 0);
   const stockDisplay = stockReal > 999 ? '999+' : String(stockReal);
-
-  // FAV = nombre de favoris (wishlist) pour ce produit + clic pour basculer
   const favCount = (data.wishlist || []).filter(w => String(w.productId) === String(p.id)).length;
   const isFav = currentUser && typeof isInWishlist === 'function' && isInWishlist(p.id);
-  const favClass = isFav ? 'high' : (favCount > 0 ? 'mid' : 'low');
-
-  // CMD = nombre de commandes livrées contenant ce produit
   const deliveredCount = (data.orders || []).filter(o => {
     const st = String(o.status || '').toLowerCase();
     if (st !== 'livré' && st !== 'livre' && st !== 'delivered') return false;
     return (o.items || []).some(it => String(it.productId) === String(p.id));
   }).length;
-  const cmdClass = deliveredCount >= 20 ? 'high' : (deliveredCount >= 5 ? 'mid' : 'low');
-
-  // LIV = délai de couverture fixé par le boutiquier (heures)
+  const salesCount = (data.orders || []).filter(o => {
+    const st = String(o.status || '').toLowerCase();
+    if (st === 'annulé' || st === 'cancelled') return false;
+    return (o.items || []).some(it => String(it.productId) === String(p.id));
+  }).length;
   const livHours = typeof getShopDeliveryHours === 'function' ? getShopDeliveryHours(p.shopId) : 48;
-  const livDisplay = livHours < 24 ? livHours : Math.round(livHours / 24);
-  const livUnit = livHours < 24 ? 'h' : 'j';
-  const livClass = livHours <= 24 ? 'high' : (livHours <= 72 ? 'mid' : 'low');
-
-  const role = currentUser && currentUser.role;
-  const showViewShop = !manage && p.shopId && role && role !== 'boutique' && role !== 'entreprise';
-  // Couleur de carte selon VAL (note /100)
-  const tierClass = promoOn
-    ? 'is-promo is-legendary'
-    : (valScore >= 80 ? 'is-legendary' : (valScore > 0 && valScore < 50 ? 'is-low' : ''));
-  const cardClass = [
-    'product-card',
-    inCart && showAdd ? 'in-cart' : '',
-    tierClass
-  ].filter(Boolean).join(' ');
-
-  const priceBlock = promoOn
-    ? `<div class="dls-price promo"><span class="old">${formatMoney(p.price)}</span><span class="coin">●</span>${formatMoney(eff)}</div>`
-    : `<div class="dls-price"><span class="coin">●</span>${formatMoney(eff)}</div>`;
-
-  // Ancien "en stock" → Voir la boutique
-  const shopPill = showViewShop
-    ? `<button type="button" class="dls-stock-pill dls-shop-btn" onclick="event.stopPropagation();openShopPage('${p.shopId}')">🏪 ${t('viewShop')}</button>`
-    : `<span class="dls-stock-pill">🏪 ${getShopName(p.shopId)}</span>`;
-
+  const livDisplay = livHours < 24 ? (livHours + 'h') : (Math.round(livHours / 24) + 'j');
+  const livClass = livHours <= 24 ? '' : (livHours <= 72 ? 'mid' : 'low');
+  // Vues = compteur global Supabase (product_views / product_view_counts)
+  const viewsCount = typeof getProductViewCount === 'function' ? getProductViewCount(p.id) : 0;
+  const popScore = Math.min(99, Math.round(deliveredCount * 3 + favCount * 2 + salesCount * 1.5 + viewsCount * 0.5 + (promoOn ? 8 : 0)));
+  const popClass = popScore >= 60 ? '' : (popScore >= 25 ? 'mid' : 'low');
+  const garant = p.warranty || p.garantie || (p.attrs && (p.attrs.warranty || p.attrs.garantie)) || '—';
+  const garantDisplay = String(garant).slice(0, 4);
+  const promoDisplay = promoOn ? (pctOff + '%') : '—';
+  const promoClass = promoOn ? '' : 'mid';
+  const noteClass = valScore >= 80 ? '' : (valScore >= 50 ? 'mid' : (revs.length ? 'low' : 'mid'));
+  const stockClass = stockReal <= 0 ? 'low' : (stockReal <= 5 ? 'mid' : '');
+  const salesClass = salesCount >= 20 ? '' : (salesCount >= 5 ? 'mid' : 'low');
+  const allImgs = (typeof getProductImages === 'function') ? getProductImages(p) : (p.image ? [p.image] : []);
+  const coverImg = allImgs[0] || p.image || null;
+  const imgInner = coverImg
+    ? `<img class="img-clickable" src="${coverImg}" alt="${(p.name||'').replace(/"/g,'')}" onclick="event.stopPropagation();openProductGallery('${p.id}')">`
+    : `<span class="emoji-fb">${p.icon || '📦'}</span>`;
   const cats = (typeof getProductCats === 'function') ? getProductCats(p) : (p.cat ? [p.cat] : []);
   const posLabel = cats.length ? (typeof tCat === 'function' ? tCat(cats[0]) : cats[0]) : (p.icon || 'ITEM');
+  const role = currentUser && currentUser.role;
+  const showViewShop = !manage && p.shopId && role && role !== 'boutique' && role !== 'entreprise' && role !== 'employe';
+  const canBuy = showAdd && currentUser && (role === 'user' || role === 'client') && stockReal > 0;
+  const canFav = currentUser && (role === 'user' || role === 'client');
+  let shortInfo = '';
+  if (p.shortLabel || p.short_label) shortInfo = String(p.shortLabel || p.short_label);
+  else if (p.size || p.color || p.capacity || p.volume)
+    shortInfo = [p.size, p.color, p.capacity || p.volume].filter(Boolean).join(' — ');
+  else if (p.attrs && typeof p.attrs === 'object') {
+    const pref = [p.attrs.size, p.attrs.color, p.attrs.capacity || p.attrs.volume].filter(Boolean);
+    shortInfo = pref.length ? pref.join(' — ') : '';
+  } else if (hasVariants) {
+    shortInfo = variantsList.slice(0, 2).map(v => (typeof v === 'string' ? v : (v.name || v.label || ''))).filter(Boolean).join(' / ');
+  }
+  if (!shortInfo) {
+    const shopN = typeof getShopName === 'function' ? getShopName(p.shopId) : '';
+    shortInfo = ((typeof isShopCertified === 'function' && isShopCertified(p.shopId)) ? '✓ ' : '') + (shopN || '—');
+  }
+  const ovr = valScore > 0 ? valScore : Math.min(99, stockReal > 0 ? Math.min(99, 50 + Math.min(40, stockReal)) : 35);
+  const goldTier = promoOn || valScore >= 80 ? '' : (valScore > 0 && valScore < 50 ? 'low' : 'blue');
+  const nameShort = displayProductName(p.name);
+  const nameTiny = nameShort.length > 12 ? nameShort.slice(0, 11) + '…' : nameShort;
+  let cyanTitle = promoOn ? (lang === 'en' ? 'HOT OFFER' : 'OFFRE') : (lang === 'en' ? 'INFO' : 'INFO');
+  let cyanSub = promoOn
+    ? (lang === 'en' ? 'Special price' : 'Prix réduit')
+    : (stockReal <= 0 ? (lang === 'en' ? 'Out of stock' : 'Rupture')
+      : (stockReal <= 5 ? (lang === 'en' ? 'Low stock' : 'Stock bas')
+        : (lang === 'en' ? 'Available' : 'Disponible')));
+  const yellowHtml = promoOn
+    ? `<span class="yc-price-old">${formatMoney(basePrice)}</span><span class="yc-price-now">${formatMoney(eff)}</span>${pctOff ? `<span class="yc-price-pct">−${pctOff}%</span>` : ''}`
+    : `<span class="yc-price-now">${formatMoney(eff)}</span>`;
+  const tierClass = promoOn ? 'is-promo is-legendary' : (valScore >= 80 ? 'is-legendary' : (valScore > 0 && valScore < 50 ? 'is-low' : ''));
+  const cardClass = ['product-card', 'ycard-wrap', inCart ? 'in-cart' : '', tierClass].filter(Boolean).join(' ');
+  const cartQty = inCart ? (inCart.qty || 1) : 0;
+  const cartBadge = inCart ? `<div class="yc-cart-badge">✓ <span class="qty-n">×${cartQty}</span></div>` : '';
 
-  const canFav = currentUser && (currentUser.role === 'user' || currentUser.role === 'client');
-  const favCircle = canFav
-    ? `<button type="button" class="dls-stat ${favClass} dls-fav-btn" onclick="event.stopPropagation();toggleWishlist('${p.id}')" title="${isFav ? t('removeWishlist') : t('addWishlist')}"><span class="val">${isFav ? '♥' : '♡'}</span><span class="lbl">FAV</span></button>`
-    : `<div class="dls-stat ${favClass}"><span class="val">${favCount > 99 ? 99 : favCount}</span><span class="lbl">FAV</span></div>`;
+  if (manage) {
+    return `<div class="${cardClass}" data-product-id="${p.id}"><div class="ycard">
+      <div class="yc-name">${nameShort}</div>
+      <div class="yc-top">
+        <div class="yc-stats">
+          <div class="yc-stat ${stockClass}"><span class="val">${stockDisplay}</span><span class="lbl">STOCK</span></div>
+          <div class="yc-stat ${salesClass}"><span class="val">${salesCount > 99 ? 99 : salesCount}</span><span class="lbl">VENTES</span></div>
+          <div class="yc-stat ${noteClass}"><span class="val">${noteDisplay}</span><span class="lbl">NOTE</span></div>
+          <div class="yc-stat ${popClass}"><span class="val">${popScore}</span><span class="lbl">POP</span></div>
+        </div>
+        <div class="yc-gold ${goldTier}"><div class="yc-ovr">${ovr}</div><div class="yc-photo">${imgInner}</div>
+          <div class="yc-gold-foot"><div class="yc-gold-name">${nameTiny}</div></div></div>
+      </div>
+      <div class="yc-yellow">${yellowHtml}</div>
+      <div class="yc-btns">
+        <button type="button" class="yc-btn" onclick="event.stopPropagation();openModal('editProduct','${p.id}')"><span class="ico">✏️</span>EDIT</button>
+        <button type="button" class="yc-btn price-btn" onclick="event.stopPropagation();openModal('createPromo','${p.id}')"><span class="ico">🏷</span>PROMO</button>
+        <button type="button" class="yc-btn" onclick="event.stopPropagation();openModal('manageVariants','${p.id}')"><span class="ico">🧩</span>VAR</button>
+      </div>
+    </div></div>`;
+  }
 
-  return `<div class="${cardClass}" data-product-id="${p.id}" onclick="onProductCardClick(event,'${p.id}')">
-    <div class="dls-card-head">
-      <div class="dls-card-name">${displayProductName(p.name)}</div>
-    </div>
-    <div class="dls-card-main">
-      <div class="dls-stats-col">
-        <div class="dls-stat-row">
-          ${favCircle}
-          <div class="dls-stat ${cmdClass}"><span class="val">${deliveredCount > 99 ? 99 : deliveredCount}</span><span class="lbl">CMD</span></div>
-        </div>
-        <div class="dls-stat-row">
-          <div class="dls-stat ${livClass}"><span class="val">${livDisplay}${livUnit}</span><span class="lbl">LIV</span></div>
-          <div class="dls-stat ${valClass}"><span class="val">${valScore}</span><span class="lbl">VAL</span></div>
-        </div>
+  return `<div class="${cardClass}" data-product-id="${p.id}" onclick="onProductCardClick(event,'${p.id}')"><div class="ycard">
+    ${cartBadge}
+    <div class="yc-name">${nameShort}</div>
+    <div class="yc-top">
+      <div class="yc-stats">
+        <div class="yc-stat ${salesClass}"><span class="val">${salesCount > 99 ? 99 : salesCount}</span><span class="lbl">⚡VTE</span></div>
+        <div class="yc-stat ${stockClass}"><span class="val">${stockDisplay}</span><span class="lbl">📦STK</span></div>
+        <div class="yc-stat ${noteClass}"><span class="val">${noteDisplay}</span><span class="lbl">⭐NOTE</span></div>
+        <div class="yc-stat ${livClass}"><span class="val">${livDisplay}</span><span class="lbl">🚚LIV</span></div>
+        <div class="yc-stat mid"><span class="val">${viewsCount > 99 ? 99 : viewsCount}</span><span class="lbl">👁️VUE</span></div>
+        <div class="yc-stat ${promoClass}"><span class="val">${promoDisplay}</span><span class="lbl">🏷️PRM</span></div>
+        <div class="yc-stat ${popClass}"><span class="val">${popScore}</span><span class="lbl">🔥POP</span></div>
+        <div class="yc-stat"><span class="val">${garantDisplay}</span><span class="lbl">🛡️GAR</span></div>
       </div>
-      <div class="dls-rating-wrap">
-        <div class="dls-rating-badge">
-          <div class="dls-ovr" title="${t('stockLabel')}">${stockDisplay}</div>
-          <div class="dls-card-img">
-            ${imgInner}
-            ${multiBadge}
-          </div>
-          <div class="dls-pos-flag">${String(posLabel).slice(0, 10)}</div>
-        </div>
+      <div class="yc-gold ${goldTier}">
+        <div class="yc-ovr">${ovr}</div>
+        <div class="yc-photo">${promoOn ? '<span class="yc-promo-badge">PROMO</span>' : ''}${imgInner}</div>
+        <div class="yc-gold-foot"><div class="yc-gold-name">${nameTiny}</div><div class="yc-gold-pos">${String(posLabel).slice(0,8)}</div></div>
       </div>
     </div>
-    <div class="dls-card-foot">
-      <div class="dls-price-row">
-        ${priceBlock}
-        ${shopPill}
-      </div>
-      <div class="dls-shop-line">${(typeof isShopCertified === 'function' && isShopCertified(p.shopId)) ? '✓ ' : ''}${getShopName(p.shopId)} · VAL ${valScore}/100</div>
-      ${promoOn && p.promo && p.promo.endsAt ? `<div class="promo-countdown" data-promo-end="${p.promo.endsAt||''}">⏱ ${typeof formatCountdown==='function'?formatCountdown(p.promo.endsAt):''}</div>` : ''}
-      ${(!manage && hasVariants) ? `<button type="button" class="btn btn-sm btn-accent dls-secondary" onclick="event.stopPropagation();openVariantsPage('${p.id}')">🧩 ${variantsList.length}</button>` : ''}
-      ${addPart}
+    <div class="yc-short">${shortInfo}</div>
+    <div class="yc-btns">
+      <button type="button" class="yc-btn primary" onclick="event.stopPropagation();${showViewShop ? `openShopPage('${p.shopId}')` : ''}" ${showViewShop ? '' : 'disabled'}><span class="ico">🏪</span>${lang==='en'?'SHOP':'BOUT.'}</button>
+      <button type="button" class="yc-btn price-btn" onclick="event.stopPropagation();${canBuy ? `addToCart('${p.id}', this)` : `openProductOptions('${p.id}')`}"><span class="ico">🛒</span><span class="add-lbl">${canBuy ? (inCart ? (lang==='en'?'IN CART':'DANS PANIER') : (lang==='en'?'ADD CART':'+ PANIER')) : (lang==='en'?'OPTIONS':'OPTIONS')}</span></button>
+      <button type="button" class="yc-btn" onclick="event.stopPropagation();openProductGallery('${p.id}')"><span class="ico">📷</span>${lang==='en'?'PHOTOS':'PHOTOS'}</button>
+      <button type="button" class="yc-btn" onclick="event.stopPropagation();shareProduct('${p.id}')"><span class="ico">🔗</span>${lang==='en'?'SHARE':'PART.'}</button>
+      <button type="button" class="yc-btn" onclick="event.stopPropagation();${canFav ? `toggleWishlist('${p.id}');if(typeof renderHomeProductsOnly==='function')renderHomeProductsOnly();` : ''}" ${canFav ? '' : 'disabled'}><span class="ico">${isFav ? '❤️' : '🤍'}</span>FAV</button>
+      <button type="button" class="yc-btn" onclick="event.stopPropagation();openProductReviews('${p.id}')"><span class="ico">💬</span>${lang==='en'?'REVIEWS':'AVIS'}</button>
     </div>
-  </div>`;
+    <div class="yc-cyan-row">
+      <button type="button" class="yc-cyan-btn qty-btn-card" onclick="event.stopPropagation();openProductQty('${p.id}')"><span class="ico">🔢</span>${inCart ? ('×'+cartQty) : (lang==='en'?'QTY':'QTÉ')}</button>
+      <button type="button" class="yc-cyan-btn" onclick="event.stopPropagation();openProductDescOnly('${p.id}')"><span class="ico">📄</span>${lang==='en'?'DESC':'DESC'}</button>
+    </div>
+    <div class="yc-yellow">${yellowHtml}</div>
+    <button type="button" class="yc-bottom" onclick="event.stopPropagation();openProductOptions('${p.id}')">🎯 ${lang==='en'?'CHOOSE OPTIONS':'CHOISIR OPTIONS'}${hasVariants ? ' · '+variantsList.length : ''}</button>
+  </div></div>`;
 }
-
-
-
 
 function getProductZonesCheckboxesHTML(selected) {
   const sel = new Set((selected || []).map(String));
@@ -9357,6 +9837,433 @@ function buildProductDetailModalHTML(productId) {
     </div>`;
 }
 
+
+
+
+function openProductQty(productId) {
+  const p = (data.products || []).find(x => String(x.id) === String(productId));
+  if (!p) return;
+  const fr = lang !== 'en';
+  const stockReal = Math.max(0, Number(p.stock) || 0);
+  const inCart = cart.find(c => String(c.productId) === String(productId) && !c.variantId);
+  const currentQty = inCart ? inCart.qty : 1;
+  const canBuy = currentUser && (currentUser.role === 'user' || currentUser.role === 'client') && stockReal > 0;
+  const overlay = document.getElementById('modalOverlay');
+  const content = document.getElementById('modalContent');
+  if (!overlay || !content) return;
+  content.innerHTML = `<button class="modal-close" onclick="closeModal()">×</button>
+    <h3>🔢 ${fr ? 'Quantité' : 'Quantity'}</h3>
+    <p class="sub">${displayProductName(p.name)}</p>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px">${fr ? 'Stock disponible' : 'Available stock'} : <b style="color:var(--green)">${stockReal}</b></p>
+    <div class="field">
+      <label>${fr ? 'Quantité souhaitée' : 'Desired quantity'}</label>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button type="button" class="btn btn-ghost" style="min-width:44px;padding:10px" onclick="(function(){var i=document.getElementById('mCardQty');i.value=Math.max(1,(parseInt(i.value)||1)-1);})()">−</button>
+        <input id="mCardQty" type="number" min="1" max="${Math.max(1, stockReal)}" value="${Math.min(currentQty, Math.max(1, stockReal))}" style="text-align:center;font-size:18px;font-weight:800">
+        <button type="button" class="btn btn-ghost" style="min-width:44px;padding:10px" onclick="(function(){var i=document.getElementById('mCardQty');var m=${Math.max(1,stockReal)};i.value=Math.min(m,(parseInt(i.value)||1)+1);})()">+</button>
+      </div>
+    </div>
+    ${canBuy
+      ? `<button class="btn btn-accent btn-block" onclick="confirmCardQty('${p.id}')">${fr ? 'Valider la quantité' : 'Confirm quantity'}</button>`
+      : `<button class="btn btn-ghost btn-block" disabled>${fr ? 'Non disponible' : 'Unavailable'}</button>`}
+    <button class="btn btn-ghost btn-block" style="margin-top:8px" onclick="closeModal()">${fr ? 'Annuler' : 'Cancel'}</button>`;
+  overlay.classList.add('show');
+}
+function confirmCardQty(productId) {
+  const p = (data.products || []).find(x => String(x.id) === String(productId));
+  if (!p) return;
+  let qty = parseInt(document.getElementById('mCardQty')?.value, 10) || 1;
+  if (qty < 1) qty = 1;
+  const stock = Math.max(0, Number(p.stock) || 0);
+  if (stock > 0 && qty > stock) qty = stock;
+  const existing = cart.find(c => String(c.productId) === String(productId) && !c.variantId);
+  if (existing) existing.qty = qty;
+  else cart.push({ productId, qty });
+  try {
+    const cats = (typeof getProductCats === 'function') ? getProductCats(p) : (p.cat ? [p.cat] : []);
+    if (typeof trackInteraction === 'function') trackInteraction('cart', { productId, shopId: p.shopId, cat: cats[0] });
+  } catch (_) {}
+  if (typeof updateCartBadge === 'function') updateCartBadge();
+  closeModal();
+  alert((lang==='en'?'Quantity set: ':'Quantité définie : ') + qty);
+  try { if (typeof renderHomeProductsOnly === 'function') renderHomeProductsOnly(); } catch (_) {}
+}
+function openProductDescOnly(productId) {
+  const p = (data.products || []).find(x => String(x.id) === String(productId));
+  if (!p) return;
+  const desc = String(p.description || '').trim();
+  const name = displayProductName(p.name);
+  const fr = lang !== 'en';
+  const overlay = document.getElementById('modalOverlay');
+  const content = document.getElementById('modalContent');
+  if (!overlay || !content) return;
+  content.innerHTML = `<button class="modal-close" onclick="closeModal()">×</button>
+    <h3>📄 Description</h3>
+    <p class="sub">${name}</p>
+    <div class="card" style="margin-top:8px">
+      <p style="font-size:14px;line-height:1.55;white-space:pre-wrap">${desc
+        ? desc.replace(/</g,'&lt;')
+        : (fr ? 'Aucune description fournie par le vendeur.' : 'No description provided by the seller.')}</p>
+    </div>
+    <button class="btn btn-ghost btn-block" style="margin-top:12px" onclick="closeModal()">${fr ? 'Fermer' : 'Close'}</button>`;
+  overlay.classList.add('show');
+}
+
+function openProductReviews(productId) {
+  const p = (data.products || []).find(x => String(x.id) === String(productId));
+  if (!p) { alert(lang==='en'?'Product not found':'Produit introuvable'); return; }
+  window._reviewProductId = String(productId);
+  window._reviewStars = 5;
+  const revs = (data.reviews || []).filter(r => String(r.productId) === String(productId))
+    .slice().sort((a,b) => new Date(b.date||0) - new Date(a.date||0));
+  const avg = revs.length ? (revs.reduce((s,r) => s + (Number(r.stars)||0), 0) / revs.length) : 0;
+  const canComment = currentUser && (currentUser.role === 'user' || currentUser.role === 'client');
+  const isSeller = currentUser && (currentUser.role === 'boutique' || currentUser.role === 'entreprise' || currentUser.role === 'employe');
+  const name = displayProductName(p.name);
+  const fr = lang !== 'en';
+  const listHtml = revs.length ? revs.map(r => {
+    const stars = Math.max(0, Math.min(5, Math.round(Number(r.stars)||0)));
+    const who = String(r.userName || (fr ? 'Client' : 'Customer')).replace(/</g,'');
+    const body = String(r.text || '').replace(/</g,'&lt;');
+    const when = r.date ? new Date(r.date).toLocaleString(fr ? 'fr-FR' : 'en-US') : '';
+    return `<div class="card" style="margin-bottom:8px;padding:12px">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+        <b style="font-size:13px">${who}</b>
+        <span style="font-size:13px;color:var(--gold)">${'★'.repeat(stars)}${'☆'.repeat(5-stars)}</span>
+      </div>
+      <p style="font-size:13px;line-height:1.45;margin-top:6px">${body || (fr ? '(Sans texte)' : '(No text)')}</p>
+      <div style="font-size:10px;color:var(--text-muted);margin-top:6px">${when}</div>
+    </div>`;
+  }).join('') : `<div class="empty">${fr ? 'Aucun avis. Soyez le premier !' : 'No reviews yet.'}</div>`;
+  const formHtml = canComment ? `
+    <div class="card" style="margin-top:10px;border-color:rgba(139,92,246,.35)">
+      <b style="font-size:13px">${fr ? 'Laisser un avis' : 'Leave a review'}</b>
+      <div class="stars-input" style="margin:10px 0;text-align:center;font-size:28px;cursor:pointer">
+        ${[1,2,3,4,5].map(n => `<span class="on" onclick="setReviewStars(${n})" style="color:var(--gold)">★</span>`).join('')}
+      </div>
+      <textarea id="mReviewText" rows="3" placeholder="${fr ? 'Votre commentaire…' : 'Your comment…'}" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:12px;border-radius:12px;font-family:inherit;font-size:14px"></textarea>
+      <button class="btn btn-accent btn-block" style="margin-top:10px" onclick="submitProductReview('${productId}')">${fr ? 'Publier' : 'Post'}</button>
+    </div>` : (isSeller ? `<p style="font-size:12px;color:var(--text-muted);margin-top:10px;text-align:center">${fr ? 'Avis clients en temps réel (Supabase).' : 'Live customer reviews (Supabase).'}</p>` : '');
+  const overlay = document.getElementById('modalOverlay');
+  const content = document.getElementById('modalContent');
+  if (!overlay || !content) return;
+  content.innerHTML = `<button class="modal-close" onclick="closeModal()">×</button>
+    <h3>💬 ${fr ? 'Avis' : 'Reviews'}</h3>
+    <p class="sub">${name}${revs.length ? ` · ${avg.toFixed(1)}/5 · ${revs.length}` : ''}</p>
+    <div id="productReviewsList">${listHtml}</div>
+    ${formHtml}
+    <button class="btn btn-ghost btn-block" style="margin-top:10px" onclick="closeModal()">${fr ? 'Fermer' : 'Close'}</button>`;
+  overlay.classList.add('show');
+  if (typeof setReviewStars === 'function') setReviewStars(5);
+}
+
+async function submitProductReview(productId) {
+  if (!currentUser || (currentUser.role !== 'user' && currentUser.role !== 'client')) {
+    alert(lang==='en'?'Buyers only':'Réservé aux acheteurs'); return;
+  }
+  if (!(typeof USE_SUPABASE !== 'undefined' && USE_SUPABASE && sb)) {
+    alert(lang==='en'?'Supabase required':'Supabase requis'); return;
+  }
+  if (!alloUuid(currentUser.id) || !alloUuid(productId)) {
+    alert(lang==='en'?'Invalid product':'Produit invalide'); return;
+  }
+  const stars = window._reviewStars || 5;
+  const textVal = (document.getElementById('mReviewText')?.value || '').trim();
+  if (!data.reviews) data.reviews = [];
+  try {
+    let res = await sb.from('reviews').insert({
+      user_id: currentUser.id,
+      product_id: productId,
+      rating: stars,
+      stars: stars,
+      comment: textVal,
+      text: textVal,
+      user_name: currentUser.name || currentUser.identifier || 'Client',
+      created_at: new Date().toISOString()
+    }).select().single();
+    if (res.error) {
+      res = await sb.from('reviews').insert({
+        user_id: currentUser.id,
+        product_id: productId,
+        rating: stars,
+        comment: textVal,
+        created_at: new Date().toISOString()
+      }).select().single();
+    }
+    if (res.error) throw res.error;
+    const row = {
+      id: res.data.id,
+      productId: productId,
+      orderId: null,
+      userId: currentUser.id,
+      userName: currentUser.name || 'Client',
+      stars,
+      text: textVal,
+      date: res.data.created_at || new Date().toISOString()
+    };
+    data.reviews.push(row);
+    try {
+      const p = (data.products || []).find(x => String(x.id) === String(productId));
+      if (p) {
+        const shop = (data.shops || []).find(s => String(s.id) === String(p.shopId));
+        let ownerId = shop && shop.ownerId;
+        if (shop && shop.companyId) {
+          const co = (data.companies || []).find(c => String(c.id) === String(shop.companyId));
+          if (co && co.ownerId) ownerId = co.ownerId;
+        }
+        if (ownerId && typeof pushUserNotif === 'function') {
+          pushUserNotif(ownerId, lang==='en'?'New review':'Nouvel avis',
+            displayProductName(p.name) + ' · ' + stars + '/5' + (textVal ? ' — ' + textVal.slice(0,80) : ''));
+        }
+      }
+    } catch (_) {}
+    openProductReviews(productId);
+    try { if (typeof renderHomeProductsOnly === 'function') renderHomeProductsOnly(); } catch (_) {}
+  } catch (e) {
+    console.error('[Allo] review', e);
+    alert(lang==='en'?'Could not publish':'Publication impossible');
+  }
+}
+
+let _reviewsRealtimeChannel = null;
+function startReviewsRealtime() {
+  if (!(typeof USE_SUPABASE !== 'undefined' && USE_SUPABASE && sb)) return;
+  try { if (_reviewsRealtimeChannel) sb.removeChannel(_reviewsRealtimeChannel); } catch (_) {}
+  _reviewsRealtimeChannel = sb.channel('allo-reviews-' + Date.now())
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'reviews' }, function(payload) {
+      try {
+        if (!data.reviews) data.reviews = [];
+        if (payload.eventType === 'DELETE' && payload.old) {
+          data.reviews = data.reviews.filter(r => String(r.id) !== String(payload.old.id));
+        } else if (payload.new) {
+          const mapped = {
+            id: payload.new.id,
+            productId: payload.new.product_id,
+            orderId: payload.new.order_id || null,
+            userId: payload.new.user_id,
+            userName: payload.new.user_name || 'Client',
+            stars: Number(payload.new.stars != null ? payload.new.stars : (payload.new.rating || 0)),
+            text: payload.new.text || payload.new.comment || '',
+            date: payload.new.created_at
+          };
+          const i = data.reviews.findIndex(r => String(r.id) === String(mapped.id));
+          if (i >= 0) data.reviews[i] = mapped; else data.reviews.push(mapped);
+        }
+        if (window._reviewProductId && document.getElementById('productReviewsList')) {
+          openProductReviews(window._reviewProductId);
+        }
+        try { if (typeof renderHomeProductsOnly === 'function') renderHomeProductsOnly(); } catch (_) {}
+      } catch (e) { console.warn('[Allo] reviews rt', e); }
+    })
+    .subscribe();
+}
+
+function openProductDescription(productId) { openProductReviews(productId); }
+
+
+function getCategoryOptionSchema(cat) {
+  const c = String(cat || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const fr = lang !== 'en';
+  // Chaussures / shoes
+  if (/chauss|shoe|basket|sneaker|botte|sandale|talon/.test(c)) {
+    return [
+      { key: 'size', label: fr ? 'Pointure' : 'Size', type: 'select', options: ['35','36','37','38','39','40','41','42','43','44','45','46','47','48'] },
+      { key: 'color', label: fr ? 'Couleur' : 'Color', type: 'text', placeholder: fr ? 'Ex: Noir' : 'e.g. Black' }
+    ];
+  }
+  // Vêtements
+  if (/vetement|vêtement|cloth|mode|t-?shirt|pantalon|robe|chemise|jacket|manteau|hoodie|pull/.test(c)) {
+    return [
+      { key: 'size', label: fr ? 'Taille' : 'Size', type: 'select', options: ['XXS','XS','S','M','L','XL','XXL','3XL'] },
+      { key: 'color', label: fr ? 'Couleur' : 'Color', type: 'text', placeholder: fr ? 'Ex: Bleu marine' : 'e.g. Navy' }
+    ];
+  }
+  // Téléphone / smartphone
+  if (/teleph|phone|smartphone|mobile|iphone|android/.test(c)) {
+    return [
+      { key: 'capacity', label: fr ? 'Stockage' : 'Storage', type: 'select', options: ['32 Go','64 Go','128 Go','256 Go','512 Go','1 To'] },
+      { key: 'color', label: fr ? 'Couleur' : 'Color', type: 'text', placeholder: fr ? 'Ex: Graphite' : 'e.g. Graphite' },
+      { key: 'condition', label: fr ? 'État' : 'Condition', type: 'select', options: fr ? ['Neuf','Comme neuf','Bon état','Correct'] : ['New','Like new','Good','Fair'] }
+    ];
+  }
+  // Ordinateur
+  if (/ordi|laptop|computer|pc|macbook|notebook/.test(c)) {
+    return [
+      { key: 'ram', label: 'RAM', type: 'select', options: ['4 Go','8 Go','16 Go','32 Go','64 Go'] },
+      { key: 'storage', label: fr ? 'Disque' : 'Storage', type: 'select', options: ['128 Go','256 Go','512 Go','1 To','2 To'] },
+      { key: 'color', label: fr ? 'Couleur' : 'Color', type: 'text', placeholder: fr ? 'Ex: Argent' : 'e.g. Silver' }
+    ];
+  }
+  // Voiture / auto
+  if (/voiture|auto|car|vehicule|véhicule|moto|scooter/.test(c)) {
+    return [
+      { key: 'year', label: fr ? 'Année' : 'Year', type: 'text', placeholder: '2020' },
+      { key: 'color', label: fr ? 'Couleur' : 'Color', type: 'text', placeholder: fr ? 'Ex: Blanc' : 'e.g. White' },
+      { key: 'fuel', label: fr ? 'Carburant' : 'Fuel', type: 'select', options: fr ? ['Essence','Diesel','Hybride','Électrique','GPL'] : ['Petrol','Diesel','Hybrid','Electric','LPG'] }
+    ];
+  }
+  // Cosmétiques / beauté
+  if (/cosm|beaut|parfum|makeup|maquillage/.test(c)) {
+    return [
+      { key: 'volume', label: fr ? 'Volume / Contenance' : 'Volume', type: 'text', placeholder: fr ? 'Ex: 50 ml' : 'e.g. 50ml' },
+      { key: 'shade', label: fr ? 'Teinte' : 'Shade', type: 'text', placeholder: fr ? 'Ex: Beige 03' : 'e.g. Beige 03' }
+    ];
+  }
+  // Électroménager / électronique générique
+  if (/electro|electron|tv|television|console|casque|ecouteur/.test(c)) {
+    return [
+      { key: 'model', label: fr ? 'Modèle / Réf.' : 'Model / Ref.', type: 'text', placeholder: fr ? 'Ex: XYZ-200' : 'e.g. XYZ-200' },
+      { key: 'color', label: fr ? 'Couleur' : 'Color', type: 'text', placeholder: fr ? 'Ex: Noir' : 'e.g. Black' }
+    ];
+  }
+  // Alimentaire
+  if (/alim|food|boisson|drink|epicerie|épicerie/.test(c)) {
+    return [
+      { key: 'weight', label: fr ? 'Poids / Volume' : 'Weight / Volume', type: 'text', placeholder: fr ? 'Ex: 1 kg, 50 cl' : 'e.g. 1kg, 50cl' },
+      { key: 'expiry', label: fr ? 'DLC (si besoin)' : 'Expiry (if needed)', type: 'text', placeholder: 'JJ/MM/AAAA' }
+    ];
+  }
+  // Défaut générique
+  return [
+    { key: 'size', label: fr ? 'Taille / Pointure / Format' : 'Size / Format', type: 'text', placeholder: fr ? 'Ex: M, 42, 256 Go' : 'e.g. M, 42, 256GB' },
+    { key: 'color', label: fr ? 'Couleur' : 'Color', type: 'text', placeholder: fr ? 'Ex: Rouge' : 'e.g. Red' },
+    { key: 'note', label: fr ? 'Précision pour le livreur' : 'Note for delivery', type: 'text', placeholder: fr ? 'Ex: emballage fragile' : 'e.g. fragile packaging' }
+  ];
+}
+
+function openProductOptions(productId) {
+  const p = (data.products || []).find(x => String(x.id) === String(productId));
+  if (!p) { alert(lang==='en'?'Product not found':'Produit introuvable'); return; }
+  const cats = (typeof getProductCats === 'function') ? getProductCats(p) : (p.cat ? [p.cat] : []);
+  const cat = cats[0] || '';
+  const schema = getCategoryOptionSchema(cat);
+  const variants = (p.variants || []).filter(Boolean);
+  const fr = lang !== 'en';
+  const name = displayProductName(p.name);
+
+  // Préremplir avec attrs produit
+  const defaults = {
+    size: p.size || '',
+    color: p.color || '',
+    capacity: p.capacity || p.volume || '',
+    ...(p.attrs || {})
+  };
+
+  let fieldsHtml = schema.map(f => {
+    const val = (defaults[f.key] || '').toString().replace(/"/g, '&quot;');
+    if (f.type === 'select' && Array.isArray(f.options)) {
+      const opts = f.options.map(o => {
+        const sel = String(o) === String(defaults[f.key] || '') ? 'selected' : '';
+        return `<option value="${String(o).replace(/"/g,'&quot;')}" ${sel}>${o}</option>`;
+      }).join('');
+      return `<div class="field"><label>${f.label}</label>
+        <select id="opt_${f.key}"><option value="">${fr ? '— Choisir —' : '— Choose —'}</option>${opts}</select></div>`;
+    }
+    return `<div class="field"><label>${f.label}</label>
+      <input id="opt_${f.key}" type="text" placeholder="${(f.placeholder||'').replace(/"/g,'&quot;')}" value="${val}"></div>`;
+  }).join('');
+
+  let variantsHtml = '';
+  if (variants.length) {
+    variantsHtml = `<div class="field"><label>${fr ? 'Modèle / Variante' : 'Model / Variant'}</label>
+      <select id="opt_variantId"><option value="">${fr ? '— Aucune / standard —' : '— None / standard —'}</option>
+      ${variants.map(v => `<option value="${v.id}">${(v.name||v.id).replace(/</g,'')}</option>`).join('')}
+      </select></div>`;
+  }
+
+  const canBuy = currentUser && (currentUser.role === 'user' || currentUser.role === 'client') && (Number(p.stock) || 0) > 0;
+  const overlay = document.getElementById('modalOverlay');
+  const content = document.getElementById('modalContent');
+  if (!overlay || !content) return;
+  content.innerHTML = `<button class="modal-close" onclick="closeModal()">×</button>
+    <h3>🎯 ${fr ? 'Choisir les options' : 'Choose options'}</h3>
+    <p class="sub">${name}${cat ? ' · ' + (typeof tCat === 'function' ? tCat(cat) : cat) : ''}</p>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;line-height:1.4">
+      ${fr
+        ? 'Ces choix aident le livreur à préparer la bonne référence (pointure, couleur, capacité…).'
+        : 'These choices help the courier prepare the right item (size, color, capacity…).'}
+    </p>
+    ${variantsHtml}
+    ${fieldsHtml}
+    <div class="field"><label>${fr ? 'Quantité' : 'Quantity'}</label>
+      <input id="opt_qty" type="number" min="1" max="${Math.max(1, Number(p.stock)||1)}" value="1"></div>
+    ${canBuy
+      ? `<button class="btn btn-accent btn-block" onclick="confirmProductOptions('${p.id}')">${fr ? 'Ajouter au panier avec ces options' : 'Add to cart with options'}</button>`
+      : `<button class="btn btn-ghost btn-block" disabled>${fr ? 'Non disponible à l’achat' : 'Not available for purchase'}</button>`}
+    <button class="btn btn-ghost btn-block" style="margin-top:8px" onclick="closeModal()">${fr ? 'Annuler' : 'Cancel'}</button>`;
+  overlay.classList.add('show');
+}
+
+function confirmProductOptions(productId) {
+  const p = (data.products || []).find(x => String(x.id) === String(productId));
+  if (!p) return;
+  const cats = (typeof getProductCats === 'function') ? getProductCats(p) : (p.cat ? [p.cat] : []);
+  const schema = getCategoryOptionSchema(cats[0] || '');
+  const selected = {};
+  schema.forEach(f => {
+    const el = document.getElementById('opt_' + f.key);
+    const v = (el && el.value || '').trim();
+    if (v) selected[f.key] = v;
+  });
+  const variantId = (document.getElementById('opt_variantId')?.value || '').trim() || null;
+  let qty = parseInt(document.getElementById('opt_qty')?.value, 10) || 1;
+  if (qty < 1) qty = 1;
+  if (qty > (Number(p.stock) || qty)) qty = Number(p.stock) || 1;
+
+  // Si variante choisie, utiliser le flux variante
+  if (variantId && typeof addVariantToCart === 'function') {
+    // set qty after
+    const existing = cart.find(c => String(c.productId) === String(productId) && String(c.variantId) === String(variantId));
+    if (existing) {
+      existing.qty = qty;
+      existing.options = selected;
+    } else {
+      cart.push({ productId, variantId, qty, options: selected });
+    }
+  } else {
+    const existing = cart.find(c => String(c.productId) === String(productId) && !c.variantId);
+    if (existing) {
+      existing.qty = qty;
+      existing.options = selected;
+    } else {
+      cart.push({ productId, qty, options: selected });
+    }
+  }
+  try {
+    if (typeof trackInteraction === 'function') trackInteraction('cart', { productId, shopId: p.shopId, cat: cats[0] });
+  } catch (e) {}
+  updateCartBadge();
+  closeModal();
+  const summary = Object.values(selected).join(' · ') || (lang==='en'?'Standard':'Standard');
+  alert((lang==='en'?'Added to cart: ':'Ajouté au panier : ') + displayProductName(p.name) + ' · ' + summary);
+  if (typeof renderHome === 'function' && document.getElementById('view-home')?.classList.contains('active')) {
+    try { renderHome(); } catch (_) {}
+  }
+}
+
+function shareProduct(productId) {
+  const p = (data.products || []).find(x => String(x.id) === String(productId));
+  if (!p) return;
+  const title = displayProductName(p.name);
+  const textShare = title + ' — ' + (typeof formatMoney === 'function' ? formatMoney(p.price) : p.price) + ' · Allo';
+  const url = (typeof location !== 'undefined' ? location.href.split('#')[0] : '') + '#product=' + encodeURIComponent(productId);
+  if (navigator.share) navigator.share({ title, text: textShare, url }).catch(() => {});
+  else if (navigator.clipboard && navigator.clipboard.writeText)
+    navigator.clipboard.writeText(textShare + '\n' + url).then(() => alert(lang === 'en' ? 'Link copied!' : 'Lien copié !')).catch(() => prompt(lang === 'en' ? 'Copy:' : 'Copiez :', url));
+  else prompt(lang === 'en' ? 'Copy:' : 'Copiez :', url);
+}
+function compareProduct(productId) {
+  if (!window._compareList) window._compareList = [];
+  const id = String(productId);
+  const idx = window._compareList.indexOf(id);
+  if (idx >= 0) { window._compareList.splice(idx, 1); alert(lang === 'en' ? 'Removed from comparison' : 'Retiré de la comparaison'); }
+  else {
+    if (window._compareList.length >= 3) { alert(lang === 'en' ? 'Max 3 products' : 'Maximum 3 produits'); return; }
+    window._compareList.push(id);
+    alert((lang === 'en' ? 'Added (' : 'Ajouté (') + window._compareList.length + '/3)');
+  }
+}
+
 function changeQty(btnOrId, delta) {
   // Support: changeQty(this, ±1) depuis le bouton, ou changeQty(productId, ±1) legacy
   let inp = null;
@@ -9445,8 +10352,9 @@ function updateCartBadge() {
   }
 }
 
-function removeFromCart(productId) {
-  cart = cart.filter(c => c.productId !== productId);
+function removeFromCart(productId, variantId) {
+  if (variantId) cart = cart.filter(c => !(String(c.productId) === String(productId) && String(c.variantId || '') === String(variantId)));
+  else cart = cart.filter(c => String(c.productId) !== String(productId));
   updateCartBadge();
   renderCart();
   renderHome();
@@ -9485,6 +10393,25 @@ function removeShopFromCart(shopId) {
   renderHome();
 }
 
+
+function changeCartQty(productId, delta, variantId) {
+  const p = (data.products || []).find(x => String(x.id) === String(productId));
+  if (!p) return;
+  const item = cart.find(c => String(c.productId) === String(productId) && String(c.variantId || '') === String(variantId || ''));
+  if (!item) return;
+  let qty = (item.qty || 1) + delta;
+  if (qty < 1) {
+    cart = cart.filter(c => !(String(c.productId) === String(productId) && String(c.variantId || '') === String(variantId || '')));
+  } else {
+    const stock = Math.max(0, Number(p.stock) || 0);
+    if (stock > 0 && qty > stock) qty = stock;
+    item.qty = qty;
+  }
+  if (typeof updateCartBadge === 'function') updateCartBadge();
+  if (typeof renderCart === 'function') renderCart();
+  try { if (typeof renderHomeProductsOnly === 'function') renderHomeProductsOnly(); } catch (_) {}
+}
+
 function renderCart() {
   const el = document.getElementById('cartContent');
   if (!el) return;
@@ -9512,15 +10439,27 @@ function renderCart() {
       </div>`;
     g.items.forEach(({ item, p, line, unit }) => {
       const unitPrice = (unit != null) ? unit : (typeof getEffectivePriceForBuyer === 'function' ? getEffectivePriceForBuyer(p) : p.price);
+      const cartImgs = (typeof getProductImages === 'function') ? getProductImages(p) : (p.image ? [p.image] : []);
+      const cartThumb = (cartImgs[0] || p.image)
+        ? `<img src="${cartImgs[0] || p.image}" alt="">`
+        : (p.icon || '📦');
+      const cartKey = item.variantId ? (p.id + '::' + item.variantId) : p.id;
       html += `<div class="cart-item" style="padding:8px 0;border-bottom:1px solid var(--border)">
-        <div class="emoji">${p.icon || '📦'}</div>
+        <div class="thumb">${cartThumb}</div>
         <div class="cart-item-info">
           <b>${displayProductName(p.name)}</b>
-          <span>${item.qty} × ${formatMoney(unitPrice)}</span>
+          <span>${formatMoney(unitPrice)} ${lang==='en'?'each':'l\'unité'}</span>
+          ${item.options && Object.keys(item.options).length ? `<div style="font-size:11px;color:var(--cyan);margin-top:3px">🎯 ${Object.values(item.options).join(' · ')}</div>` : ''}
+          ${item.variantId ? `<div style="font-size:10px;color:var(--text-muted);margin-top:2px">${(p.variants||[]).find(v=>String(v.id)===String(item.variantId))?.name || ''}</div>` : ''}
+          <div class="cart-qty-ctrl">
+            <button type="button" onclick="changeCartQty('${p.id}',-1${item.variantId?`,'${item.variantId}'`:''})">−</button>
+            <span>${item.qty}</span>
+            <button type="button" onclick="changeCartQty('${p.id}',1${item.variantId?`,'${item.variantId}'`:''})">+</button>
+          </div>
         </div>
         <div style="text-align:right">
           <b style="font-family:'JetBrains Mono';font-size:13px">${formatMoney(line)}</b><br>
-          <button class="btn btn-sm btn-danger" style="margin-top:4px" onclick="removeFromCart('${p.id}')">${lang==='en'?'Remove':'Retirer'}</button>
+          <button class="btn btn-sm btn-danger" style="margin-top:4px" onclick="removeFromCart('${p.id}'${item.variantId?`,'${item.variantId}'`:''})">${lang==='en'?'Remove':'Retirer'}</button>
         </div>
       </div>`;
     });
@@ -10962,10 +11901,15 @@ function _paintOrdersList() {
         const has = (data.reviews || []).some(r => r.orderId === o.id && r.productId === p.id && r.userId === currentUser.id);
         if (!has) reviewBtn = `<button class="btn btn-sm btn-ghost" style="margin-top:4px" onclick="openModal('review','${p.id}|${o.id}')">⭐ ${t('rateProduct')}</button>`;
       }
+      const oImgs = p ? ((typeof getProductImages === 'function') ? getProductImages(p) : (p.image ? [p.image] : [])) : [];
+      const oThumb = (oImgs[0] || (p && p.image))
+        ? `<img src="${oImgs[0] || p.image}" alt="">`
+        : icon;
       return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
-        <span style="font-size:20px">${icon}</span>
+        <div class="order-item-thumb">${oThumb}</div>
         <div style="flex:1"><b style="font-size:12.5px">${name}</b>
           <div style="font-size:11px;color:var(--text-muted)">${it.qty} × ${formatMoney(it.price)}${(!seller && shopName) ? ' · 🏪 ' + shopName : ''}</div>
+          ${it.options && Object.keys(it.options).length ? `<div style="font-size:10px;color:var(--cyan)">🎯 ${Object.values(it.options).join(' · ')}</div>` : ''}
           ${reviewBtn}
         </div>
         <b style="font-family:'JetBrains Mono';font-size:12px">${formatMoney(it.qty * it.price)}</b>
@@ -12789,6 +13733,60 @@ function renderAccount() {
 }
 
 // ===== MODALS =====
+
+function getProductCardFieldsHTML(p) {
+  p = p || {};
+  const size = (p.size || (p.attrs && p.attrs.size) || '').toString().replace(/"/g, '&quot;');
+  const color = (p.color || (p.attrs && p.attrs.color) || '').toString().replace(/"/g, '&quot;');
+  const capacity = (p.capacity || p.volume || (p.attrs && (p.attrs.capacity || p.attrs.volume)) || '').toString().replace(/"/g, '&quot;');
+  const warranty = (p.warranty || p.garantie || (p.attrs && (p.attrs.warranty || p.attrs.garantie)) || '').toString().replace(/"/g, '&quot;');
+  const shortLabel = (p.shortLabel || p.short_label || (p.attrs && p.attrs.shortLabel) || '').toString().replace(/"/g, '&quot;');
+  const fr = lang !== 'en';
+  return `<div class="field" style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--border)">
+    <label style="color:var(--accent-bright)">${fr ? 'Infos carte produit (optionnel)' : 'Product card info (optional)'}</label>
+    <p style="font-size:11px;color:var(--text-muted);margin:4px 0 10px;line-height:1.4">${fr
+      ? 'Enrichit la carte (ligne courte, garantie…). VENTES, NOTE, VUES, POP sont automatiques.'
+      : 'Enriches the card (short line, warranty…). Sales, rating, views, popularity are automatic.'}</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="field" style="margin:0"><label>${fr ? 'Taille / Pointure' : 'Size'}</label><input id="mSize" placeholder="${fr ? 'Ex: 42, M' : 'e.g. 42, M'}" value="${size}"></div>
+      <div class="field" style="margin:0"><label>${fr ? 'Couleur' : 'Color'}</label><input id="mColor" placeholder="${fr ? 'Ex: Noir' : 'e.g. Black'}" value="${color}"></div>
+      <div class="field" style="margin:0"><label>${fr ? 'Capacité / Volume' : 'Capacity'}</label><input id="mCapacity" placeholder="${fr ? 'Ex: 256 Go' : 'e.g. 256GB'}" value="${capacity}"></div>
+      <div class="field" style="margin:0"><label>${fr ? 'Garantie' : 'Warranty'}</label><input id="mWarranty" placeholder="${fr ? 'Ex: 1an' : 'e.g. 1yr'}" value="${warranty}"></div>
+    </div>
+    <div class="field" style="margin-top:8px;margin-bottom:0"><label>${fr ? 'Libellé court (optionnel)' : 'Short label (optional)'}</label>
+      <input id="mShortLabel" placeholder="${fr ? 'Ex: 42 — Noir' : 'e.g. 42 — Black'}" value="${shortLabel}"></div>
+  </div>`;
+}
+function getProductCardFieldsFromForm() {
+  return {
+    size: (document.getElementById('mSize')?.value || '').trim(),
+    color: (document.getElementById('mColor')?.value || '').trim(),
+    capacity: (document.getElementById('mCapacity')?.value || '').trim(),
+    volume: (document.getElementById('mCapacity')?.value || '').trim(),
+    warranty: (document.getElementById('mWarranty')?.value || '').trim(),
+    garantie: (document.getElementById('mWarranty')?.value || '').trim(),
+    shortLabel: (document.getElementById('mShortLabel')?.value || '').trim(),
+    short_label: (document.getElementById('mShortLabel')?.value || '').trim()
+  };
+}
+function applyProductCardFieldsToProduct(p, fields) {
+  if (!p || !fields) return p;
+  p.size = fields.size || null;
+  p.color = fields.color || null;
+  p.capacity = fields.capacity || null;
+  p.volume = fields.capacity || null;
+  p.warranty = fields.warranty || null;
+  p.garantie = fields.warranty || null;
+  p.shortLabel = fields.shortLabel || null;
+  p.short_label = fields.shortLabel || null;
+  p.attrs = Object.assign({}, p.attrs || {}, {
+    size: fields.size || undefined, color: fields.color || undefined,
+    capacity: fields.capacity || undefined, warranty: fields.warranty || undefined,
+    shortLabel: fields.shortLabel || undefined
+  });
+  Object.keys(p.attrs).forEach(k => { if (p.attrs[k] == null || p.attrs[k] === '') delete p.attrs[k]; });
+  return p;
+}
 function openModal(type, extra) {
   const overlay = document.getElementById('modalOverlay');
   const content = document.getElementById('modalContent');
@@ -12812,8 +13810,8 @@ function openModal(type, extra) {
       <div class="field"><label>${t('category')}</label>
         ${getCategoryCheckboxesHTML([])}
       </div>
-      <div class="field"><label>${t('price')}</label><input id="mPrice" type="number" value="10000"></div>
-      <div class="field"><label>${t('stockLabel')}</label><input id="mStock" type="number" value="20"></div>
+      <div class="field"><label>${t('price')}</label><input id="mPrice" type="number" placeholder="0"></div>
+      <div class="field"><label>${t('stockLabel')}</label><input id="mStock" type="number" placeholder="0" value="0"></div>
       <div class="field"><label>${t('iconEmoji')}</label><input id="mIcon" value="📦" maxlength="4"></div>
       <div class="field"><label>${lang==='en'?'Delivery zones':'Zones de livraison'}</label>
         <p style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${lang==='en'?'Where this product can be delivered':'Où ce produit peut être livré'}</p>
@@ -12821,6 +13819,7 @@ function openModal(type, extra) {
       </div>
       ${getProductCodFieldHTML(null)}
       ${productImagesFieldHTML([])}
+      ${typeof getProductCardFieldsHTML === 'function' ? getProductCardFieldsHTML(null) : ''}
       <button class="btn btn-accent btn-block" onclick="addProduct('${shopId}')">${t('createProduct')}</button>`;
   }
 
@@ -12833,13 +13832,14 @@ function openModal(type, extra) {
       <div class="field"><label>${t('category')}</label>
         ${getCategoryCheckboxesHTML([])}
       </div>
-      <div class="field"><label>${t('price')}</label><input id="mPrice" type="number" value="5000"></div>
-      <div class="field"><label>${t('stockLabel')}</label><input id="mStock" type="number" value="50"></div>
+      <div class="field"><label>${t('price')}</label><input id="mPrice" type="number" placeholder="0"></div>
+      <div class="field"><label>${t('stockLabel')}</label><input id="mStock" type="number" placeholder="0" value="0"></div>
       <div class="field"><label>${t('iconEmoji')}</label><input id="mIcon" value="📦" maxlength="4"></div>
       <div class="field"><label>${lang==='en'?'Delivery zones':'Zones de livraison'}</label>
         ${getProductZonesCheckboxesHTML([])}
       </div>
       ${productImagesFieldHTML([])}
+      ${typeof getProductCardFieldsHTML === 'function' ? getProductCardFieldsHTML(null) : ''}
       <button class="btn btn-accent btn-block" onclick="addProduct('${extra}')">${t('createProduct')}</button>`;
   }
 
@@ -12864,6 +13864,7 @@ function openModal(type, extra) {
       </div>
       ${getProductCodFieldHTML(p)}
       ${productImagesFieldHTML(getProductImages(p))}
+      ${typeof getProductCardFieldsHTML === 'function' ? getProductCardFieldsHTML(p) : ''}
       <button class="btn btn-accent btn-block" onclick="saveProduct('${p.id}')">${t('save')}</button>
       <button class="btn btn-danger btn-block" style="margin-top:8px" onclick="deleteProduct('${p.id}')">${t('deleteProduct')}</button>`;
   }
@@ -14102,7 +15103,8 @@ async function addProduct(shopIdOverride) {
     const newId = 'p' + Date.now();
     const description = (document.getElementById('mDesc')?.value || '').trim();
     const deliveryZones = typeof getSelectedProductZonesFromForm === 'function' ? getSelectedProductZonesFromForm() : [];
-    data.products.push({
+    const cardFields = (typeof getProductCardFieldsFromForm === 'function') ? getProductCardFieldsFromForm() : {};
+    const newProduct = {
       id: newId,
       shopId,
       ownerId: currentUser.id,
@@ -14122,7 +15124,9 @@ async function addProduct(shopIdOverride) {
       image: cover,
       images: imgs.length ? imgs : (cover ? [cover] : []),
       codEnabled: (typeof getProductCodFromForm === 'function') ? getProductCodFromForm() : null
-    });
+    };
+    if (typeof applyProductCardFieldsToProduct === 'function') applyProductCardFieldsToProduct(newProduct, cardFields);
+    data.products.push(newProduct);
     try { invalidateProductSearchCache(); } catch (e) {}
 
     // IMPORTANT : IndexedDB est désactivé dans cette version.
@@ -14182,6 +15186,9 @@ async function saveProduct(id) {
     p.cats = [p.cat];
     p.hashtags = (typeof getProductHashtagsFromForm === 'function') ? getProductHashtagsFromForm() : [];
     if (typeof getProductCodFromForm === 'function') p.codEnabled = getProductCodFromForm();
+    if (typeof getProductCardFieldsFromForm === 'function' && typeof applyProductCardFieldsToProduct === 'function') {
+      applyProductCardFieldsToProduct(p, getProductCardFieldsFromForm());
+    }
     p.price = parseInt(document.getElementById('mPrice')?.value, 10) || p.price;
     p.stock = parseInt(document.getElementById('mStock')?.value, 10);
     if (isNaN(p.stock)) p.stock = 0;
@@ -16639,6 +17646,94 @@ const INTERACT_KEY = 'allora_interactions';
 const RECENT_PURCHASE_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_INTERACT_EVENTS = 400;
 
+
+// ===== VUES PRODUIT (Supabase only — product_views) =====
+window._productViewCounts = window._productViewCounts || {}; // productId -> count
+
+async function loadProductViewCounts() {
+  if (!(typeof USE_SUPABASE !== 'undefined' && USE_SUPABASE && sb)) {
+    window._productViewCounts = {};
+    return;
+  }
+  try {
+    // Agrégat : une ligne par (product_id, user_id) ou table de compteurs
+    const res = await sb.from('product_view_counts').select('product_id, view_count');
+    if (res.error) {
+      // Fallback: compter depuis product_views
+      const res2 = await sb.from('product_views').select('product_id');
+      if (res2.error) { console.warn('[Allo] load views', res2.error); return; }
+      const map = {};
+      (res2.data || []).forEach(r => {
+        const id = String(r.product_id);
+        map[id] = (map[id] || 0) + 1;
+      });
+      window._productViewCounts = map;
+      return;
+    }
+    const map = {};
+    (res.data || []).forEach(r => {
+      map[String(r.product_id)] = Number(r.view_count) || 0;
+    });
+    window._productViewCounts = map;
+  } catch (e) { console.warn('[Allo] loadProductViewCounts', e); }
+}
+
+function getProductViewCount(productId) {
+  return Number((window._productViewCounts || {})[String(productId)]) || 0;
+}
+
+/** Enregistre une vue côté serveur (idempotent par session courte via debounce) */
+const _viewDebounce = {};
+async function recordProductView(productId, shopId) {
+  if (!productId) return;
+  if (!(typeof USE_SUPABASE !== 'undefined' && USE_SUPABASE && sb)) return;
+  if (!currentUser || !alloUuid(currentUser.id)) return;
+  if (!alloUuid(productId)) return;
+  const key = String(productId);
+  const now = Date.now();
+  if (_viewDebounce[key] && (now - _viewDebounce[key]) < 60000) return; // max 1 vue / min / produit / client
+  _viewDebounce[key] = now;
+  try {
+    const row = {
+      product_id: productId,
+      user_id: currentUser.id,
+      shop_id: shopId && alloUuid(shopId) ? shopId : null,
+      viewed_at: new Date().toISOString()
+    };
+    const res = await sb.from('product_views').insert(row);
+    if (res.error) {
+      console.warn('[Allo] product_views insert', res.error);
+      return;
+    }
+    window._productViewCounts[key] = (window._productViewCounts[key] || 0) + 1;
+  } catch (e) { console.warn('[Allo] recordProductView', e); }
+}
+
+let _viewsRealtimeChannel = null;
+function startViewsRealtime() {
+  if (!(typeof USE_SUPABASE !== 'undefined' && USE_SUPABASE && sb)) return;
+  try {
+    if (_viewsRealtimeChannel) { try { sb.removeChannel(_viewsRealtimeChannel); } catch (_) {} }
+  } catch (_) {}
+  _viewsRealtimeChannel = sb.channel('allo-views-' + Date.now())
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'product_views' }, function(payload) {
+      try {
+        const pid = payload.new && payload.new.product_id;
+        if (!pid) return;
+        const key = String(pid);
+        window._productViewCounts[key] = (window._productViewCounts[key] || 0) + 1;
+      } catch (e) {}
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'product_view_counts' }, function(payload) {
+      try {
+        if (payload.new && payload.new.product_id) {
+          window._productViewCounts[String(payload.new.product_id)] = Number(payload.new.view_count) || 0;
+        }
+      } catch (e) {}
+    })
+    .subscribe();
+}
+
 function loadUserInteractions() {
   if (USE_SUPABASE && window._alloRemoteInteractions) return window._alloRemoteInteractions;
   try {
@@ -16686,6 +17781,9 @@ function trackInteraction(type, payload) {
     const q = payload && payload.q ? String(payload.q).trim().toLowerCase() : null;
 
     if (type === 'view' && pid) {
+      // Compteur global = Supabase product_views (source de vérité)
+      try { recordProductView(pid, shopId); } catch (_) {}
+      // ix.views reste un signal de reco perso (app_records), pas le compteur affiché
       const v = ix.views[pid] || { count: 0, lastAt: 0 };
       v.count += 1; v.lastAt = now; ix.views[pid] = v;
       if (shopId) {
