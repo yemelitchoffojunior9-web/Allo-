@@ -1941,6 +1941,269 @@ nav.bottom, #bottomNav {
 }
 
 
+
+/* ===== ADMIN CLASSEMENT UTILISATEURS (style DLS) ===== */
+.admin-rank-wrap { display: flex; flex-direction: column; gap: 12px; }
+.admin-rank-panel { display: flex; gap: 10px; flex-wrap: wrap; }
+.admin-rank-xp {
+  flex: 1; min-width: 140px;
+  background: linear-gradient(160deg, #1e5bb8 0%, #0d3a7a 55%, #0a2a58 100%);
+  border: 1.5px solid rgba(100,160,255,.45);
+  border-radius: 14px; padding: 14px 12px;
+  box-shadow: 0 6px 20px rgba(0,40,120,.35), inset 0 1px 0 rgba(255,255,255,.12);
+  text-align: center; position: relative; overflow: hidden;
+}
+.admin-rank-xp::before {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(ellipse 80% 60% at 50% -20%, rgba(120,180,255,.25), transparent 60%);
+  pointer-events: none;
+}
+.admin-rank-xp .xr-title { font-size: 13px; font-weight: 800; letter-spacing: 1px; color: #c8e0ff; text-transform: uppercase; position: relative; z-index: 1; }
+.admin-rank-xp .xr-val { font-family: 'JetBrains Mono', monospace; font-size: 26px; font-weight: 800; color: #FBBF24; margin-top: 4px; text-shadow: 0 0 18px rgba(251,191,36,.4); position: relative; z-index: 1; }
+.admin-rank-xp .xr-sub { font-size: 10px; color: rgba(200,220,255,.75); margin-top: 4px; text-transform: uppercase; letter-spacing: .4px; position: relative; z-index: 1; }
+.admin-rank-stat { flex: 1; min-width: 70px; background: linear-gradient(165deg, rgba(26,26,40,.95), rgba(18,18,28,.98)); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 10px 8px; text-align: center; }
+.admin-rank-stat b { display: block; font-family: 'JetBrains Mono', monospace; font-size: 15px; color: var(--accent-bright); }
+.admin-rank-stat span { font-size: 9px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .3px; }
+.admin-rank-table {
+  background: linear-gradient(180deg, #1a3a5c 0%, #122a44 40%, #0e2035 100%);
+  border: 1.5px solid rgba(100,150,200,.35); border-radius: 16px; overflow: hidden;
+  box-shadow: 0 8px 28px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.06);
+}
+.admin-rank-table .art-head {
+  display: grid; grid-template-columns: 36px minmax(0,1.4fr) 56px 70px 58px; gap: 4px; align-items: center;
+  padding: 10px 8px 8px; background: rgba(0,0,0,.25); border-bottom: 1px solid rgba(100,150,200,.25);
+  font-size: 10px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: rgba(180,210,240,.85);
+}
+.admin-rank-row {
+  display: grid; grid-template-columns: 36px minmax(0,1.4fr) 56px 70px 58px; gap: 4px; align-items: center;
+  padding: 10px 8px; border-bottom: 1px solid rgba(100,150,200,.12); transition: background .15s;
+}
+.admin-rank-row:last-child { border-bottom: none; }
+.admin-rank-row:hover { background: rgba(80,140,220,.12); }
+.admin-rank-row.top1 { background: linear-gradient(90deg, rgba(251,191,36,.18), transparent 70%); }
+.admin-rank-row.top2 { background: linear-gradient(90deg, rgba(192,200,220,.14), transparent 70%); }
+.admin-rank-row.top3 { background: linear-gradient(90deg, rgba(205,127,50,.16), transparent 70%); }
+.art-pos { font-family: 'JetBrains Mono', monospace; font-weight: 800; font-size: 13px; color: #c8d8f0; text-align: center; display: flex; align-items: center; justify-content: center; }
+.art-pos .medal { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 900; color: #1a1200; box-shadow: 0 2px 8px rgba(0,0,0,.35); }
+.art-pos .medal.m1 { background: linear-gradient(145deg, #FBBF24, #D97706); }
+.art-pos .medal.m2 { background: linear-gradient(145deg, #e8eef8, #94a3b8); color: #1e293b; }
+.art-pos .medal.m3 { background: linear-gradient(145deg, #d4a574, #a16207); }
+.art-player { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.art-player .av {
+  width: 40px; height: 40px; border-radius: 11px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 14px; color: #fff;
+  background: linear-gradient(135deg, var(--accent), var(--cyan));
+  border: 1.5px solid rgba(180,200,255,.35); overflow: hidden;
+  cursor: pointer; transition: transform .15s, box-shadow .15s;
+}
+.art-player .av:hover { transform: scale(1.06); box-shadow: 0 0 0 2px rgba(139,92,246,.45); }
+.art-player .av img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
+.art-player .info { min-width: 0; flex: 1; }
+.art-player .nm {
+  font-size: 13.5px; font-weight: 800; color: #f2f6ff;
+  white-space: normal; overflow: hidden; text-overflow: ellipsis;
+  line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  word-break: break-word;
+}
+.art-player .rl {
+  font-size: 10px; font-weight: 700; margin-top: 2px;
+  color: rgba(160,190,230,.85); text-transform: uppercase; letter-spacing: .3px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.admin-rank-breakdown {
+  display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; justify-content: center;
+  position: relative; z-index: 1;
+}
+.admin-rank-breakdown span {
+  font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 100px;
+  background: rgba(0,0,0,.28); color: rgba(200,220,255,.9);
+  border: 1px solid rgba(100,160,255,.25);
+}
+.art-xp { font-family: 'JetBrains Mono', monospace; font-size: 11.5px; font-weight: 800; color: #FBBF24; text-align: right; display: flex; align-items: center; justify-content: flex-end; gap: 3px; }
+.art-xp .xp-ico { width: 14px; height: 14px; border-radius: 50%; background: linear-gradient(145deg, #FBBF24, #D97706); color: #1a1200; font-size: 8px; font-weight: 900; display: inline-flex; align-items: center; justify-content: center; }
+.art-reward { font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; color: #7CFC9A; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.art-actions { display: flex; gap: 3px; justify-content: flex-end; }
+.art-actions .btn { padding: 5px 7px !important; font-size: 12px !important; min-width: 28px; }
+.admin-rank-search { width: 100%; margin-bottom: 4px; }
+.admin-rank-filters { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+.admin-rank-filters::-webkit-scrollbar { display: none; }
+.admin-rank-filters .cat-chip { flex-shrink: 0; }
+
+/* ===== ACTIVATION / QUOTAS style Match Amical DLS ===== */
+.dll-panel {
+  background: linear-gradient(180deg, #3a5a7a 0%, #2a4560 35%, #1e3448 100%);
+  border: 1.5px solid rgba(120,170,220,.4);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 10px 32px rgba(0,20,50,.45), inset 0 1px 0 rgba(255,255,255,.1);
+  margin-bottom: 12px;
+}
+.dll-title {
+  text-align: center;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+  color: #e8f4ff;
+  padding: 14px 12px 10px;
+  text-shadow: 0 2px 8px rgba(0,0,0,.35);
+  background: linear-gradient(180deg, rgba(255,255,255,.08), transparent);
+}
+.dll-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 10px 10px;
+}
+.dll-tab {
+  flex: 1;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 6px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .3px;
+  text-transform: uppercase;
+  cursor: pointer;
+  background: linear-gradient(180deg, #2a4060 0%, #1a2c44 100%);
+  color: rgba(180,210,240,.7);
+  border: 1px solid rgba(100,140,180,.3);
+  transition: all .15s;
+}
+.dll-tab.active {
+  background: linear-gradient(180deg, #3a7ab8 0%, #1e5a98 100%);
+  color: #fff;
+  border-color: rgba(140,190,255,.55);
+  box-shadow: 0 4px 14px rgba(30,90,180,.4), inset 0 1px 0 rgba(255,255,255,.2);
+}
+.dll-body { padding: 4px 10px 12px; }
+.dll-row {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: 10px;
+  align-items: center;
+  background: linear-gradient(90deg, rgba(20,40,60,.55), rgba(30,55,80,.35));
+  border: 1px solid rgba(100,150,200,.22);
+  border-radius: 12px;
+  padding: 10px;
+  margin-bottom: 8px;
+  position: relative;
+}
+.dll-row.current {
+  border-color: rgba(52,211,153,.45);
+  box-shadow: 0 0 0 1px rgba(52,211,153,.15), inset 0 0 20px rgba(52,211,153,.06);
+}
+.dll-row.locked-row {
+  border-color: rgba(248,113,113,.35);
+}
+.dll-badge {
+  width: 52px; height: 52px;
+  border-radius: 12px;
+  background: linear-gradient(160deg, #3a5a9a, #1a3060);
+  border: 2px solid rgba(140,180,255,.45);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px;
+  box-shadow: 0 4px 12px rgba(0,0,0,.3);
+  position: relative;
+  flex-shrink: 0;
+}
+.dll-badge.gold {
+  background: linear-gradient(160deg, #c9a227, #8a6b12);
+  border-color: rgba(255,220,100,.7);
+}
+.dll-badge.green {
+  background: linear-gradient(160deg, #2a7a50, #145030);
+  border-color: rgba(52,211,153,.5);
+}
+.dll-badge.red {
+  background: linear-gradient(160deg, #8a3040, #4a1820);
+  border-color: rgba(248,113,113,.45);
+}
+.dll-badge .lvl {
+  position: absolute; bottom: -4px; right: -4px;
+  background: linear-gradient(145deg, #FBBF24, #D97706);
+  color: #1a1200; font-size: 9px; font-weight: 900;
+  padding: 2px 5px; border-radius: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  box-shadow: 0 2px 6px rgba(0,0,0,.35);
+}
+.dll-main { min-width: 0; }
+.dll-names {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+  margin-bottom: 6px;
+}
+.dll-names .left {
+  font-size: 13px; font-weight: 800; color: #e8f4ff;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.dll-names .right {
+  font-size: 11px; font-weight: 700; color: rgba(180,210,240,.75);
+  white-space: nowrap; flex-shrink: 0;
+}
+.dll-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+.dll-stat {
+  text-align: center;
+  background: rgba(0,0,0,.22);
+  border-radius: 8px;
+  padding: 5px 2px;
+  border: 1px solid rgba(100,150,200,.15);
+}
+.dll-stat .lbl {
+  font-size: 8px; font-weight: 800; letter-spacing: .3px;
+  text-transform: uppercase; color: rgba(160,190,230,.65);
+  margin-bottom: 2px;
+}
+.dll-stat .val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px; font-weight: 800; color: #e8f4ff;
+}
+.dll-stat .val.ok { color: #7CFC9A; }
+.dll-stat .val.warn { color: #FBBF24; }
+.dll-stat .val.bad { color: #F87171; }
+.dll-dot {
+  position: absolute; top: 10px; right: 10px;
+  width: 10px; height: 10px; border-radius: 50%;
+  background: #34D399; box-shadow: 0 0 8px rgba(52,211,153,.6);
+}
+.dll-dot.off { background: #F87171; box-shadow: 0 0 8px rgba(248,113,113,.5); }
+.dll-dot.pending { background: #FBBF24; box-shadow: 0 0 8px rgba(251,191,36,.5); }
+.dll-row-actions {
+  display: flex; gap: 6px; margin-top: 8px; grid-column: 1 / -1;
+}
+.dll-row-actions .btn { flex: 1; font-size: 11px !important; padding: 8px !important; }
+.dll-footer {
+  display: flex; gap: 8px; padding: 10px;
+  background: rgba(0,0,0,.2);
+  border-top: 1px solid rgba(100,150,200,.2);
+}
+.dll-footer .btn { flex: 1; font-weight: 800; }
+.dll-hint {
+  font-size: 11.5px; color: rgba(180,210,240,.7);
+  line-height: 1.4; padding: 0 4px 8px; text-align: center;
+}
+.dll-empty {
+  text-align: center; padding: 20px 10px;
+  color: rgba(180,210,240,.6); font-size: 13px;
+}
+.dll-progress {
+  height: 6px; border-radius: 100px; background: rgba(0,0,0,.35);
+  margin: 8px 0 4px; overflow: hidden;
+  border: 1px solid rgba(100,150,200,.2);
+}
+.dll-progress > i {
+  display: block; height: 100%; border-radius: 100px;
+  background: linear-gradient(90deg, #22D3EE, #8B5CF6, #F472B6);
+  transition: width .3s ease;
+}
+
+
+
+
 .dls-sign-x { background: #e11d48 !important; color: #fff !important; font-weight: 800; z-index: 5; }
 .products-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
@@ -3575,10 +3838,11 @@ nav.bottom,
       <!-- ACCOUNT -->
       <div class="view" id="view-account">
         <div style="display:flex;align-items:center;gap:14px;margin:8px 0 16px">
-          <div class="avatar" id="profileAvatar" style="width:54px;height:54px;font-size:18px">A</div>
-          <div>
+          <div class="avatar" id="profileAvatar" style="width:54px;height:54px;font-size:18px;cursor:pointer" onclick="if(currentUser&&currentUser.avatar_url)openImageLightbox(currentUser.avatar_url)">A</div>
+          <div style="flex:1;min-width:0">
             <h3 id="profileName" style="font-size:16px;margin-bottom:2px">Nom</h3>
             <p id="profileEmail" style="font-size:11.5px;color:var(--text-muted);font-family:'JetBrains Mono',monospace">email</p>
+            <button type="button" class="btn btn-sm btn-ghost" id="btnEditProfile" style="margin-top:8px" onclick="openEditProfile()">✏️ <span id="btnEditProfileLabel">Modifier mon profil</span></button>
           </div>
         </div>
 
@@ -3630,7 +3894,10 @@ nav.bottom,
 
       <!-- ===== SUPER ADMIN VIEWS ===== -->
       <div class="view" id="view-admin-accounts">
-        <div class="section-head"><h2><span class="bar"></span> <span data-i18n="adminAccounts">Comptes</span></h2></div>
+        <div class="section-head"><h2><span class="bar"></span> <span data-i18n="adminAccounts">Classement</span></h2></div>
+        <input type="search" id="adminAccountsSearch" class="admin-search-input admin-rank-search" placeholder="Rechercher un utilisateur…"
+          oninput="renderAdminAccounts()" autocomplete="off">
+        <div class="admin-rank-filters" id="adminAccountsRoleFilter"></div>
         <div id="adminAccountsList"></div>
       </div>
       <div class="view" id="view-admin-certify">
@@ -5096,7 +5363,16 @@ async function sbLoadAllIntoData() {
         (settings.data || []).forEach(s => {
           if (s.key === 'default_commission') adminConfig.defaultCommission = Number(s.value);
           if (s.key === 'deposit_info') data.depositInfo = s.value;
+          if (s.key === 'category_images') {
+            try {
+              const imgs = (typeof s.value === 'string') ? JSON.parse(s.value) : s.value;
+              if (imgs && typeof imgs === 'object') adminConfig.categoryImages = imgs;
+            } catch (e) { console.warn('[Allo] category_images parse', e); }
+          }
         });
+        if (!adminConfig.categoryImages || typeof adminConfig.categoryImages !== 'object') {
+          adminConfig.categoryImages = {};
+        }
         try { applyShopCodFlagsFromSettings(settings.data || []); } catch (e) {}
       }
     } catch (e) {}
@@ -6701,6 +6977,7 @@ function defaultAdminConfig() {
     defaultCommission: 0,
     commissions: {},
     categories: ['Mode', 'Tech', 'Alimentaire', 'Boissons', 'Frais', 'Autres'],
+    categoryImages: {},
     deliveryZones: ['Douala', 'Yaoundé', 'Bafoussam', 'Bamenda', 'Garoua', 'Maroua', 'Ngaoundéré', 'Kribi', 'Limbe', 'Bertoua'],
     commissionRevenue: 0,
     companyActivationRevenue: 0,
@@ -6742,6 +7019,9 @@ function loadAdminConfig() {
       }
       if (!Array.isArray(merged.categories) || !merged.categories.length) {
         merged.categories = defaults.categories;
+      }
+      if (!merged.categoryImages || typeof merged.categoryImages !== 'object') {
+        merged.categoryImages = {};
       }
       if (!Array.isArray(merged.deliveryZones) || !merged.deliveryZones.length) {
         merged.deliveryZones = defaults.deliveryZones;
@@ -6805,6 +7085,71 @@ async function refreshProfilesFromSupabase() {
   }
 }
 
+/**
+ * Tags multi-espaces d'un compte pour le classement admin.
+ * Un même utilisateur peut apparaître dans plusieurs filtres :
+ * utilisateur + boutique, utilisateur + entreprise, client, employé, etc.
+ */
+function getAccountTags(u) {
+  const tags = new Set();
+  if (!u) return ['user'];
+  const uid = String(u.id || '');
+  const raw = String(u.role || 'user');
+
+  // Tout profil non-admin est aussi un « utilisateur » de base
+  if (raw !== 'admin') tags.add('user');
+
+  if (raw === 'boutique') tags.add('boutique');
+  if (raw === 'entreprise') tags.add('entreprise');
+  if (raw === 'client') tags.add('client');
+  if (raw === 'employe') tags.add('employe');
+
+  const shopId = u.shopId || u.shop_id || null;
+  const companyId = u.companyId || u.company_id || null;
+
+  if (companyId) tags.add('entreprise');
+  if (shopId) {
+    const sh = (data.shops || []).find(s => String(s.id) === String(shopId));
+    if (sh && (sh.isCompanyCatalog || sh.companyId || sh.private === true)) tags.add('entreprise');
+    else tags.add('boutique');
+  }
+
+  if (uid) {
+    if ((data.companies || []).some(c => String(c.ownerId || '') === uid)) tags.add('entreprise');
+    if ((data.shops || []).some(s => {
+      if (String(s.ownerId || '') !== uid) return false;
+      if (s.isCompanyCatalog || s.companyId || s.private === true) return false;
+      return true;
+    })) tags.add('boutique');
+
+    // Espace client (plusieurs entreprises possibles)
+    if ((data.clients || []).some(c => String(c.id) === uid || String(c.clientId || '') === uid)) {
+      tags.add('client');
+    }
+    // Espace employé
+    if ((data.employeeMemberships || []).some(m => m.isActive !== false && String(m.userId || '') === uid)) {
+      tags.add('employe');
+    }
+  }
+
+  if (!tags.size) tags.add('user');
+  return Array.from(tags);
+}
+
+/** Rôle principal affiché (priorité métier, tags restent pour les filtres). */
+function getPrimaryAccountRole(tags) {
+  const order = ['entreprise', 'boutique', 'employe', 'client', 'user'];
+  for (const t of order) if (tags && tags.indexOf(t) !== -1) return t;
+  return 'user';
+}
+
+function accountHasTag(a, tag) {
+  if (!a) return false;
+  if (tag === 'all') return true;
+  const tags = a.tags || (a.role ? [a.role] : []);
+  return tags.indexOf(tag) !== -1;
+}
+
 function listAllManagedAccounts() {
   // Source de vérité : registeredUsers (rempli depuis public.profiles en mode Supabase)
   const list = [];
@@ -6813,31 +7158,38 @@ function listAllManagedAccounts() {
     if (!u || !u.id) return;
     if (deleted.includes(String(u.id))) return;
     if (u.role === 'admin') return;
+    const tags = getAccountTags(u);
+    const phone = u.phone || u.identifier || '';
     list.push({
       type: 'user',
       id: u.id,
-      name: u.name || u.full_name || u.identifier || '—',
+      name: u.name || u.full_name || u.identifier || phone || '—',
       email: u.identifier || u.email || '',
-      role: u.role || 'user',
+      phone: phone,
+      role: getPrimaryAccountRole(tags),
+      tags: tags,
+      rawRole: u.role || 'user',
       balance: Number(u.balance || 0),
       wallet: Number(u.wallet || 0),
       shopId: u.shopId || null,
       companyId: u.companyId || null,
+      avatar_url: u.avatar_url || null,
       ref: u
     });
   });
   (data.clients || []).forEach(c => {
     if (!c || !c.id) return;
     if (deleted.includes(String(c.id))) return;
-    // éviter doublon si déjà dans profiles
+    // éviter doublon si déjà dans profiles (déjà taggé « client »)
     if ((registeredUsers || []).some(u => String(u.id) === String(c.id))) return;
     list.push({
       type: 'client',
       id: c.id,
-      name: c.name,
-      phone: c.phone || c.identifiant,
+      name: c.name || c.identifiant || '—',
+      phone: c.phone || c.identifiant || '',
       email: c.identifiant || '',
       role: 'client',
+      tags: ['client'],
       balance: c.balance || 0,
       wallet: 0,
       ref: c,
@@ -7135,9 +7487,9 @@ async function renderAdminAccounts() {
   if (!currentUser || currentUser.role !== 'admin') return;
   const el = document.getElementById('adminAccountsList');
   if (!el) return;
-  el.innerHTML = `<div class="empty" style="opacity:.7">Chargement des comptes (Supabase)…</div>`;
-
-  // Toujours recharger public.profiles (pas alloEphemeralStorage)
+  if (!window._adminAccountsLoadedOnce) {
+    el.innerHTML = `<div class="empty" style="opacity:.7">${lang==='en'?'Loading accounts…':'Chargement des comptes…'}</div>`;
+  }
   if (typeof USE_SUPABASE !== 'undefined' && USE_SUPABASE && sb) {
     const ok = await refreshProfilesFromSupabase();
     if (!ok) {
@@ -7146,25 +7498,140 @@ async function renderAdminAccounts() {
       return;
     }
   }
+  window._adminAccountsLoadedOnce = true;
 
-  const accounts = listAllManagedAccounts();
+  let accounts = listAllManagedAccounts();
+  const orderCount = {};
+  (data.orders || []).forEach(o => {
+    if (!o || !o.userId) return;
+    const uid = String(o.userId);
+    orderCount[uid] = (orderCount[uid] || 0) + 1;
+  });
+  accounts = accounts.map(a => {
+    const bal = Number(a.wallet || a.balance || 0);
+    const orders = orderCount[String(a.id)] || 0;
+    return Object.assign({}, a, { _orders: orders, _bal: bal, _score: orders * 10000 + Math.min(bal, 999999) });
+  }).sort((x, y) => y._score - x._score || String(x.name||'').localeCompare(String(y.name||''), 'fr'));
+
+  const roleFilterEl = document.getElementById('adminAccountsRoleFilter');
+  const activeRole = window._adminAccountsRole || 'all';
+  if (roleFilterEl) {
+    const roles = ['all', 'user', 'boutique', 'entreprise', 'client', 'employe'];
+    const labels = lang === 'en'
+      ? { all: 'All', user: 'Users', boutique: 'Shops', entreprise: 'Companies', client: 'Clients', employe: 'Staff' }
+      : { all: 'Tous', user: 'Utilisateurs', boutique: 'Boutiques', entreprise: 'Entreprises', client: 'Clients', employe: 'Employés' };
+    roleFilterEl.innerHTML = roles.map(r => {
+      // Multi-appartenance : un compte boutique compte aussi dans Utilisateurs, etc.
+      const n = r === 'all' ? accounts.length : accounts.filter(a => accountHasTag(a, r)).length;
+      return `<button type="button" class="cat-chip ${activeRole===r?'active':''}" onclick="window._adminAccountsRole='${r}';renderAdminAccounts()">${labels[r]} (${n})</button>`;
+    }).join('');
+  }
+  if (activeRole && activeRole !== 'all') accounts = accounts.filter(a => accountHasTag(a, activeRole));
+
+  const q = (document.getElementById('adminAccountsSearch')?.value || '').trim().toLowerCase();
+  if (q) {
+    accounts = accounts.filter(a =>
+      String(a.name||'').toLowerCase().includes(q) ||
+      String(a.email||'').toLowerCase().includes(q) ||
+      String(a.role||'').toLowerCase().includes(q) ||
+      String((a.tags||[]).join(' ')).toLowerCase().includes(q) ||
+      String(a.phone||'').toLowerCase().includes(q)
+    );
+  }
+
   if (!accounts.length) {
     el.innerHTML = `<div class="empty">${t('adminNoAccounts')}<br>
-      <span style="font-size:12px;color:var(--text-muted)">Table profiles vide ou RLS bloque la lecture.</span></div>`;
+      <span style="font-size:12px;color:var(--text-muted)">${lang==='en'?'No accounts match.':'Aucun compte correspondant.'}</span></div>`;
     return;
   }
-  el.innerHTML = accounts.map(a => `
-    <div class="list-row">
-      <div class="avatar">${(a.name||'?').charAt(0).toUpperCase()}</div>
-      <div class="c-info">
-        <div class="c-name">${a.name}</div>
-        <div class="c-sub">${a.email} · <b>${a.role}</b> · ${formatMoney(a.balance || a.wallet || 0)}</div>
+
+  const roleLabels = lang === 'en' ? ROLE_LABELS_EN : ROLE_LABELS;
+  const allAcc = listAllManagedAccounts();
+  const totalUsers = allAcc.length;
+  const countUser = allAcc.filter(a => accountHasTag(a, 'user')).length;
+  const countBoutique = allAcc.filter(a => accountHasTag(a, 'boutique')).length;
+  const countEntreprise = allAcc.filter(a => accountHasTag(a, 'entreprise')).length;
+  const countClient = allAcc.filter(a => accountHasTag(a, 'client')).length;
+  const countEmploye = allAcc.filter(a => accountHasTag(a, 'employe')).length;
+  const totalOrders = (data.orders || []).length;
+  const totalBal = allAcc.reduce((s, a) => s + Number(a.wallet || a.balance || 0), 0);
+
+  const rows = accounts.map((a, i) => {
+    const pos = i + 1;
+    const topClass = pos === 1 ? 'top1' : (pos === 2 ? 'top2' : (pos === 3 ? 'top3' : ''));
+    let posHtml = String(pos);
+    if (pos === 1) posHtml = '<span class="medal m1">1</span>';
+    else if (pos === 2) posHtml = '<span class="medal m2">2</span>';
+    else if (pos === 3) posHtml = '<span class="medal m3">3</span>';
+    const ref = a.ref || {};
+    const photo = ref.avatar_url || a.avatar_url || ref.photo || ref.avatar || ref.profilePhoto || '';
+    const displayName = String(a.name || ref.name || ref.full_name || a.email || a.phone || '—').replace(/</g, '');
+    const phone = String(a.phone || ref.phone || ref.identifier || a.email || '').replace(/</g, '');
+    const initial = displayName.charAt(0).toUpperCase() || '?';
+    const avInner = photo
+      ? `<img src="${String(photo).replace(/"/g,'&quot;')}" alt="${displayName.replace(/"/g,'&quot;')}">`
+      : initial;
+    const avClick = photo
+      ? `onclick="event.stopPropagation();openImageLightbox('${String(photo).replace(/'/g,"\\'").replace(/"/g,'&quot;')}')" title="${lang==='en'?'View photo':'Voir la photo'}"`
+      : '';
+    const safeType = String(a.type||'user').replace(/'/g,"\\'");
+    const safeId = String(a.id||'').replace(/'/g,"\\'");
+    const tagList = (a.tags && a.tags.length) ? a.tags : [a.role || 'user'];
+    // Afficher tous les espaces : Utilisateur · Boutique · Client…
+    const roleTxt = tagList.map(tg => roleLabels[tg] || String(tg || '').toUpperCase()).join(' · ');
+    const phoneLine = phone
+      ? `<div class="rl phone" style="color:#7CFC9A;text-transform:none;letter-spacing:0;font-family:'JetBrains Mono',monospace;font-size:10.5px;margin-top:1px">📞 ${phone}</div>`
+      : '';
+    return `<div class="admin-rank-row ${topClass}">
+      <div class="art-pos">${posHtml}</div>
+      <div class="art-player">
+        <div class="av" ${avClick} role="button" tabindex="0">${avInner}</div>
+        <div class="info">
+          <div class="nm" title="${displayName}">${displayName}</div>
+          <div class="rl" title="${roleTxt}">${roleTxt}</div>
+          ${phoneLine}
+        </div>
       </div>
-      <div style="display:flex;gap:4px;flex-shrink:0">
-        <button class="btn btn-sm btn-cyan" onclick="adminCreditAccount('${a.type}','${a.id}')" title="${t('adminCredit')}">💰</button>
-        <button class="btn btn-sm btn-danger" onclick="adminDeleteAccount('${a.type}','${a.id}')" title="${t('adminDelete')}">🗑</button>
+      <div class="art-xp"><span class="xp-ico">★</span>${a._orders}</div>
+      <div class="art-reward">${formatMoney(a._bal)}</div>
+      <div class="art-actions">
+        <button class="btn btn-sm btn-cyan" onclick="adminCreditAccount('${safeType}','${safeId}')" title="${t('adminCredit')}">💰</button>
+        <button class="btn btn-sm btn-danger" onclick="adminDeleteAccount('${safeType}','${safeId}')" title="${t('adminDelete')}">🗑</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
+
+  const breakdownHtml = `
+    <div class="admin-rank-breakdown">
+      <span>${lang==='en'?'Users':'Utilisateurs'} ${countUser}</span>
+      <span>${lang==='en'?'Shops':'Boutiques'} ${countBoutique}</span>
+      <span>${lang==='en'?'Companies':'Entreprises'} ${countEntreprise}</span>
+      ${countClient ? `<span>${lang==='en'?'Clients':'Clients'} ${countClient}</span>` : ''}
+      ${countEmploye ? `<span>${lang==='en'?'Staff':'Employés'} ${countEmploye}</span>` : ''}
+    </div>`;
+
+  el.innerHTML = `
+    <div class="admin-rank-wrap">
+      <div class="admin-rank-panel">
+        <div class="admin-rank-xp">
+          <div class="xr-title">${lang==='en'?'ACCOUNTS':'COMPTES'}</div>
+          <div class="xr-val">${totalUsers}</div>
+          <div class="xr-sub">${lang==='en'?'Active accounts':'Comptes actifs'}</div>
+          ${breakdownHtml}
+        </div>
+        <div class="admin-rank-stat"><b>${totalOrders}</b><span>${lang==='en'?'Orders':'Commandes'}</span></div>
+        <div class="admin-rank-stat"><b>${formatMoney(totalBal)}</b><span>${lang==='en'?'Total bal.':'Soldes'}</span></div>
+      </div>
+      <div class="admin-rank-table">
+        <div class="art-head">
+          <div>POS</div><div>${lang==='en'?'PLAYER':'JOUEUR'}</div>
+          <div style="text-align:right">${lang==='en'?'ORDERS':'CMD'}</div>
+          <div style="text-align:right">${lang==='en'?'BALANCE':'SOLDE'}</div>
+          <div></div>
+        </div>
+        ${rows}
+      </div>
+    </div>`;
 }
 
 async function adminCreditAccount(type, id) {
@@ -7484,16 +7951,30 @@ function renderAdminCategories() {
   if (title) title.textContent = t('adminCategories');
   const addBtn = document.getElementById('adminCatAddBtn');
   if (addBtn) addBtn.textContent = lang === 'en' ? '+ Category' : '+ Catégorie';
+  if (!adminConfig.categoryImages || typeof adminConfig.categoryImages !== 'object') adminConfig.categoryImages = {};
   const cats = getAdminCategories();
   if (!cats.length) {
     el.innerHTML = `<div class="empty">${lang === 'en' ? 'No categories yet' : 'Aucune catégorie'}</div>`;
     return;
   }
-  el.innerHTML = cats.map(c => {
+  const hint = lang === 'en'
+    ? '<p style="font-size:12px;color:var(--text-muted);margin-bottom:10px;line-height:1.4">Only the Super Admin can upload and change category images.</p>'
+    : '<p style="font-size:12px;color:var(--text-muted);margin-bottom:10px;line-height:1.4">Seul le Super Admin peut télécharger et modifier les images des catégories.</p>';
+  el.innerHTML = hint + cats.map(c => {
     const safe = String(c).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    const img = (typeof getCategoryImage === 'function') ? getCategoryImage(c) : (adminConfig.categoryImages[c] || '');
+    const thumb = img
+      ? `<div class="avatar" style="padding:0;overflow:hidden;background:#111"><img src="${String(img).replace(/"/g,'&quot;')}" alt="" style="width:100%;height:100%;object-fit:cover"></div>`
+      : `<div class="avatar">${(typeof catIconFor === 'function' ? catIconFor(c) : '📦')}</div>`;
     return `<div class="list-row">
-      <div class="c-info"><div class="c-name">${tCat(c)}</div></div>
-      <button class="btn btn-sm btn-danger" onclick="adminRemoveCategory('${safe}')" title="${lang==='en'?'Delete':'Supprimer'}">🗑</button>
+      ${thumb}
+      <div class="c-info"><div class="c-name">${tCat(c)}</div>
+        <div class="c-sub">${img ? (lang==='en'?'Image set':'Image définie') : (lang==='en'?'No image':'Pas d’image')}</div>
+      </div>
+      <div class="c-action">
+        <button class="btn btn-sm btn-ghost" onclick="openModal('editCategoryImage','${safe}')" title="${lang==='en'?'Edit image':'Modifier l’image'}">🖼</button>
+        <button class="btn btn-sm btn-danger" onclick="adminRemoveCategory('${safe}')" title="${lang==='en'?'Delete':'Supprimer'}">🗑</button>
+      </div>
     </div>`;
   }).join('');
 }
@@ -7570,10 +8051,18 @@ async function adminRemoveCategory(name) {
   if (USE_SUPABASE && sb) {
     const res = await sbAdminDeleteCategory(name);
     if (res.error) { alert(lang==='en'?'Could not delete category.':'Impossible de supprimer la catégorie.'); return; }
+    try {
+      if (!adminConfig.categoryImages) adminConfig.categoryImages = {};
+      if (adminConfig.categoryImages[name]) {
+        delete adminConfig.categoryImages[name];
+        await persistCategoryImages();
+      }
+    } catch (e) {}
     await sbLoadAllIntoData();
   } else {
     adminConfig.categories = getAdminCategories().filter(c => c !== name);
     if (adminConfig.commissions) delete adminConfig.commissions[name];
+    if (adminConfig.categoryImages && adminConfig.categoryImages[name]) delete adminConfig.categoryImages[name];
     saveAdminConfig();
   }
   renderAdminCategories();
@@ -8256,7 +8745,20 @@ function enterApp() {
   document.getElementById('profileName').textContent = currentUser.name;
   document.getElementById('profileEmail').textContent = currentUser.email || currentUser.phone || 'email';
   const pAvatar = document.getElementById('profileAvatar');
-  if (pAvatar) { pAvatar.innerHTML = currentUser.avatar_url ? `<img class="profile-avatar-img" src="${String(currentUser.avatar_url).replace(/"/g,'&quot;')}" alt="">` : currentUser.name.charAt(0).toUpperCase(); }
+  if (pAvatar) {
+    pAvatar.innerHTML = currentUser.avatar_url
+      ? `<img class="profile-avatar-img" src="${String(currentUser.avatar_url).replace(/"/g,'&quot;')}" alt="">`
+      : currentUser.name.charAt(0).toUpperCase();
+    pAvatar.style.cursor = currentUser.avatar_url ? 'pointer' : 'default';
+  }
+  const btnEdit = document.getElementById('btnEditProfile');
+  const btnEditLbl = document.getElementById('btnEditProfileLabel');
+  if (btnEdit) {
+    btnEdit.style.display = (currentUser.role === 'admin') ? 'none' : '';
+  }
+  if (btnEditLbl) {
+    btnEditLbl.textContent = lang === 'en' ? 'Edit my profile' : 'Modifier mon profil';
+  }
 
   // Welcome text per role
   const subs = {
@@ -8360,6 +8862,10 @@ function buildSidebarNav() {
       { view: 'orders', label: 'Mes commandes', ico: '📋' },
       { view: 'promos', label: 'Faire une promo', ico: '🏷' },
       { view: 'promos', label: 'Mes promotions', ico: '🔥' },
+      { view: 'wallet', label: 'Solde / Portefeuille', ico: '💰' },
+      { view: 'topups', label: 'Recharges', ico: '➕' },
+      { view: 'withdraws', label: 'Retraits', ico: '📤' },
+      { view: 'transactions', label: 'Transactions', ico: '📜' },
       { view: 'company-activation', label: 'Activation & formules', ico: '🔑' },
       { view: 'analytics', label: t('analytics'), ico: '📊' },
       { view: 'messages', label: t('messages'), ico: '💬' },
@@ -8482,8 +8988,8 @@ function buildNav() {
     items = [
       { view: 'home', label: t('home'), icon: icons.home },
       { view: 'clients', label: t('clients'), icon: icons.clients },
-      { view: 'employees', label: t('employees'), icon: icons.clients },
       { view: 'orders', label: t('orders'), icon: icons.orders },
+      { view: 'wallet', label: t('wallet'), icon: icons.cart },
       { view: 'account', label: t('account'), icon: icons.account }
     ];
   } else if (role === 'employe') {
@@ -9036,6 +9542,76 @@ function getCategoryImage(name) {
       return String(adminConfig.categoryImages[name] || '');
   } catch (_) {}
   return '';
+}
+
+async function persistCategoryImages() {
+  if (!adminConfig.categoryImages || typeof adminConfig.categoryImages !== 'object') adminConfig.categoryImages = {};
+  try { saveAdminConfig(); } catch (e) {}
+  if (typeof USE_SUPABASE !== 'undefined' && USE_SUPABASE && sb && typeof sbAdminSetSetting === 'function') {
+    try {
+      const res = await sbAdminSetSetting('category_images', JSON.stringify(adminConfig.categoryImages));
+      if (res && res.error) console.warn('[Allo] category_images save', res.error);
+    } catch (e) { console.warn('[Allo] persistCategoryImages', e); }
+  }
+}
+
+async function previewCategoryImage(input) {
+  const prev = document.getElementById('mCatImagePreview');
+  if (!prev || !input.files || !input.files[0]) return;
+  const file = input.files[0];
+  try {
+    if (file.size > 8 * 1024 * 1024) {
+      alert(lang === 'en' ? 'File too large (max 8 MB)' : 'Fichier trop lourd (max 8 Mo)');
+      input.value = ''; return;
+    }
+    const dataUrl = (typeof compressImageFile === 'function')
+      ? await compressImageFile(file, 720, 0.72)
+      : await new Promise((resolve, reject) => {
+          const r = new FileReader();
+          r.onload = () => resolve(r.result);
+          r.onerror = reject;
+          r.readAsDataURL(file);
+        });
+    prev.style.backgroundImage = "url('" + String(dataUrl).replace(/'/g, "\\'") + "')";
+    prev.style.backgroundSize = 'cover';
+    prev.style.backgroundPosition = 'center';
+    prev.dataset.base64 = dataUrl;
+    window._pendingCatImageBase64 = dataUrl;
+    prev.innerHTML = '';
+  } catch (e) {
+    console.warn('previewCategoryImage', e);
+    alert(lang === 'en' ? 'Could not read image' : "Impossible de lire l'image");
+  }
+}
+
+async function saveCategoryImage() {
+  if (!currentUser || currentUser.role !== 'admin') return;
+  const name = (document.getElementById('mCatImageName')?.value || '').trim();
+  if (!name) return;
+  const prev = document.getElementById('mCatImagePreview');
+  const dataUrl = (prev && prev.dataset && prev.dataset.base64) || window._pendingCatImageBase64 || '';
+  if (!dataUrl) {
+    alert(lang === 'en' ? 'Choose an image first' : 'Choisissez d’abord une image');
+    return;
+  }
+  if (!adminConfig.categoryImages || typeof adminConfig.categoryImages !== 'object') adminConfig.categoryImages = {};
+  adminConfig.categoryImages[name] = dataUrl;
+  await persistCategoryImages();
+  closeModal();
+  renderAdminCategories();
+  alert(lang === 'en' ? 'Category image saved' : 'Image de catégorie enregistrée');
+}
+
+async function removeCategoryImage() {
+  if (!currentUser || currentUser.role !== 'admin') return;
+  const name = (document.getElementById('mCatImageName')?.value || '').trim();
+  if (!name) return;
+  if (!confirm(lang === 'en' ? 'Remove this category image?' : 'Supprimer l’image de cette catégorie ?')) return;
+  if (!adminConfig.categoryImages || typeof adminConfig.categoryImages !== 'object') adminConfig.categoryImages = {};
+  delete adminConfig.categoryImages[name];
+  await persistCategoryImages();
+  closeModal();
+  renderAdminCategories();
 }
 function catIconFor(name) {
   const n = String(name || '').toLowerCase();
@@ -10499,7 +11075,7 @@ function renderCart() {
     <div class="amount">${formatMoney(finalTotal)}</div>
     ${discount ? `<div style="font-size:11px;color:var(--text-muted);text-decoration:line-through">${formatMoney(grand)}</div>` : ''}
   </div>`;
-  if (currentUser && currentUser.role !== 'client') {
+  if (currentUser) {
     html += `<p style="font-size:11px;color:var(--text-muted);text-align:center;margin-bottom:8px">${t('escrowHold')}</p>`;
   }
   html += `<button class="btn btn-accent btn-block" onclick="validateCart()">${groups.length > 1 ? t('payAllInvoices') : t('validateOrder')}</button>`;
@@ -10524,15 +11100,8 @@ async function validateCart() {
     }
     total += (typeof getEffectivePriceForBuyer==='function'?getEffectivePriceForBuyer(p,(item.variantId&&p.variants)?p.variants.find(v=>v.id===item.variantId):null):p.price) * item.qty;
   }
-  // Client entreprise : commande gratuite, sans paiement ni code de validation
-  if (currentUser.role === 'client') {
-    window._checkoutTotal = total;
-    window._payMethod = 'company_free';
-    // Libérer le verrou avant confirmCheckout (qui gère son propre busy)
-    setModalActionBusy(false);
-    await confirmCheckout();
-    return;
-  }
+  // Client entreprise : utilise désormais le même checkout qu'un utilisateur classique.
+  // Il peut payer avec son solde Allo ou en espèces lorsque le vendeur l'autorise.
   window._checkoutTotal = total;
   window._payMethod = 'balance';
   try { await refreshCashPaymentOffers(); } catch (e) { console.warn('[Allo] cash offer refresh', e); }
@@ -10570,9 +11139,14 @@ function getCashOfferContext() {
     return shop && shop.id && String(shop.ownerId || '') === uid && shop.isCompanyCatalog !== true
       ? { entityType:'boutique', entityId:shop.id, ownerId:uid, name:shop.name } : null;
   }
-  // Entreprise : plus d'option « paiement à la livraison »
   if (currentUser.role === 'entreprise') {
-    return null;
+    const company = (data.companies || []).find(c =>
+      String(c.id) === String(currentUser.companyId) &&
+      String(c.ownerId || '') === uid
+    );
+    return company && company.id
+      ? { entityType:'entreprise', entityId:company.id, ownerId:company.ownerId || uid, name:company.name }
+      : null;
   }
   return null;
 }
@@ -10627,17 +11201,12 @@ function getShopCodFlagsMap() {
 
 function isShopCodEnabled(shop) {
   if (!shop) return false;
-  // Catalogues entreprise privés : pas de COD public
-  if (shop.isCompanyCatalog === true) return false;
   const flags = getShopCodFlagsMap();
-  if (flags[String(shop.id)] === true) return true;
+  // Paiement en espèces gratuit et activé par défaut pour toutes les boutiques,
+  // y compris les catalogues entreprise. Une désactivation explicite reste possible.
   if (flags[String(shop.id)] === false) return false;
-  if (shop.codEnabled === true) return true;
-  // Rétrocompat : ancienne offre payante encore active
-  try {
-    if (typeof findCashOffer === 'function' && findCashOffer('boutique', shop.id)) return true;
-  } catch (e) {}
-  return false;
+  if (shop.codEnabled === false) return false;
+  return true;
 }
 
 function isProductCodEnabled(p) {
@@ -10858,21 +11427,23 @@ async function activateCashOnDelivery() {
   if (!currentUser || (currentUser.role !== 'boutique' && currentUser.role !== 'entreprise')) return;
   const ctx = getCashOfferContext();
   if (!ctx) { alert('Espace vendeur introuvable.'); return; }
-  const durationKey = window._cashOfferSelectedDuration;
-  const plan = getCashPlan(ctx.entityType, durationKey);
-  if (!plan) { alert('Veuillez choisir une durée valide.'); return; }
-  if (!confirm('Activer le paiement à la livraison pour ' + formatCashDuration(plan.durationKey) + ' — ' + formatMoney(plan.price) + ' ?')) return;
   try {
+    // Le paiement en espèces est gratuit, permanent et activé par défaut.
     const { data: result, error } = await sb.rpc('activate_cash_on_delivery', {
-      p_entity_type: ctx.entityType, p_entity_id: ctx.entityId, p_duration_key: plan.durationKey
+      p_entity_type: ctx.entityType, p_entity_id: ctx.entityId, p_duration_key: 'permanent'
     });
     if (error) throw error;
     if (!result || !result.ok) throw new Error('Activation non confirmée');
+    const shop = (data.shops || []).find(s => String(s.id) === String(ctx.entityId));
+    if (shop) shop.codEnabled = true;
+    const flags = getShopCodFlagsMap();
+    flags[String(ctx.entityId)] = true;
+    try { await persistShopCodFlags(); } catch (_) {}
     await sbLoadAllIntoData();
     await refreshCashPaymentOffers();
     closeModal();
     renderAccount(); renderCart();
-    alert(lang === 'en' ? 'Cash on delivery activated successfully.' : 'Paiement à la livraison activé avec succès.');
+    alert(lang === 'en' ? 'Cash on delivery is free and permanently enabled.' : 'Le paiement à la livraison est gratuit et activé en permanence.');
   } catch (e) {
     console.error('[Allo] activate cash on delivery', e);
     alert((lang === 'en' ? 'Activation failed: ' : 'Activation impossible : ') + (e.message || e));
@@ -10928,8 +11499,7 @@ async function confirmCheckout() {
 
   if (!cart.length) return;
   let method = window._payMethod || 'balance';
-  // Client entreprise : jamais de paiement
-  if (currentUser.role === 'client') method = 'company_free';
+  // Client entreprise : paiement normal (solde Allo ou espèces), comme en boutique.
   if (method === 'cod') {
     try { await refreshCashPaymentOffers(); } catch (_) {}
     if (!cashOfferAvailableForCart(groupCartByShop())) {
@@ -10938,7 +11508,7 @@ async function confirmCheckout() {
       openModal('checkout');
       return;
     }
-  } else if (method !== 'company_free') {
+  } else if (method !== 'balance') {
     window._payMethod = 'balance';
     method = 'balance';
   }
@@ -10954,8 +11524,8 @@ async function confirmCheckout() {
       }
     }
   }
-  // Quota activation entreprise : bloquer si le compte n'est plus actif
-  if (method === 'company_free' || currentUser.role === 'client') {
+  // Un vendeur verrouillé ne reçoit plus de nouvelles commandes, quel que soit le mode de paiement.
+  {
     for (const g of groups) {
       const shop = (data.shops || []).find(s => String(s.id) === String(g.shopId));
       const cid = shop && (shop.companyId || (shop.isCompanyCatalog ? shop.companyId : null));
@@ -10976,8 +11546,8 @@ async function confirmCheckout() {
   const grandRaw = groups.reduce((s, g) => s + g.subtotal, 0);
   const discount = getPromoDiscount(grandRaw);
   const grand = Math.max(0, grandRaw - discount);
-  // company_free = client entreprise : aucun débit de solde
-  if (method !== 'cod' && method !== 'company_free') {
+  // Paiement en espèces : aucun débit Allo. Paiement balance : débit du solde personnel de l'acheteur.
+  if (method === 'balance') {
     if ((currentUser.balance || 0) < grand) {
       alert(t('balanceInsufficient') + '\n' + (lang==='en'?'Top up from Account.':'Rechargez depuis Compte.'));
       return;
@@ -11006,10 +11576,10 @@ async function confirmCheckout() {
     const shop = data.shops.find(sh => sh.id === g.shopId);
     const orderTotal = Math.round(g.subtotal * ratio);
     const hours = (shop && shop.deliveryHours) ? Number(shop.deliveryHours) : 48;
-    const isCompanyOrder = !!(shop && (shop.companyId || shop.isCompanyCatalog)) || method === 'company_free';
-    // Entreprise + espèces (COD) : pas de code de validation livraison
-    // Solde Allo (et autres paiements online) : code requis pour libérer l'escrow
-    const deliveryCode = (isCompanyOrder || method === 'cod') ? null : String(Math.floor(100000 + Math.random() * 900000));
+    const isCompanyOrder = !!(shop && (shop.companyId || shop.isCompanyCatalog));
+    // Espèces : pas de code. Solde Allo : code requis pour libérer l'escrow,
+    // y compris pour les commandes du catalogue entreprise.
+    const deliveryCode = method === 'cod' ? null : String(Math.floor(100000 + Math.random() * 900000));
     const order = {
       id: 'o' + Date.now() + Math.random().toString(36).slice(2, 5),
       userId: currentUser.id,
@@ -11033,9 +11603,9 @@ async function confirmCheckout() {
       })),
       total: orderTotal,
       promo: window._appliedPromo ? window._appliedPromo.code : null,
-      escrow: method !== 'cod' && method !== 'company_free',
-      paidHeld: method !== 'cod' && method !== 'company_free',
-      commissionTotal: 0, // plus de commission sur les commandes entreprise
+      escrow: method === 'balance',
+      paidHeld: method === 'balance',
+      commissionTotal: 0,
       payment: method,
       deliveryCode,
       deliveryHours: hours,
@@ -11092,14 +11662,12 @@ async function confirmCheckout() {
     currentUser.id,
     lang === 'en' ? 'Orders placed' : 'Commandes passées',
     (lang === 'en'
-      ? (created.length + ' invoice(s)' + (method === 'company_free' ? '' : (' · ' + formatMoney(grand))))
-      : (created.length + ' facture(s)' + (method === 'company_free' ? '' : (' · ' + formatMoney(grand)))))
+      ? (created.length + ' invoice(s)' + (method === 'cod' ? '' : (' · ' + formatMoney(grand))))
+      : (created.length + ' facture(s)' + (method === 'cod' ? '' : (' · ' + formatMoney(grand)))))
   );
   closeModal();
   alert(
-    (method === 'company_free'
-      ? (lang === 'en' ? 'Order placed' : 'Commande enregistrée')
-      : method === 'cod'
+    (method === 'cod'
       ? (lang === 'en' ? 'Order placed — pay in cash at delivery' : 'Commande enregistrée — paiement en espèces à la livraison')
       : t('paymentOk')) + ' · ' +
     (lang === 'en'
@@ -11351,6 +11919,7 @@ async function persistOrderDelivered(o, nextShopStatus, nextTimeline, now) {
       timeline: nextTimeline,
       delivery_code: null,
       paid_held: false,
+      escrow: false,
       commission_total: 0,
       updated_at: now
     }).eq('id', o.id).select('*').maybeSingle();
@@ -11576,38 +12145,14 @@ async function advanceOrderStatus(orderId) {
       : (rank[normalizeOrderStatus(o.status)] ?? 0);
     o.status = Object.keys(rank).find(k => rank[k] === minRank) || 'en cours';
 
-    // Entreprise / COD : pas de code de livraison. Boutique + solde Allo : générer le code.
+    // COD : livraison directe sans code. Solde Allo : même flux que la boutique,
+    // avec code saisi par l'acheteur pour libérer le paiement.
     const isCompanySeller = currentUser.role === 'entreprise' || currentUser.role === 'employe' || !!o.companyId;
     const isCodOrder = (typeof isCodPayment === 'function') ? isCodPayment(o) : (o.payment === 'cod');
-    if (!isCompanySeller && !isCodOrder && relevantShopIds.some(sid => normalizeOrderStatus(o.shopStatus[sid]) === 'livraison') && !o.deliveryCode) {
+    if (!isCodOrder && relevantShopIds.some(sid => normalizeOrderStatus(o.shopStatus[sid]) === 'livraison') && !o.deliveryCode) {
       o.deliveryCode = generateDeliveryCode();
     }
-    // Entreprise : si le vendeur avance depuis « livraison », passer en « livré » sans code
-    if (isCompanySeller) {
-      for (const sid of relevantShopIds) {
-        // nextSellerStatus ne propose pas livré ; le bouton UI force nxt=livré
-        if (normalizeOrderStatus(o.shopStatus[sid]) === 'livraison' && window._forceCompanyDelivered) {
-          o.shopStatus[sid] = 'livré';
-        }
-      }
-      window._forceCompanyDelivered = false;
-      const allOrderShopIds2 = [...new Set(normalizeOrderItems(o.items || []).map(it => {
-        const sid = it.shopId || ((data.products || []).find(x => String(x.id) === String(it.productId)) || {}).shopId;
-        return sid ? String(sid) : null;
-      }).filter(Boolean))];
-      const statuses2 = allOrderShopIds2.map(sid => normalizeOrderStatus(o.shopStatus[sid] || o.status));
-      const rank2 = { 'en cours': 0, 'preparation': 1, 'livraison': 2, 'livré': 3, 'annulé': -1 };
-      const minRank2 = statuses2.length
-        ? Math.min(...statuses2.map(st => rank2[st] != null ? rank2[st] : 0))
-        : 0;
-      o.status = Object.keys(rank2).find(k => rank2[k] === minRank2) || o.status;
-      if (o.status === 'livré') {
-        o._walletDone = true;
-        o.commissionTotal = 0;
-        pushUserNotif(o.userId, lang==='en'?'Delivered':'Livré',
-          lang==='en'?'Your order has been delivered':'Votre commande a été livrée');
-      }
-    }
+    window._forceCompanyDelivered = false;
     const advanced = relevantShopIds.map(sid => normalizeOrderStatus(o.shopStatus[sid]))
       .sort((a,b) => (rank[b] || 0) - (rank[a] || 0))[0] || o.status;
     if (!Array.isArray(o.timeline)) o.timeline = [];
@@ -11941,16 +12486,15 @@ function _paintOrdersList() {
     }
     const isCodOrder = (typeof isCodPayment === 'function') ? isCodPayment(o) : (o.payment === 'cod');
     // Espèces : pas de suivi multi-étapes — marquage livré en un clic uniquement
-    const canAdvance = seller && nxtSeller && !(isEnterpriseSpace && isCompanyOrder) && !isCodOrder;
+    const canAdvance = seller && nxtSeller && !isCodOrder && !orderIsDelivered(o);
     const isBuyer = currentUser.role === 'user' || currentUser.role === 'client';
     const statusIsDelivery = (displayStatus === 'livraison' || o.status === 'livraison');
-    // Entreprise / COD : pas de validation par code
-    const canConfirmDelivery = !isCompanyOrder && !isCodOrder && isBuyer && statusIsDelivery && o.status !== 'livré' && o.status !== 'annulé' && o.deliveryCode;
-    const payLabel = isCompanyOrder
-      ? ''
-      : (o.payment ? ({ balance: t('payBalance'), wave: t('payWave'), orange: t('payOrange'), mtn: t('payMtn'), cod: t('payCod'), company_free: '' }[o.payment] || o.payment) : '');
-    // Messages « aucun paiement / code » retirés pour les commandes entreprise
-    const cashOrderHint = (!isCompanyOrder && o.payment === 'cod')
+    // Solde Allo : même validation par code pour boutique et entreprise.
+    const canConfirmDelivery = !isCodOrder && isBuyer && statusIsDelivery && o.status !== 'livré' && o.status !== 'annulé' && o.deliveryCode;
+    const payLabel = o.payment
+      ? ({ balance: t('payBalance'), wave: t('payWave'), orange: t('payOrange'), mtn: t('payMtn'), cod: t('payCod'), company_free: '' }[o.payment] || o.payment)
+      : '';
+    const cashOrderHint = (o.payment === 'cod')
       ? `<div style="font-size:11px;color:var(--green);margin-top:5px">💵 ${lang==='en' ? 'Cash order: no tracking code. Mark delivered in one click after delivery (no Allo balance / commission).' : 'Commande espèces : pas de code de suivi. Marquez livré en un clic après la livraison (hors solde / commission Allo).'}</div>`
       : '';
     const sellerSeen = orderHasSellerSeen(o);
@@ -12022,7 +12566,7 @@ function _paintOrdersList() {
           : `<span class="status-pill status-pending">${lang==='en'?'SENT':'ENVOYÉE'}</span>`;
       }
     }
-    const timelineHtml = ((isCompanyOrder && (isEnterpriseSpace || isBuyer)) || isCodOrder)
+    const timelineHtml = isCodOrder
       ? ''
       : orderTimelineHTML(Object.assign({}, o, { status: displayStatus }));
     const seenHintBuyer = companyDelivered && isBuyer
@@ -12032,7 +12576,7 @@ function _paintOrdersList() {
         : (isCompanyOrder && isBuyer && !sellerSeen
           ? `<div style="font-size:12px;color:var(--text-muted);margin:8px 0">⏳ ${lang==='en'?'Waiting for company to view':'En attente de consultation par l’entreprise'}</div>`
           : ''));
-    const canMarkCompanyDelivered = isEnterpriseSpace && isCompanyOrder && !companyDelivered;
+    const canMarkCompanyDelivered = isEnterpriseSpace && isCompanyOrder && isCodOrder && !companyDelivered;
     // Pastille avec attribut stable pour mise à jour douce
     if (isCompanyOrder) {
       statusPillHtml = statusPillHtml.replace(
@@ -12059,9 +12603,9 @@ function _paintOrdersList() {
         <div class="info-box purple"><b>${formatMoney(totalShow)}</b><span>${t('total')}</span></div>
         <div class="info-box cyan"><b>${items.length}</b><span>${t('items')}</span></div>
       </div>
-      ${(!isCompanyOrder) ? sellerCodeBlock : ''}
-      ${(!isCompanyOrder) ? waitHint : ''}
-      ${(!isCompanyOrder) ? (buyerConfirmBlock || '') : ''}
+      ${sellerCodeBlock}
+      ${waitHint}
+      ${buyerConfirmBlock || ''}
       ${canAdvance ? `<button class="btn btn-sm btn-accent" style="width:100%;margin-top:8px" onclick="advanceOrderStatus('${o.id}')">${t('advanceStatus')} → ${orderStatusLabel(nxtSeller)}</button>` : ''}
       ${canMarkCompanyDelivered ? `<button type="button" class="btn btn-sm btn-accent" data-deliver-btn="${o.id}" style="width:100%;margin-top:10px;min-height:44px" onclick="event.preventDefault();event.stopPropagation();markCompanyOrderDelivered('${o.id}')">${lang==='en'?'Mark as delivered':'Marquer comme livré'}</button>` : ''}
       ${(seller && isCodOrder && !orderIsDelivered(o) && normalizeOrderStatus(o.status) !== 'annulé') ? `<button type="button" class="btn btn-sm btn-accent" data-cod-deliver-btn="${o.id}" style="width:100%;margin-top:10px;min-height:44px" onclick="event.preventDefault();event.stopPropagation();markCodOrderDelivered('${o.id}')">${lang==='en'?'Mark as delivered (cash)':'Marquer comme livré (espèces)'}</button>` : ''}
@@ -12151,7 +12695,7 @@ function isSellerRevenueTx(t) {
   const ref = String(t.reference || '');
   if (ref.indexOf('space_') === 0) return true;
   const lbl = String(t.label || t.description || t.reference || '').toLowerCase();
-  return /vendeur|vente livr|sale delivered|après livraison|apres livraison/.test(lbl);
+  return /vendeur|vente livr|sale delivered|après livraison|apres livraison|activation|formule|quota|abonnement/.test(lbl);
 }
 
 function getActiveWalletContext() {
@@ -12189,23 +12733,55 @@ function findWalletAccount(ctx) {
 
 async function ensureWalletAccount(ctx) {
   if (!ctx) return null;
-  let account = findWalletAccount(ctx);
-  if (account) return account;
-  if (!(USE_SUPABASE && sb && alloUuid(ctx.entityId) && alloUuid(ctx.ownerId))) return null;
-  const payload = {
-    owner_user_id: ctx.ownerId,
-    scope_type: ctx.scope,
-    scope_id: ctx.entityId,
-    balance: 0
-  };
-  const { data: row, error } = await sb.from('wallet_accounts')
-    .upsert(payload, { onConflict: 'scope_type,scope_id' })
-    .select('*').maybeSingle();
-  if (error) throw error;
-  account = {
-    id: row.id, ownerUserId: row.owner_user_id, scopeType: row.scope_type,
-    scopeId: row.scope_id, balance: Number(row.balance || 0)
-  };
+  // Source de vérité unique : Supabase public.wallet_accounts
+  if (!(typeof USE_SUPABASE !== 'undefined' && USE_SUPABASE && sb)) {
+    console.error('[Allo] Portefeuille espace : Supabase requis (seule source de vérité)');
+    return null;
+  }
+  if (!alloUuid(ctx.entityId) || !alloUuid(ctx.ownerId)) {
+    console.error('[Allo] Portefeuille espace : entityId/ownerId UUID invalides');
+    return null;
+  }
+  // Toujours relire depuis Supabase — le cache local n'est jamais une vérité
+  const { data: existing, error: readErr } = await sb.from('wallet_accounts')
+    .select('*')
+    .eq('scope_type', ctx.scope)
+    .eq('scope_id', ctx.entityId)
+    .maybeSingle();
+  if (readErr) {
+    console.error('[Allo] wallet_accounts read', readErr);
+    throw readErr;
+  }
+  let account;
+  if (existing) {
+    account = {
+      id: existing.id,
+      ownerUserId: existing.owner_user_id,
+      scopeType: existing.scope_type,
+      scopeId: existing.scope_id,
+      balance: Number(existing.balance || 0)
+    };
+  } else {
+    const payload = {
+      owner_user_id: ctx.ownerId,
+      scope_type: ctx.scope,
+      scope_id: ctx.entityId,
+      balance: 0
+    };
+    const { data: row, error } = await sb.from('wallet_accounts')
+      .upsert(payload, { onConflict: 'scope_type,scope_id' })
+      .select('*').maybeSingle();
+    if (error) throw error;
+    if (!row) return null;
+    account = {
+      id: row.id,
+      ownerUserId: row.owner_user_id,
+      scopeType: row.scope_type,
+      scopeId: row.scope_id,
+      balance: Number(row.balance || 0)
+    };
+  }
+  // Cache UI uniquement (jamais persisté comme vérité)
   data.walletAccounts = data.walletAccounts || [];
   const idx = data.walletAccounts.findIndex(w => String(w.scopeId) === String(ctx.entityId) && w.scopeType === ctx.scope);
   if (idx >= 0) data.walletAccounts[idx] = account; else data.walletAccounts.push(account);
@@ -12214,9 +12790,16 @@ async function ensureWalletAccount(ctx) {
 
 async function adjustSpaceWallet(ctx, amount, label) {
   if (!ctx || !amount) return false;
-  if (!(USE_SUPABASE && sb && alloUuid(ctx.entityId) && alloUuid(ctx.ownerId))) {
-    throw new Error('Supabase requis pour toute opération financière');
+  // Seule source de vérité : Supabase (wallet_accounts + wallet_transactions)
+  if (!(typeof USE_SUPABASE !== 'undefined' && USE_SUPABASE && sb)) {
+    console.error('[Allo] adjustSpaceWallet refusé hors Supabase');
+    throw new Error(lang==='en' ? 'Supabase required for wallet operations' : 'Supabase requis pour toute opération financière');
   }
+  if (!alloUuid(ctx.entityId) || !alloUuid(ctx.ownerId)) {
+    console.error('[Allo] adjustSpaceWallet UUID invalides', ctx);
+    return false;
+  }
+  // Relire le solde frais depuis Supabase avant toute écriture
   const account = await ensureWalletAccount(ctx);
   if (!account) return false;
   const next = Number(account.balance || 0) + Number(amount);
@@ -12226,10 +12809,17 @@ async function adjustSpaceWallet(ctx, amount, label) {
     .update({ balance: next, updated_at: new Date().toISOString() })
     .eq('scope_type', ctx.scope).eq('scope_id', ctx.entityId)
     .select('*').maybeSingle();
-  if (upErr || !updated) return false;
+  if (upErr || !updated) {
+    console.error('[Allo] wallet_accounts update', upErr);
+    return false;
+  }
 
   account.balance = Number(updated.balance || 0);
-  if (!data.walletAccounts) data.walletAccounts = [];
+  // Cache UI
+  data.walletAccounts = data.walletAccounts || [];
+  const idx = data.walletAccounts.findIndex(w => String(w.scopeId) === String(ctx.entityId) && w.scopeType === ctx.scope);
+  if (idx >= 0) data.walletAccounts[idx] = account; else data.walletAccounts.push(account);
+
   const txPayload = {
     user_id: ctx.ownerId,
     amount: Math.round(Number(amount)),
@@ -12240,7 +12830,25 @@ async function adjustSpaceWallet(ctx, amount, label) {
     wallet_entity_id: ctx.entityId
   };
   const { error: txErr } = await sb.from('wallet_transactions').insert(txPayload);
-  if (txErr) return false;
+  if (txErr) {
+    console.error('[Allo] wallet_transactions insert', txErr);
+    // Le solde a déjà été écrit côté serveur : on ne rollback pas ici,
+    // mais on refuse de mentir à l'UI locale.
+    return false;
+  }
+
+  // Miroir local UI uniquement (rechargé depuis Supabase au prochain sbLoadAllIntoData)
+  if (!data.walletTx) data.walletTx = [];
+  data.walletTx.push({
+    id: 'w' + Date.now(),
+    ownerId: ctx.ownerId,
+    amount: Math.round(Number(amount)),
+    label: label || '',
+    date: new Date().toISOString(),
+    walletScope: ctx.scope,
+    walletEntityId: ctx.entityId,
+    reference: txPayload.reference
+  });
 
   if (currentUser && String(currentUser.id) === String(ctx.ownerId)) {
     currentUser.wallet = account.balance;
@@ -12331,6 +12939,14 @@ function renderWallet() {
     : (currentUser.role === 'admin' ? Number(currentUser.wallet || 0) : Number(currentUser.balance || 0));
   if (isSeller) currentUser.wallet = amount;
   balEl.textContent = formatMoney(amount);
+  const wHint = document.getElementById('walletHintText');
+  if (wHint) {
+    wHint.textContent = isSeller
+      ? (lang==='en'
+          ? 'Sales revenue · used to pay quota plans'
+          : 'Revenus des ventes · sert à payer les formules de quota')
+      : t('walletHint');
+  }
   updateWalletChip();
   updateSectionHeads();
 
@@ -13532,7 +14148,7 @@ function renderAccount() {
     const isEntreprise = currentUser && currentUser.role === 'entreprise';
     const isClient = currentUser && currentUser.role === 'client';
     // Client entreprise : pas de portefeuille / recharges / retraits (commandes sans paiement)
-    const hideFinance = isAdmin || isEntreprise || isClient;
+    const hideFinance = isAdmin || isEntreprise;
     if (top) top.style.display = hideFinance ? 'none' : '';
     if (wit) wit.style.display = hideFinance ? 'none' : '';
     if (wal) wal.style.display = hideFinance ? 'none' : '';
@@ -14071,6 +14687,33 @@ function openModal(type, extra) {
       <p style="font-size:11px;color:var(--text-muted)">${lang==='en' ? 'Only the Super Admin can create or delete these hashtags.' : 'Seul le Super Admin peut créer ou supprimer ces hashtags.'}</p>
       <button class="btn btn-accent btn-block" onclick="adminAddHashtag()">${t('save')}</button>`;
   }
+  if (type === 'editCategoryImage') {
+    const catName = String(extra || '').trim();
+    const existing = (typeof getCategoryImage === 'function') ? getCategoryImage(catName) : '';
+    window._pendingCatImageBase64 = existing || '';
+    const previewStyle = existing ? 'background-size:cover;background-position:center;' : '';
+    const previewInner = existing ? '' : (typeof catIconFor === 'function' ? catIconFor(catName) : '📦');
+    html = `<button class="modal-close" onclick="closeModal()">×</button>
+      <h3>${lang==='en'?'Category image':'Image de catégorie'}</h3>
+      <p class="sub">${lang==='en'?'Super Admin only.':'Réservé au Super Admin.'}</p>
+      <input type="hidden" id="mCatImageName" value="${catName.replace(/"/g,'&quot;')}">
+      <div class="field"><label>${lang==='en'?'Category':'Catégorie'}</label>
+        <input type="text" value="${catName.replace(/"/g,'&quot;')}" disabled style="opacity:.85">
+      </div>
+      <div id="mCatImagePreview" class="shop-cover-preview" style="${previewStyle}">${previewInner}</div>
+      <div class="field"><label>${lang==='en'?'Image':'Image'}</label>
+        <input type="file" id="mCatImageFile" accept="image/*" onchange="previewCategoryImage(this)">
+      </div>
+      <button class="btn btn-accent btn-block" onclick="saveCategoryImage()">${t('save')}</button>
+      ${existing ? `<button class="btn btn-danger btn-block" style="margin-top:8px" onclick="removeCategoryImage()">${lang==='en'?'Remove image':'Supprimer l’image'}</button>` : ''}`;
+    setTimeout(function () {
+      const prev = document.getElementById('mCatImagePreview');
+      if (!prev || !window._pendingCatImageBase64) return;
+      prev.style.backgroundImage = "url('" + String(window._pendingCatImageBase64).replace(/'/g, "\\'") + "')";
+      prev.dataset.base64 = window._pendingCatImageBase64;
+      prev.innerHTML = '';
+    }, 30);
+  }
   if (type === 'addCategory') {
     html = `<button class="modal-close" onclick="closeModal()">×</button>
       <h3>${t('adminAddCategory')}</h3>
@@ -14216,17 +14859,29 @@ function openModal(type, extra) {
       </div>
       <button class="btn btn-accent btn-block" onclick="withdrawFunds()">${lang==='en'?'Confirm withdrawal':'Confirmer le retrait'}</button>`;
   }
-  if (type === 'completeProfile') {
+  if (type === 'completeProfile' || type === 'editProfile') {
     const u = currentUser || {};
+    const isEdit = type === 'editProfile' || !window._profileCompletionRequired;
+    window._profileEditMode = !!isEdit;
     window._profilePhotoData = u.avatar_url || '';
     const avatar = u.avatar_url || '';
     const initial = String(u.name || 'A').charAt(0).toUpperCase();
-    html = `<div class="profile-completion-card">
-      <div class="profile-photo-preview" id="mProfilePhotoPreview">${avatar ? `<img class="profile-avatar-img" src="${String(avatar).replace(/"/g,'&quot;')}" alt="Photo de profil">` : initial}</div>
-      <div style="text-align:center;font-weight:800;font-size:16px">${lang==='en'?'Complete your delivery profile':'Complétez votre profil de livraison'}</div>
-      <p style="font-size:12px;color:var(--text-muted);line-height:1.45;text-align:center;margin-top:5px">${lang==='en'?'These details help sellers identify you and deliver your orders correctly.':'Ces informations permettent au vendeur de vous identifier et de livrer vos commandes facilement.'}</p>
+    const title = isEdit
+      ? (lang==='en' ? 'Edit my profile' : 'Modifier mon profil')
+      : (lang==='en' ? 'Complete your delivery profile' : 'Complétez votre profil de livraison');
+    const sub = isEdit
+      ? (lang==='en' ? 'Update your photo, address and password at any time.' : 'Mettez à jour votre photo, adresse et mot de passe à tout moment.')
+      : (lang==='en' ? 'These details help sellers identify you and deliver your orders correctly.' : 'Ces informations permettent au vendeur de vous identifier et de livrer vos commandes facilement.');
+    const saveLabel = isEdit
+      ? (lang==='en' ? 'Save changes' : 'Enregistrer les modifications')
+      : (lang==='en' ? 'Save and continue' : 'Enregistrer et continuer');
+    html = `${isEdit ? '<button class="modal-close" onclick="closeModal()">×</button>' : ''}
+    <div class="profile-completion-card">
+      <div class="profile-photo-preview" id="mProfilePhotoPreview" style="cursor:${avatar?'pointer':'default'}" ${avatar ? `onclick="openImageLightbox('${String(avatar).replace(/'/g,"\\'")}')"` : ''}>${avatar ? `<img class="profile-avatar-img" src="${String(avatar).replace(/"/g,'&quot;')}" alt="Photo de profil">` : initial}</div>
+      <div style="text-align:center;font-weight:800;font-size:16px">${title}</div>
+      <p style="font-size:12px;color:var(--text-muted);line-height:1.45;text-align:center;margin-top:5px">${sub}</p>
     </div>
-    <div class="field"><label>${lang==='en'?'Profile photo':'Photo de profil'} *</label>
+    <div class="field"><label>${lang==='en'?'Profile photo':'Photo de profil'} ${isEdit?'':'*'}</label>
       <input type="file" id="mProfilePhoto" accept="image/*" onchange="previewProfilePhoto(this)">
       <p style="font-size:10.5px;color:var(--text-muted);margin-top:4px">${lang==='en'?'Required for delivery identification.':'Obligatoire pour faciliter votre identification à la livraison.'}</p>
     </div>
@@ -14235,8 +14890,15 @@ function openModal(type, extra) {
     <div class="field"><label>${lang==='en'?'City':'Ville'} *</label><input id="mProfileCity" type="text" value="${String(u.city||'').replace(/"/g,'&quot;')}" placeholder="Ex : Yaoundé" autocomplete="address-level2"></div>
     <div class="field"><label>${lang==='en'?'Neighborhood / district':'Quartier'} *</label><input id="mProfileNeighborhood" type="text" value="${String(u.neighborhood||'').replace(/"/g,'&quot;')}" placeholder="Ex : Bastos" autocomplete="address-line2"></div>
     <div class="field"><label>${lang==='en'?'Phone for delivery':'Téléphone de livraison'} *</label><input id="mProfilePhone" type="tel" value="${String(u.phone||'').replace(/"/g,'&quot;')}" placeholder="Ex : +237 6..." autocomplete="tel"></div>
+    <div class="cat-title" style="margin-top:14px">${lang==='en'?'Password (optional)':'Mot de passe (optionnel)'}</div>
+    <div class="field"><label>${lang==='en'?'New password':'Nouveau mot de passe'}</label>
+      <div class="password-wrap"><input type="password" id="mProfileNewPass" placeholder="${lang==='en'?'Leave blank to keep current':'Laisser vide pour conserver'}" autocomplete="new-password"></div>
+    </div>
+    <div class="field"><label>${lang==='en'?'Confirm password':'Confirmer le mot de passe'}</label>
+      <div class="password-wrap"><input type="password" id="mProfileNewPass2" placeholder="••••••••" autocomplete="new-password"></div>
+    </div>
     <p class="error-msg" id="profileError"></p>
-    <button class="btn btn-accent btn-block" id="btnSaveCompleteProfile" onclick="saveCompleteProfile()">${lang==='en'?'Save and continue':'Enregistrer et continuer'}</button>`;
+    <button class="btn btn-accent btn-block" id="btnSaveCompleteProfile" onclick="saveCompleteProfile()">${saveLabel}</button>`;
   }
   if (type === 'cashOffer') {
     const ctx = getCashOfferContext();
@@ -14534,20 +15196,80 @@ async function uploadProfilePhoto(uid, value) {
   return url;
 }
 
+function openEditProfile() {
+  if (!currentUser) return;
+  if (currentUser.role === 'admin') {
+    alert(lang==='en' ? 'Super Admin profile is managed separately.' : 'Le profil Super Admin se gère séparément.');
+    return;
+  }
+  window._profileCompletionRequired = false;
+  window._profileEditMode = true;
+  try { openModal('editProfile'); } catch (e) { console.warn(e); }
+}
+
 async function saveCompleteProfile() {
-  if (!currentUser || !USE_SUPABASE || !sb || !alloUuid(currentUser.id)) return;
+  if (!currentUser || !USE_SUPABASE || !sb || !alloUuid(currentUser.id)) {
+    // Mode local : mise à jour en mémoire
+    if (!currentUser) return;
+    const err = document.getElementById('profileError');
+    const name = (document.getElementById('mProfileName')?.value || '').trim();
+    const country = (document.getElementById('mProfileCountry')?.value || '').trim();
+    const city = (document.getElementById('mProfileCity')?.value || '').trim();
+    const neighborhood = (document.getElementById('mProfileNeighborhood')?.value || '').trim();
+    const phone = (document.getElementById('mProfilePhone')?.value || '').trim();
+    let avatar = window._profilePhotoData || currentUser.avatar_url || '';
+    if (!name || !country || !city || !neighborhood || !phone) {
+      if (err) { err.textContent = lang==='en' ? 'Please fill all required fields.' : 'Veuillez remplir tous les champs obligatoires.'; err.classList.add('show'); }
+      return;
+    }
+    currentUser.name = name;
+    currentUser.country = country;
+    currentUser.city = city;
+    currentUser.neighborhood = neighborhood;
+    currentUser.phone = phone;
+    if (avatar) currentUser.avatar_url = avatar;
+    currentUser.profile_completed = true;
+    const reg = (registeredUsers || []).find(u => String(u.id) === String(currentUser.id));
+    if (reg) Object.assign(reg, { name, country, city, neighborhood, phone, avatar_url: currentUser.avatar_url, profile_completed: true });
+    try { saveRegisteredUsers(); } catch (e) {}
+    window._profileCompletionRequired = false;
+    window._profileEditMode = false;
+    document.getElementById('modalOverlay').classList.remove('show');
+    try { renderAccount(); } catch (e) {}
+    try { enterApp(); } catch (e) {}
+    alert(lang==='en' ? 'Profile updated.' : 'Profil mis à jour.');
+    return;
+  }
   const err = document.getElementById('profileError');
   const btn = document.getElementById('btnSaveCompleteProfile');
   if (err) err.classList.remove('show');
+  const isEdit = !!window._profileEditMode && !window._profileCompletionRequired;
   const name = (document.getElementById('mProfileName')?.value || '').trim();
   const country = (document.getElementById('mProfileCountry')?.value || '').trim();
   const city = (document.getElementById('mProfileCity')?.value || '').trim();
   const neighborhood = (document.getElementById('mProfileNeighborhood')?.value || '').trim();
   const phone = (document.getElementById('mProfilePhone')?.value || '').trim();
+  const newPass = (document.getElementById('mProfileNewPass')?.value || '');
+  const newPass2 = (document.getElementById('mProfileNewPass2')?.value || '');
   let avatar = window._profilePhotoData || currentUser.avatar_url || '';
-  if (!name || !country || !city || !neighborhood || !phone || !avatar) {
-    if (err) { err.textContent = lang==='en' ? 'Please complete all required fields and add a profile photo.' : 'Veuillez remplir tous les champs obligatoires et ajouter une photo de profil.'; err.classList.add('show'); }
+  if (!name || !country || !city || !neighborhood || !phone || (!isEdit && !avatar)) {
+    if (err) {
+      err.textContent = lang==='en'
+        ? 'Please complete all required fields' + (isEdit ? '.' : ' and add a profile photo.')
+        : 'Veuillez remplir tous les champs obligatoires' + (isEdit ? '.' : ' et ajouter une photo de profil.');
+      err.classList.add('show');
+    }
     return;
+  }
+  if (newPass || newPass2) {
+    if (newPass.length < 6) {
+      if (err) { err.textContent = t('passwordShort') || (lang==='en'?'Minimum 6 characters':'Minimum 6 caractères'); err.classList.add('show'); }
+      return;
+    }
+    if (newPass !== newPass2) {
+      if (err) { err.textContent = t('passwordMismatch') || (lang==='en'?'Passwords do not match':'Les mots de passe ne correspondent pas'); err.classList.add('show'); }
+      return;
+    }
   }
   if (btn) { btn.disabled = true; btn.textContent = lang==='en' ? 'Saving…' : 'Enregistrement…'; }
   try {
@@ -14556,21 +15278,39 @@ async function saveCompleteProfile() {
       if (!uploaded) throw new Error(lang==='en' ? 'Photo upload failed' : 'Échec de l’envoi de la photo');
       avatar = uploaded;
     }
-    const payload = { name, country, city, neighborhood, phone, avatar_url: avatar, profile_completed: true, updated_at: new Date().toISOString() };
+    const payload = { name, country, city, neighborhood, phone, avatar_url: avatar || currentUser.avatar_url || null, profile_completed: true, updated_at: new Date().toISOString() };
     const { data, error } = await sb.from('profiles').update(payload).eq('id', currentUser.id).select('*').maybeSingle();
     if (error) throw error;
+    if (newPass) {
+      const { error: passErr } = await sb.auth.updateUser({ password: newPass });
+      if (passErr) throw passErr;
+    }
     currentUser = mapProfileToUser(data || Object.assign({}, currentUser, payload));
+    const regIdx = (registeredUsers || []).findIndex(u => String(u.id) === String(currentUser.id));
+    if (regIdx >= 0) registeredUsers[regIdx] = Object.assign({}, registeredUsers[regIdx], currentUser);
     window._profileCompletionRequired = false;
+    window._profileEditMode = false;
     window._profilePhotoData = currentUser.avatar_url || '';
     document.getElementById('modalOverlay').classList.remove('show');
     try { await sbLoadAllIntoData(); } catch(e) {}
-    enterApp();
-    alert(lang==='en' ? 'Profile completed. Your delivery details are now ready.' : 'Profil complété. Vos informations de livraison sont maintenant prêtes.');
+    try { renderAccount(); } catch (e) {}
+    try { if (typeof updateHeader === 'function') updateHeader(); } catch (e) {}
+    if (!isEdit) {
+      try { enterApp(); } catch (e) {}
+      alert(lang==='en' ? 'Profile completed. Your delivery details are now ready.' : 'Profil complété. Vos informations de livraison sont maintenant prêtes.');
+    } else {
+      alert(lang==='en' ? 'Profile updated successfully.' : 'Profil mis à jour avec succès.');
+    }
   } catch (e) {
     console.error('[Allo] saveCompleteProfile', e);
     if (err) { err.textContent = e?.message || (lang==='en'?'Could not save your profile.':'Impossible d’enregistrer votre profil.'); err.classList.add('show'); }
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = lang==='en' ? 'Save and continue' : 'Enregistrer et continuer'; }
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = isEdit
+        ? (lang==='en' ? 'Save changes' : 'Enregistrer les modifications')
+        : (lang==='en' ? 'Save and continue' : 'Enregistrer et continuer');
+    }
   }
 }
 
@@ -14578,6 +15318,7 @@ async function ensureProfileCompletion(force) {
   if (!currentUser || currentUser.role === 'admin' || !USE_SUPABASE || !sb) return;
   if (!force && !profileNeedsCompletion(currentUser)) return;
   window._profileCompletionRequired = true;
+  window._profileEditMode = false;
   setTimeout(() => { try { openModal('completeProfile'); } catch(e) { console.warn(e); } }, 120);
 }
 
@@ -16921,26 +17662,48 @@ async function persistShopActivationState(shop) {
   return persistSellerActivationState(shop, 'shop_activation', shop && shop.ownerId);
 }
 
-function consumeCompanyOrderQuota(companyId) {
+async function consumeCompanyOrderQuota(companyId) {
   const company = (data.companies || []).find(c => String(c.id) === String(companyId));
   if (!company) return;
   ensureCompanyActivationFields(company);
+  if (typeof alloIsSupabaseMode === 'function' && alloIsSupabaseMode() && sb && alloUuid(company.id)) {
+    try {
+      const { data: q, error: qe } = await sb.rpc('consume_seller_quota', { p_entity_type: 'entreprise', p_entity_id: company.id });
+      if (!qe && q && q.ok) {
+        company.ordersUsed = Number(q.orders_used || 0);
+        company.orderQuotaTotal = Number(q.total_quota || 0);
+        company.activationLocked = !!q.quota_exhausted;
+        company.activationPhase = company.activationLocked ? 'locked' : (company.activationPhase || 'paid');
+        await persistCompanyActivationState(company);
+        return;
+      }
+    } catch (e) { console.warn('[Allo] Supabase company quota consume', e); }
+  }
   company.ordersUsed = Number(company.ordersUsed || 0) + 1;
-  if (company.ordersUsed >= Number(company.orderQuotaTotal || 0)) {
+  const quotaTotal = Number(company.orderQuotaTotal || 0);
+  const usedPct = quotaTotal > 0 ? (Number(company.ordersUsed || 0) / quotaTotal) * 100 : 0;
+  if (usedPct >= 95 && usedPct < 100 && company.ownerId) {
+    pushUserNotif(company.ownerId,
+      lang === 'en' ? 'Quota alert: 95% used' : 'Alerte quota : 95 % utilisés',
+      lang === 'en'
+        ? ('You have used ' + Math.round(usedPct) + '% of your order quota. You can activate another plan now.')
+        : ('Vous avez utilisé ' + Math.round(usedPct) + '% de votre quota de commandes. Vous pouvez activer une autre formule dès maintenant.'));
+  }
+  if (company.ordersUsed >= quotaTotal) {
     company.activationLocked = true;
     company.activationPhase = 'locked';
     if (company.ownerId) {
       pushUserNotif(company.ownerId,
-        lang === 'en' ? 'Company account locked' : 'Compte entreprise verrouillé',
+        lang === 'en' ? 'Company quota exhausted' : 'Quota entreprise épuisé',
         lang === 'en'
-          ? 'Your order quota is exhausted. Choose a new plan from Activation.'
-          : 'Votre quota de commandes est épuisé. Choisissez une nouvelle formule dans Activation.');
+          ? 'Your order quota is exhausted. Activate a new plan.'
+          : 'Votre quota de commandes est épuisé. Activez une nouvelle formule.');
     }
   }
   try { persistCompanyActivationState(company); } catch (e) {}
 }
 
-function consumeShopOrderQuota(shopId) {
+async function consumeShopOrderQuota(shopId) {
   const shop = (data.shops || []).find(s => String(s.id) === String(shopId));
   if (!shop) return;
   if (shop.companyId) {
@@ -16948,22 +17711,44 @@ function consumeShopOrderQuota(shopId) {
     return;
   }
   ensureShopActivationFields(shop);
+  if (typeof alloIsSupabaseMode === 'function' && alloIsSupabaseMode() && sb && alloUuid(shop.id)) {
+    try {
+      const { data: q, error: qe } = await sb.rpc('consume_seller_quota', { p_entity_type: 'boutique', p_entity_id: shop.id });
+      if (!qe && q && q.ok) {
+        shop.ordersUsed = Number(q.orders_used || 0);
+        shop.orderQuotaTotal = Number(q.total_quota || 0);
+        shop.activationLocked = !!q.quota_exhausted;
+        shop.activationPhase = shop.activationLocked ? 'locked' : (shop.activationPhase || 'paid');
+        await persistShopActivationState(shop);
+        return;
+      }
+    } catch (e) { console.warn('[Allo] Supabase shop quota consume', e); }
+  }
   shop.ordersUsed = Number(shop.ordersUsed || 0) + 1;
-  if (shop.ordersUsed >= Number(shop.orderQuotaTotal || 0)) {
+  const quotaTotal = Number(shop.orderQuotaTotal || 0);
+  const usedPct = quotaTotal > 0 ? (Number(shop.ordersUsed || 0) / quotaTotal) * 100 : 0;
+  if (usedPct >= 95 && usedPct < 100 && shop.ownerId) {
+    pushUserNotif(shop.ownerId,
+      lang === 'en' ? 'Quota alert: 95% used' : 'Alerte quota : 95 % utilisés',
+      lang === 'en'
+        ? ('You have used ' + Math.round(usedPct) + '% of your order quota. You can activate another plan now.')
+        : ('Vous avez utilisé ' + Math.round(usedPct) + '% de votre quota de commandes. Vous pouvez activer une autre formule dès maintenant.'));
+  }
+  if (shop.ordersUsed >= quotaTotal) {
     shop.activationLocked = true;
     shop.activationPhase = 'locked';
     if (shop.ownerId) {
       pushUserNotif(shop.ownerId,
-        lang === 'en' ? 'Shop account locked' : 'Compte boutique verrouillé',
+        lang === 'en' ? 'Shop quota exhausted' : 'Quota boutique épuisé',
         lang === 'en'
-          ? 'Your order quota is exhausted. Choose a new plan from Activation.'
-          : 'Votre quota de commandes est épuisé. Choisissez une nouvelle formule dans Activation.');
+          ? 'Your order quota is exhausted. Activate a new plan.'
+          : 'Votre quota de commandes est épuisé. Activez une nouvelle formule.');
     }
   }
   try { persistShopActivationState(shop); } catch (e) {}
 }
 
-function requestSellerActivation(entityType, planId) {
+async function requestSellerActivation(entityType, planId) {
   if (!currentUser) return;
   const plan = getActivationPlanById(planId);
   if (!plan) {
@@ -16973,12 +17758,14 @@ function requestSellerActivation(entityType, planId) {
   let entity = null;
   let ownerId = currentUser.id;
   let entityName = '';
+  let walletCtx = null;
   if (entityType === 'entreprise') {
     if (currentUser.role !== 'entreprise') return;
     entity = (data.companies || []).find(c => String(c.id) === String(currentUser.companyId));
     if (!entity) { alert(lang==='en'?'Company not found':'Entreprise introuvable'); return; }
     ensureCompanyActivationFields(entity);
     entityName = entity.name || 'Entreprise';
+    walletCtx = { scope: 'entreprise', entityId: entity.id, ownerId: entity.ownerId || currentUser.id, name: entity.name };
   } else {
     if (currentUser.role !== 'boutique') return;
     const shopIds = typeof getSellerShopIds === 'function' ? getSellerShopIds() : [];
@@ -16986,21 +17773,57 @@ function requestSellerActivation(entityType, planId) {
     if (!entity) { alert(lang==='en'?'Shop not found':'Boutique introuvable'); return; }
     ensureShopActivationFields(entity);
     entityName = entity.name || 'Boutique';
+    walletCtx = { scope: 'boutique', entityId: entity.id, ownerId: entity.ownerId || currentUser.id, name: entity.name };
   }
-  if (!entity.activationLocked && (
-    (entityType === 'entreprise' ? getCompanyOrdersRemaining(entity.id) : getShopOrdersRemaining(entity.id)) > 0
-  )) {
-    alert(lang==='en'?'Your account is still active.':'Votre compte est encore actif.');
-    return;
+  // Une nouvelle formule peut être activée à tout moment, même si la précédente
+  // n'est pas encore épuisée. Le quota restant est conservé et le nouveau quota
+  // est ajouté au quota total.
+
+  const price = Math.max(0, Number(plan.price || 0));
+  const quota = Math.max(1, Number(plan.orderQuota || 0));
+  const label = (lang==='en' ? 'Plan activation · ' : 'Activation formule · ') + (plan.name || '');
+
+  // Activation atomique côté Supabase : débit du portefeuille + enregistrement + cumul du quota.
+  let activationResult = null;
+  if (typeof alloIsSupabaseMode === 'function' && alloIsSupabaseMode() && sb && alloUuid(entity.id)) {
+    try {
+      const requestId = (crypto && crypto.randomUUID) ? crypto.randomUUID() : ('00000000-0000-4000-8000-' + String(Date.now()).padStart(12,'0'));
+      const { data: ar, error: ae } = await sb.rpc('activate_seller_quota', {
+        p_entity_type: entityType,
+        p_entity_id: entity.id,
+        p_plan_id: String(plan.id || ''),
+        p_plan_name: String(plan.name || ''),
+        p_order_quota: quota,
+        p_price: price,
+        p_request_id: requestId
+      });
+      if (ae) throw ae;
+      activationResult = ar || null;
+      if (!activationResult || activationResult.ok !== true) throw new Error('Activation Supabase invalide');
+      if (activationResult.wallet_balance != null) {
+        try { await updateWalletChip(); renderWallet(); } catch (e) {}
+      }
+    } catch (e) {
+      console.error('[Allo] seller quota activation', e);
+      alert(lang==='en' ? 'Quota activation failed. No charge was made.' : 'Activation du quota impossible. Aucun débit n’a été effectué.');
+      return;
+    }
+  } else {
+    if (price > 0) {
+      alert(lang==='en' ? 'Wallet requires an online connection (Supabase).' : 'Le portefeuille nécessite une connexion (Supabase).');
+      return;
+    }
   }
+
+  // Activation immédiate — pas de validation Super Admin
+  entity.orderQuotaTotal = Number(entity.ordersUsed || 0) + quota;
+  entity.activationLocked = false;
+  entity.activationPhase = price > 0 ? 'paid' : 'free';
+  entity.currentPlanId = plan.id;
+  entity.lastActivationAt = new Date().toISOString();
+
   if (!data.activationRequests) data.activationRequests = [];
   if (!data.companyActivationRequests) data.companyActivationRequests = [];
-  const existing = (data.activationRequests || []).concat(data.companyActivationRequests || [])
-    .find(r => String(r.entityId || r.companyId) === String(entity.id) && r.status === 'pending');
-  if (existing) {
-    alert(lang==='en'?'A request is already pending.':'Une demande est déjà en attente.');
-    return;
-  }
   const req = {
     id: 'act' + Date.now(),
     entityType: entityType,
@@ -17013,19 +17836,37 @@ function requestSellerActivation(entityType, planId) {
     ownerName: currentUser.name || currentUser.identifier || '',
     planId: plan.id,
     planName: plan.name,
-    amount: Number(plan.price || 0),
-    orderQuota: Number(plan.orderQuota || 0),
-    status: 'pending',
-    date: new Date().toISOString()
+    amount: price,
+    orderQuota: quota,
+    status: 'paid',
+    auto: true,
+    date: new Date().toISOString(),
+    reviewedAt: new Date().toISOString()
   };
   data.activationRequests.push(req);
-  data.companyActivationRequests.push(req); // compat admin list
+  data.companyActivationRequests.push(req);
+
+  if (!adminConfig.companyActivationRevenue) adminConfig.companyActivationRevenue = 0;
+  adminConfig.companyActivationRevenue = Number(adminConfig.companyActivationRevenue || 0) + price;
+  try { saveAdminConfig(); } catch (e) {}
+  try {
+    if (entityType === 'boutique') persistShopActivationState(entity);
+    else persistCompanyActivationState(entity);
+  } catch (e) {}
   try { saveAppData(); } catch (e) {}
-  alert(lang==='en'
-    ? ('Request sent for plan « ' + plan.name + ' » (' + formatMoney(req.amount) + '). Wait for Super Admin validation.')
-    : ('Demande envoyée pour la formule « ' + plan.name + ' » (' + formatMoney(req.amount) + '). Attendez la validation du Super Admin.'));
+
+  pushUserNotif(ownerId,
+    lang==='en'?'Account activated':'Compte activé',
+    lang==='en'
+      ? ('Plan « ' + (plan.name || '') + ' » active for ' + quota + ' orders' + (price > 0 ? (' · paid ' + formatMoney(price)) : ' · free'))
+      : ('Formule « ' + (plan.name || '') + ' » active pour ' + quota + ' commandes' + (price > 0 ? (' · payé ' + formatMoney(price)) : ' · gratuit')));
+
+  try { updateWalletChip(); renderWallet(); } catch (e) {}
   if (entityType === 'entreprise') renderCompanyActivation();
   else renderShopActivation();
+  alert(lang==='en'
+    ? ('Plan activated! +' + quota + ' orders' + (price > 0 ? (' · ' + formatMoney(price) + ' debited') : ''))
+    : ('Formule activée ! +' + quota + ' commandes' + (price > 0 ? (' · ' + formatMoney(price) + ' débités') : '')));
 }
 
 function requestCompanyReactivation() {
@@ -17160,48 +18001,119 @@ function renderSellerActivationUI(el, entity, entityType) {
   const pending = (data.activationRequests || []).concat(data.companyActivationRequests || [])
     .find(r => String(r.entityId || r.companyId || r.shopId) === String(entity.id) && r.status === 'pending');
 
-  const planCards = plans.map(p => {
-    const isCurrent = currentPlan && String(currentPlan.id) === String(p.id) && !locked;
-    const priceLabel = Number(p.price || 0) <= 0
-      ? (lang==='en'?'Free':'Gratuit')
-      : formatMoney(p.price);
-    const btn = locked && !pending
-      ? `<button class="btn btn-sm btn-accent" style="width:100%;margin-top:8px" onclick="requestSellerActivation('${entityType}','${p.id}')">Choisir</button>`
-      : (isCurrent ? `<div style="margin-top:8px;font-size:11px;color:var(--green);font-weight:700">✓ Formule actuelle</div>` : '');
-    return `<div class="card" style="margin-bottom:8px;${isCurrent?'border-color:rgba(52,211,153,.45)':''}">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
-        <div>
-          <b>${p.name}</b>
-          <div style="font-size:12px;color:var(--text-muted);margin-top:4px">${p.description || (p.orderQuota + ' commandes')}</div>
+  const tab = window._sellerActTab || 'quota';
+  const fr = lang !== 'en';
+  const title = entityType === 'entreprise'
+    ? (fr ? 'Activation entreprise' : 'Company activation')
+    : (fr ? 'Activation boutique' : 'Shop activation');
+  const entityName = entity.name || (entityType === 'entreprise' ? 'Entreprise' : 'Boutique');
+  const pct = total > 0 ? Math.min(100, Math.round((used / total) * 100)) : 0;
+  const statusVal = locked ? (fr ? 'Verrouillé' : 'Locked') : (fr ? 'Actif' : 'Active');
+  const statusClass = locked ? 'bad' : 'ok';
+  const remClass = remaining <= 0 ? 'bad' : (remaining <= Math.max(5, total * 0.1) ? 'warn' : 'ok');
+
+  let body = '';
+  if (tab === 'quota') {
+    body = `
+      <div class="dll-hint">${fr
+        ? 'Chaque formule donne un quota de commandes reçues. Quand il est épuisé, payez une nouvelle formule avec votre solde Allo.'
+        : 'Each plan grants a received-orders quota. When empty, pay for a new plan with your Allo balance.'}</div>
+      <div class="dll-row ${locked ? 'locked-row' : 'current'}">
+        <div class="dll-badge ${locked ? 'red' : 'green'}">${locked ? '🔒' : '✓'}
+          <span class="lvl">${currentPlan ? String(currentPlan.orderQuota||0) : total}</span>
         </div>
-        <div style="text-align:right">
-          <div style="font-family:JetBrains Mono,monospace;font-weight:800;color:var(--accent-bright)">${priceLabel}</div>
-          <div style="font-size:11px;color:var(--text-muted)">${p.orderQuota} cmd</div>
+        <div class="dll-main">
+          <div class="dll-names">
+            <span class="left">${String(entityName).replace(/</g,'')}</span>
+            <span class="right">${currentPlan ? String(currentPlan.name||'').replace(/</g,'') : (fr?'Sans formule':'No plan')}</span>
+          </div>
+          <div class="dll-stats">
+            <div class="dll-stat"><div class="lbl">${fr?'Reçues':'Used'}</div><div class="val">${used}</div></div>
+            <div class="dll-stat"><div class="lbl">${fr?'Reste':'Left'}</div><div class="val ${remClass}">${remaining}</div></div>
+            <div class="dll-stat"><div class="lbl">${fr?'Quota':'Quota'}</div><div class="val">${total}</div></div>
+            <div class="dll-stat"><div class="lbl">${fr?'Statut':'Status'}</div><div class="val ${statusClass}">${statusVal}</div></div>
+          </div>
+          <div class="dll-progress"><i style="width:${pct}%"></i></div>
         </div>
+        <span class="dll-dot ${locked ? 'off' : (pending ? 'pending' : '')}"></span>
       </div>
-      ${btn}
-    </div>`;
-  }).join('');
+      ${pending ? `<div class="dll-row">
+        <div class="dll-badge gold">⏳</div>
+        <div class="dll-main">
+          <div class="dll-names">
+            <span class="left">${fr?'Demande en attente':'Pending request'}</span>
+            <span class="right">${String(pending.planName||'').replace(/</g,'')}</span>
+          </div>
+          <div class="dll-stats">
+            <div class="dll-stat"><div class="lbl">${fr?'Quota':'Quota'}</div><div class="val">${pending.orderQuota||0}</div></div>
+            <div class="dll-stat"><div class="lbl">${fr?'Prix':'Price'}</div><div class="val warn">${formatMoney(pending.amount||0)}</div></div>
+            <div class="dll-stat"><div class="lbl">${fr?'Statut':'Status'}</div><div class="val warn">${fr?'Attente':'Wait'}</div></div>
+            <div class="dll-stat"><div class="lbl">ID</div><div class="val">${String(pending.id||'').slice(-4)}</div></div>
+          </div>
+        </div>
+        <span class="dll-dot pending"></span>
+      </div>` : ''}
+      ${locked && !pending ? `<div class="dll-hint" style="color:#FBBF24">${fr?'Quota épuisé — ouvrez l’onglet Formules pour continuer.':'Quota exhausted — open the Plans tab to continue.'}</div>` : ''}
+      ${!locked ? `<div class="dll-hint" style="color:#7CFC9A">${fr?'✓ Compte actif — vos clients peuvent commander.':'✓ Account active — customers can order.'}</div>` : ''}
+    `;
+  } else {
+    if (!plans.length) {
+      body = `<div class="dll-empty">${fr?'Aucune formule disponible':'No plans available'}</div>`;
+    } else {
+      body = `<div class="dll-hint">${fr?'Choisissez une formule. Le paiement se fait immédiatement avec votre solde Allo.':'Pick a plan. Payment is taken immediately from your Allo balance.'}</div>` + plans.map(p => {
+        const isCurrent = currentPlan && String(currentPlan.id) === String(p.id) && !locked;
+        const priceLabel = Number(p.price || 0) <= 0 ? (fr?'Gratuit':'Free') : formatMoney(p.price);
+        const badgeClass = Number(p.price||0)<=0 ? 'green' : (isCurrent ? 'gold' : '');
+        let actions = '';
+        if (isCurrent) {
+          actions = `<div class="dll-row-actions"><button class="btn btn-sm btn-ghost" disabled>✓ ${fr?'Formule actuelle':'Current plan'}</button></div>`;
+        } else if (pending) {
+          actions = `<div class="dll-row-actions"><button class="btn btn-sm btn-ghost" disabled>${fr?'Demande déjà envoyée':'Request already sent'}</button></div>`;
+        } else if (locked) {
+          actions = `<div class="dll-row-actions"><button class="btn btn-sm btn-accent" onclick="requestSellerActivation('${entityType}','${String(p.id).replace(/'/g,"\\\\'")}')">${fr?'Payer & activer':'Pay & activate'}</button></div>`;
+        } else {
+          actions = `<div class="dll-row-actions"><button class="btn btn-sm btn-ghost" disabled>${fr?'Disponible au prochain verrouillage':'Available when locked'}</button></div>`;
+        }
+        return `<div class="dll-row ${isCurrent?'current':''}">
+          <div class="dll-badge ${badgeClass}">🔑<span class="lvl">${p.orderQuota||0}</span></div>
+          <div class="dll-main">
+            <div class="dll-names">
+              <span class="left">${String(p.name||'').replace(/</g,'')}</span>
+              <span class="right">${priceLabel}</span>
+            </div>
+            <div class="dll-stats">
+              <div class="dll-stat"><div class="lbl">${fr?'Commandes':'Orders'}</div><div class="val">${p.orderQuota||0}</div></div>
+              <div class="dll-stat"><div class="lbl">${fr?'Prix':'Price'}</div><div class="val warn">${priceLabel}</div></div>
+              <div class="dll-stat"><div class="lbl">${fr?'Cible':'Target'}</div><div class="val">${p.target==='boutique'?(fr?'Bout.':'Shop'):(p.target==='entreprise'?(fr?'Entr.':'Co.'):(fr?'Tous':'All'))}</div></div>
+              <div class="dll-stat"><div class="lbl">${fr?'État':'State'}</div><div class="val ${isCurrent?'ok':''}">${isCurrent?(fr?'Actuelle':'Current'):(fr?'Dispo':'Open')}</div></div>
+            </div>
+            ${p.description ? `<div style="font-size:11px;color:rgba(180,210,240,.65);margin-top:6px">${String(p.description).replace(/</g,'')}</div>` : ''}
+            ${actions}
+          </div>
+          <span class="dll-dot ${isCurrent?'':(locked?'off':'')}"></span>
+        </div>`;
+      }).join('');
+    }
+  }
 
   el.innerHTML = `
-    <div class="card">
-      <b>🔑 ${entityType === 'entreprise' ? 'Activation entreprise' : 'Activation boutique'}</b>
-      <p style="font-size:12.5px;color:var(--text-muted);margin-top:8px;line-height:1.45">
-        Chaque formule donne un <b>quota de commandes reçues</b>. Quand le quota est atteint, choisissez une nouvelle formule.
-        Le Super Admin valide la demande. <b>Voir</b> ou <b>marquer livré</b> ne change pas le compteur.
-      </p>
-      <div class="stat-grid" style="margin-top:12px">
-        <div class="stat-card"><b>${used}</b><span>Commandes reçues</span></div>
-        <div class="stat-card"><b>${remaining}</b><span>Restantes</span></div>
-        <div class="stat-card"><b>${total}</b><span>Quota total</span></div>
-        <div class="stat-card"><b style="color:${locked?'var(--red)':'var(--green)'}">${locked?'Verrouillé':'Actif'}</b><span>Statut</span></div>
+    <div class="dll-panel">
+      <div class="dll-title">${title}</div>
+      <div class="dll-tabs">
+        <button type="button" class="dll-tab ${tab==='quota'?'active':''}" onclick="window._sellerActTab='quota';renderSellerActivationUI(document.getElementById('${el.id}'), arguments[0], '${entityType}')">${fr?'Mon quota':'My quota'}</button>
+        <button type="button" class="dll-tab ${tab==='plans'?'active':''}" onclick="window._sellerActTab='plans';renderSellerActivationUI(document.getElementById('${el.id}'), arguments[0], '${entityType}')">${fr?'Formules':'Plans'}</button>
       </div>
-      ${currentPlan ? `<div style="margin-top:10px;font-size:12.5px">Formule en cours : <b>${currentPlan.name}</b></div>` : ''}
-      ${pending ? '<div style="margin-top:10px" class="status-pill status-pending">Demande en attente de validation</div>' : ''}
-      ${!locked ? `<div style="margin-top:12px;font-size:12px;color:var(--green)">✓ Compte actif — vos clients peuvent commander.</div>` : ''}
-    </div>
-    <div class="section-head" style="margin-top:16px"><h2><span class="bar"></span> Formules disponibles</h2></div>
-    ${planCards || '<div class="empty">Aucune formule définie par le Super Admin</div>'}`;
+      <div class="dll-body" id="dllSellerBody">${body}</div>
+      <div class="dll-footer">
+        <button class="btn btn-ghost" onclick="window._sellerActTab='quota';${entityType==='entreprise'?'renderCompanyActivation()':'renderShopActivation()'}">↻ ${fr?'Actualiser':'Refresh'}</button>
+        <button class="btn btn-accent" onclick="window._sellerActTab='plans';${entityType==='entreprise'?'renderCompanyActivation()':'renderShopActivation()'}">🔑 ${fr?'Formules':'Plans'}</button>
+      </div>
+    </div>`;
+
+  // Rebind tabs properly (avoid broken arguments[0])
+  const tabs = el.querySelectorAll('.dll-tab');
+  if (tabs[0]) tabs[0].onclick = function(){ window._sellerActTab='quota'; if(entityType==='entreprise') renderCompanyActivation(); else renderShopActivation(); };
+  if (tabs[1]) tabs[1].onclick = function(){ window._sellerActTab='plans'; if(entityType==='entreprise') renderCompanyActivation(); else renderShopActivation(); };
 }
 
 function renderCompanyActivation() {
@@ -17225,100 +18137,188 @@ function renderAdminCompanyActivations() {
   const plansEl = document.getElementById('adminActivationPlansList');
   const listEl = document.getElementById('adminCompanyActivationList');
   const allEl = document.getElementById('adminCompaniesStatusList');
-  // legacy config container — clear
   const cfgEl = document.getElementById('adminCompanyActivationConfig');
   if (cfgEl) cfgEl.innerHTML = '';
 
-  if (plansEl) {
-    const plans = (adminConfig.activationPlans || []).slice();
+  const fr = lang !== 'en';
+  const tab = window._adminActTab || 'plans';
+  const plans = (adminConfig.activationPlans || []).slice();
+  const rev = Number(adminConfig.companyActivationRevenue || 0);
+
+  // Build unified panel into plansEl (hide separate sections headers visually)
+  const host = plansEl || listEl;
+  if (!host) return;
+
+  // Hide legacy separate containers content when we unify
+  if (listEl && listEl !== host) listEl.innerHTML = '';
+  if (allEl) allEl.style.display = tab === 'status' ? '' : 'none';
+  if (listEl && listEl !== host) listEl.style.display = 'none';
+
+  let body = '';
+
+  if (tab === 'plans') {
     if (!plans.length) {
-      plansEl.innerHTML = '<div class="empty">Aucune formule — créez-en une</div>';
+      body = `<div class="dll-empty">${fr?'Aucune formule — créez-en une':'No plans yet — create one'}</div>`;
     } else {
-      plansEl.innerHTML = plans.map(p => {
-        const targetLabel = p.target === 'boutique' ? 'Boutique' : (p.target === 'entreprise' ? 'Entreprise' : 'Les deux');
+      body = plans.map(p => {
+        const targetLabel = p.target === 'boutique' ? (fr?'Boutique':'Shop') : (p.target === 'entreprise' ? (fr?'Entreprise':'Company') : (fr?'Les deux':'Both'));
         const active = p.active !== false;
-        return `<div class="card" style="${active?'':'opacity:.55'}">
-          <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
-            <div>
-              <b>${p.name}</b>
-              <div style="font-size:12px;color:var(--text-muted);margin-top:4px">${p.description || ''}</div>
-              <div style="font-size:12px;margin-top:6px">
-                <b>${p.orderQuota}</b> commandes · <b>${formatMoney(p.price||0)}</b> · ${targetLabel}
-              </div>
+        const priceLabel = Number(p.price||0)<=0 ? (fr?'Gratuit':'Free') : formatMoney(p.price||0);
+        const safeId = String(p.id||'').replace(/'/g,"\\\\'");
+        return `<div class="dll-row ${active?'current':''}">
+          <div class="dll-badge ${active?'gold':'red'}">🔑<span class="lvl">${p.orderQuota||0}</span></div>
+          <div class="dll-main">
+            <div class="dll-names">
+              <span class="left">${String(p.name||'').replace(/</g,'')}</span>
+              <span class="right">${priceLabel}</span>
             </div>
-            <span class="status-pill ${active?'status-ok':'status-refused'}">${active?'Active':'Off'}</span>
+            <div class="dll-stats">
+              <div class="dll-stat"><div class="lbl">${fr?'Quota':'Quota'}</div><div class="val">${p.orderQuota||0}</div></div>
+              <div class="dll-stat"><div class="lbl">${fr?'Prix':'Price'}</div><div class="val warn">${priceLabel}</div></div>
+              <div class="dll-stat"><div class="lbl">${fr?'Cible':'Target'}</div><div class="val">${targetLabel}</div></div>
+              <div class="dll-stat"><div class="lbl">${fr?'État':'State'}</div><div class="val ${active?'ok':'bad'}">${active?(fr?'Active':'On'):(fr?'Off':'Off')}</div></div>
+            </div>
+            ${p.description ? `<div style="font-size:11px;color:rgba(180,210,240,.65);margin-top:5px">${String(p.description).replace(/</g,'')}</div>` : ''}
+            <div class="dll-row-actions">
+              <button class="btn btn-sm btn-ghost" onclick="openModal('createActivationPlan','${safeId}')">${fr?'Modifier':'Edit'}</button>
+              <button class="btn btn-sm btn-ghost" onclick="toggleActivationPlan('${safeId}')">${active?(fr?'Désactiver':'Disable'):(fr?'Activer':'Enable')}</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteActivationPlan('${safeId}')">✕</button>
+            </div>
           </div>
-          <div style="display:flex;gap:8px;margin-top:10px">
-            <button class="btn btn-sm btn-ghost" style="flex:1" onclick="openModal('createActivationPlan','${p.id}')">Modifier</button>
-            <button class="btn btn-sm btn-ghost" style="flex:1" onclick="toggleActivationPlan('${p.id}')">${active?'Désactiver':'Activer'}</button>
-            <button class="btn btn-sm btn-danger" onclick="deleteActivationPlan('${p.id}')">✕</button>
-          </div>
+          <span class="dll-dot ${active?'':'off'}"></span>
         </div>`;
       }).join('');
     }
-  }
-
-  if (listEl) {
+    body += `<div class="dll-hint" style="margin-top:6px">${fr?'Revenus activations :':'Activation revenue:'} <b style="color:#FBBF24">${formatMoney(rev)}</b></div>`;
+  } else if (tab === 'requests') {
     const list = (data.activationRequests || data.companyActivationRequests || []).slice().reverse();
-    // dedupe by id
     const seen = new Set();
     const unique = [];
     list.forEach(r => { if (!seen.has(String(r.id))) { seen.add(String(r.id)); unique.push(r); } });
     if (!unique.length) {
-      listEl.innerHTML = '<div class="empty">Aucune demande d’activation</div>';
+      body = `<div class="dll-empty">${fr?"Aucune demande d'activation":'No activation requests'}</div>`;
     } else {
-      listEl.innerHTML = unique.map(r => `
-        <div class="card">
-          <div style="display:flex;justify-content:space-between"><b>${r.entityName||r.companyName||'Compte'}</b>${statusPillReq(r.status)}</div>
-          <div style="font-size:13px;margin-top:6px"><b>${formatMoney(r.amount)}</b> · ${r.orderQuota} commandes · ${r.planName||r.entityType||''}</div>
-          <div style="font-size:12px;color:var(--text-muted)">${r.ownerName||''} · ${r.date?new Date(r.date).toLocaleString('fr-FR'):''}</div>
-          ${r.status==='pending'
-            ? `<div style="display:flex;gap:8px;margin-top:10px">
-                <button class="btn btn-sm btn-accent" style="flex:1" onclick="adminValidateCompanyActivation('${r.id}')">Valider</button>
-                <button class="btn btn-sm btn-danger" style="flex:1" onclick="adminRefuseCompanyActivation('${r.id}')">Refuser</button>
-              </div>`
-            : (r.reason?`<div style="font-size:12px;color:var(--red);margin-top:6px">${r.reason}</div>`:'')}
-        </div>`).join('');
+      body = unique.map(r => {
+        const st = String(r.status||'pending');
+        const stClass = st==='validated'||st==='paid'?'ok':(st==='refused'?'bad':'warn');
+        const stLabel = st==='validated'?(fr?'Validé':'OK'):(st==='paid'?(fr?'Payé':'Paid'):(st==='refused'?(fr?'Refusé':'Refused'):(fr?'Attente':'Pending')));
+        const safeId = String(r.id||'').replace(/'/g,"\\\\'");
+        const actions = st==='pending'
+          ? `<div style="font-size:11px;color:rgba(180,210,240,.7);margin-top:6px">${fr?'Ancienne demande — les nouvelles formules se paient au solde Allo.':'Legacy request — new plans are paid with Allo balance.'}</div>
+            <div class="dll-row-actions">
+              <button class="btn btn-sm btn-accent" onclick="adminValidateCompanyActivation('${safeId}')">${fr?'Valider (legacy)':'Approve (legacy)'}</button>
+              <button class="btn btn-sm btn-danger" onclick="adminRefuseCompanyActivation('${safeId}')">${fr?'Refuser':'Refuse'}</button>
+            </div>`
+          : (st==='paid'
+            ? `<div style="font-size:11px;color:#7CFC9A;margin-top:6px">${fr?'Payé au solde Allo — activé automatiquement':'Paid with Allo balance — auto-activated'}</div>`
+            : (r.reason ? `<div style="font-size:11px;color:#F87171;margin-top:6px">${String(r.reason).replace(/</g,'')}</div>` : ''));
+        return `<div class="dll-row ${st==='pending'?'':'current'}">
+          <div class="dll-badge ${st==='validated'?'green':(st==='refused'?'red':'gold')}">📋<span class="lvl">${r.orderQuota||0}</span></div>
+          <div class="dll-main">
+            <div class="dll-names">
+              <span class="left">${String(r.entityName||r.companyName||'Compte').replace(/</g,'')}</span>
+              <span class="right">${String(r.planName||r.entityType||'').replace(/</g,'')}</span>
+            </div>
+            <div class="dll-stats">
+              <div class="dll-stat"><div class="lbl">${fr?'Montant':'Amount'}</div><div class="val warn">${formatMoney(r.amount||0)}</div></div>
+              <div class="dll-stat"><div class="lbl">${fr?'Quota':'Quota'}</div><div class="val">${r.orderQuota||0}</div></div>
+              <div class="dll-stat"><div class="lbl">${fr?'Par':'By'}</div><div class="val" style="font-size:10px">${String(r.ownerName||'—').replace(/</g,'').slice(0,10)}</div></div>
+              <div class="dll-stat"><div class="lbl">${fr?'Statut':'Status'}</div><div class="val ${stClass}">${stLabel}</div></div>
+            </div>
+            ${actions}
+          </div>
+          <span class="dll-dot ${st==='pending'?'pending':(st==='validated'?'':'off')}"></span>
+        </div>`;
+      }).join('');
     }
-  }
-
-  if (allEl) {
+  } else {
+    // status
     const cos = data.companies || [];
     const shops = (data.shops || []).filter(s => !s.companyId);
-    let htmlOut = '';
-    if (cos.length) {
-      htmlOut += '<div class="section-label">Entreprises</div>';
-      htmlOut += cos.map(c => {
-        ensureCompanyActivationFields(c);
-        const rem = getCompanyOrdersRemaining(c.id);
-        return `<div class="list-row">
-          <div class="c-info"><div class="c-name">${c.name||'Entreprise'}</div>
-          <div class="c-sub">${c.ordersUsed||0}/${c.orderQuotaTotal||0} cmd · reste ${rem}</div></div>
-          <span class="status-pill ${c.activationLocked?'status-refused':'status-ok'}">${c.activationLocked?'Verrouillé':'Actif'}</span>
-        </div>`;
-      }).join('');
-    }
-    if (shops.length) {
-      htmlOut += '<div class="section-label" style="margin-top:12px">Boutiques</div>';
-      htmlOut += shops.map(s => {
-        ensureShopActivationFields(s);
-        const rem = getShopOrdersRemaining(s.id);
-        return `<div class="list-row">
-          <div class="c-info"><div class="c-name">${s.name||'Boutique'}</div>
-          <div class="c-sub">${s.ordersUsed||0}/${s.orderQuotaTotal||0} cmd · reste ${rem}</div></div>
-          <span class="status-pill ${s.activationLocked?'status-refused':'status-ok'}">${s.activationLocked?'Verrouillé':'Actif'}</span>
-        </div>`;
-      }).join('');
-    }
-    allEl.innerHTML = htmlOut || '<div class="empty">Aucun compte vendeur</div>';
+    let rows = '';
+    cos.forEach(c => {
+      ensureCompanyActivationFields(c);
+      const rem = getCompanyOrdersRemaining(c.id);
+      const locked = !!c.activationLocked;
+      rows += `<div class="dll-row ${locked?'locked-row':'current'}">
+        <div class="dll-badge ${locked?'red':'green'}">🏢<span class="lvl">${c.orderQuotaTotal||0}</span></div>
+        <div class="dll-main">
+          <div class="dll-names">
+            <span class="left">${String(c.name||'Entreprise').replace(/</g,'')}</span>
+            <span class="right">${fr?'Entreprise':'Company'}</span>
+          </div>
+          <div class="dll-stats">
+            <div class="dll-stat"><div class="lbl">${fr?'Reçues':'Used'}</div><div class="val">${c.ordersUsed||0}</div></div>
+            <div class="dll-stat"><div class="lbl">${fr?'Reste':'Left'}</div><div class="val ${rem<=0?'bad':'ok'}">${rem}</div></div>
+            <div class="dll-stat"><div class="lbl">${fr?'Quota':'Quota'}</div><div class="val">${c.orderQuotaTotal||0}</div></div>
+            <div class="dll-stat"><div class="lbl">${fr?'Statut':'Status'}</div><div class="val ${locked?'bad':'ok'}">${locked?(fr?'Verrouillé':'Locked'):(fr?'Actif':'Active')}</div></div>
+          </div>
+        </div>
+        <span class="dll-dot ${locked?'off':''}"></span>
+      </div>`;
+    });
+    shops.forEach(s => {
+      ensureShopActivationFields(s);
+      const rem = getShopOrdersRemaining(s.id);
+      const locked = !!s.activationLocked;
+      rows += `<div class="dll-row ${locked?'locked-row':'current'}">
+        <div class="dll-badge ${locked?'red':'green'}">🏪<span class="lvl">${s.orderQuotaTotal||0}</span></div>
+        <div class="dll-main">
+          <div class="dll-names">
+            <span class="left">${String(s.name||'Boutique').replace(/</g,'')}</span>
+            <span class="right">${fr?'Boutique':'Shop'}</span>
+          </div>
+          <div class="dll-stats">
+            <div class="dll-stat"><div class="lbl">${fr?'Reçues':'Used'}</div><div class="val">${s.ordersUsed||0}</div></div>
+            <div class="dll-stat"><div class="lbl">${fr?'Reste':'Left'}</div><div class="val ${rem<=0?'bad':'ok'}">${rem}</div></div>
+            <div class="dll-stat"><div class="lbl">${fr?'Quota':'Quota'}</div><div class="val">${s.orderQuotaTotal||0}</div></div>
+            <div class="dll-stat"><div class="lbl">${fr?'Statut':'Status'}</div><div class="val ${locked?'bad':'ok'}">${locked?(fr?'Verrouillé':'Locked'):(fr?'Actif':'Active')}</div></div>
+          </div>
+        </div>
+        <span class="dll-dot ${locked?'off':''}"></span>
+      </div>`;
+    });
+    body = rows || `<div class="dll-empty">${fr?'Aucun compte vendeur':'No seller accounts'}</div>`;
   }
 
-  // Revenus
-  if (plansEl) {
-    const rev = Number(adminConfig.companyActivationRevenue || 0);
-    plansEl.insertAdjacentHTML('beforeend',
-      `<div style="margin-top:10px;font-size:12px;color:var(--text-muted)">Revenus activations : <b style="color:var(--accent-bright)">${formatMoney(rev)}</b></div>`);
+  host.innerHTML = `
+    <div class="dll-panel">
+      <div class="dll-title">${fr?"Formules d'activation":'Activation plans'}</div>
+      <div class="dll-tabs">
+        <button type="button" class="dll-tab ${tab==='plans'?'active':''}" data-tab="plans">${fr?'Formules':'Plans'}</button>
+        <button type="button" class="dll-tab ${tab==='requests'?'active':''}" data-tab="requests">${fr?'Historique':'History'}</button>
+        <button type="button" class="dll-tab ${tab==='status'?'active':''}" data-tab="status">${fr?'Comptes':'Accounts'}</button>
+      </div>
+      <div class="dll-body">${body}</div>
+      <div class="dll-footer">
+        <button class="btn btn-ghost" onclick="renderAdminCompanyActivations()">↻ ${fr?'Actualiser':'Refresh'}</button>
+        <button class="btn btn-accent" onclick="openModal('createActivationPlan')">＋ ${fr?'Créer formule':'New plan'}</button>
+      </div>
+    </div>`;
+
+  host.querySelectorAll('.dll-tab').forEach(btn => {
+    btn.onclick = function() {
+      window._adminActTab = btn.getAttribute('data-tab') || 'plans';
+      renderAdminCompanyActivations();
+    };
+  });
+
+  // Hide the old standalone create button if present (footer has it)
+  const oldBtn = host.parentElement && host.parentElement.querySelector('button[onclick*="createActivationPlan"]');
+  if (oldBtn && oldBtn.closest('.dll-panel') == null) {
+    try { oldBtn.style.display = 'none'; } catch (e) {}
   }
+  // Soft-hide section heads under this view
+  try {
+    const view = document.getElementById('view-admin-company-activation');
+    if (view) {
+      view.querySelectorAll('.section-head').forEach((h, i) => {
+        if (i > 0) h.style.display = 'none';
+      });
+      const intro = view.querySelector('p');
+      if (intro && intro.style) intro.style.display = 'none';
+    }
+  } catch (e) {}
 }
 
 
