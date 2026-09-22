@@ -5356,10 +5356,19 @@ async function sbLoadAllIntoData() {
     // admin config depuis tables
     try {
       if (typeof adminConfig !== 'undefined') {
-        adminConfig.categories = (categories.data || []).map(c => c.name);
-        adminConfig.commissions = {};
-        (categories.data || []).forEach(c => { adminConfig.commissions[c.name] = Number(c.commission_pct); });
-        adminConfig.deliveryZones = (zones.data || []).map(z => z.name);
+        // Ne pas écraser les catégories locales si la requête a échoué ou est vide par erreur
+        if (categories && !categories.error && Array.isArray(categories.data) && categories.data.length) {
+          adminConfig.categories = categories.data.map(c => c.name).filter(Boolean);
+          adminConfig.commissions = {};
+          categories.data.forEach(c => { adminConfig.commissions[c.name] = Number(c.commission_pct); });
+        } else if (categories && categories.error) {
+          console.warn('[Allo] categories select', categories.error);
+        }
+        if (zones && !zones.error && Array.isArray(zones.data) && zones.data.length) {
+          adminConfig.deliveryZones = zones.data.map(z => z.name).filter(Boolean);
+        } else if (zones && zones.error) {
+          console.warn('[Allo] zones select', zones.error);
+        }
         (settings.data || []).forEach(s => {
           if (s.key === 'default_commission') adminConfig.defaultCommission = Number(s.value);
           if (s.key === 'deposit_info') data.depositInfo = s.value;
@@ -8031,19 +8040,51 @@ async function adminRemoveHashtag(name) {
 }
 
 async function adminAddCategory() {
+  if (!currentUser || currentUser.role !== 'admin') {
+    alert(lang === 'en' ? 'Only Super Admin can add categories.' : 'Seul le Super Admin peut ajouter des catégories.');
+    return;
+  }
   const name = (document.getElementById('mCatName')?.value || '').trim();
   if (!name) { alert(t('fillFields')); return; }
-  if (!adminConfig.categories) adminConfig.categories = getAdminCategories();
-  if (adminConfig.categories.includes(name)) { closeModal(); return; }
-  if (USE_SUPABASE && sb) {
+  if (!Array.isArray(adminConfig.categories) || !adminConfig.categories.length) {
+    adminConfig.categories = getAdminCategories();
+  }
+  // Doublon insensible à la casse — message clair (avant : fermeture silencieuse)
+  const exists = adminConfig.categories.some(c => String(c).trim().toLowerCase() === name.toLowerCase());
+  if (exists) {
+    alert(lang === 'en' ? 'This category already exists.' : 'Cette catégorie existe déjà.');
+    return;
+  }
+  if (typeof USE_SUPABASE !== 'undefined' && USE_SUPABASE && sb) {
     const res = await sbAdminSaveCategory(name, 0);
-    if (res.error) { alert(lang==='en'?'Could not save category.':'Impossible d’enregistrer la catégorie.'); return; }
-    await sbLoadAllIntoData();
+    if (res.error) {
+      const msg = (res.error && (res.error.message || res.error.code)) ? String(res.error.message || res.error.code) : '';
+      alert((lang === 'en' ? 'Could not save category.' : 'Impossible d’enregistrer la catégorie.') + (msg ? ('\n' + msg) : ''));
+      return;
+    }
+    // Mise à jour locale immédiate pour que la liste admin affiche la catégorie
+    // même si le rechargement Supabase échoue ou renvoie une liste partielle.
+    if (!adminConfig.categories.includes(name)) adminConfig.categories.push(name);
+    if (!adminConfig.commissions) adminConfig.commissions = {};
+    if (adminConfig.commissions[name] == null) adminConfig.commissions[name] = 0;
+    try { saveAdminConfig(); } catch (e) {}
+    try { await sbLoadAllIntoData(); } catch (e) { console.warn('[Allo] reload after category add', e); }
+    // Si le reload a vidé la liste par erreur, réinjecter au moins la nouvelle
+    if (!Array.isArray(adminConfig.categories) || !adminConfig.categories.length) {
+      adminConfig.categories = getAdminCategories();
+    }
+    if (!adminConfig.categories.some(c => String(c).trim().toLowerCase() === name.toLowerCase())) {
+      adminConfig.categories.push(name);
+    }
   } else {
     adminConfig.categories.push(name);
+    if (!adminConfig.commissions) adminConfig.commissions = {};
+    adminConfig.commissions[name] = 0;
     saveAdminConfig();
   }
-  closeModal(); alert(t('adminCategoryAdded')); renderAdminCategories();
+  closeModal();
+  alert(t('adminCategoryAdded'));
+  renderAdminCategories();
 }
 
 async function adminRemoveCategory(name) {
