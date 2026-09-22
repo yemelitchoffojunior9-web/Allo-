@@ -9629,10 +9629,25 @@ function countProductsInCat(cat) {
   return prods.filter(p => (typeof productHasCat === 'function') ? productHasCat(p, cat) : String(p.cat||'') === String(cat)).length;
 }
 function getBrowseCategoryOptions() {
+  // Espace CLIENT d’une entreprise uniquement : catégories déjà utilisées
+  // par les produits de CETTE entreprise. Le catalogue user public n’est pas touché.
+  const role = currentUser && currentUser.role;
+  const prods = (typeof getVisibleProducts === 'function') ? getVisibleProducts() : (data.products || []);
+  const fromProds = (typeof collectAllProductCats === 'function')
+    ? collectAllProductCats(prods)
+    : [...new Set(prods.map(p => p.cat).filter(Boolean))];
+
+  if (role === 'client') {
+    const used = fromProds.filter(c => {
+      if (!c) return false;
+      return prods.some(p => (typeof productHasCat === 'function') ? productHasCat(p, c) : String(p.cat || '') === String(c));
+    });
+    return used.filter(Boolean).sort((a, b) => String(a).localeCompare(String(b), 'fr'));
+  }
+
+  // Catalogue public (user) / admin / vendeurs : admin + cats des produits visibles
   let cats = [];
   try { cats = (typeof getAdminCategories === 'function') ? getAdminCategories().slice() : []; } catch (_) {}
-  const prods = (typeof getVisibleProducts === 'function') ? getVisibleProducts() : (data.products || []);
-  const fromProds = (typeof collectAllProductCats === 'function') ? collectAllProductCats(prods) : [...new Set(prods.map(p => p.cat).filter(Boolean))];
   fromProds.forEach(c => { if (c && !cats.includes(c)) cats.push(c); });
   return cats.filter(Boolean).sort((a, b) => String(a).localeCompare(String(b), 'fr'));
 }
@@ -9645,8 +9660,17 @@ function openCategoryPicker() {
   const sub = document.getElementById('catPickerSub');
   if (title) title.textContent = fr ? 'CATÉGORIES' : 'CATEGORIES';
   if (sub) sub.textContent = fr ? 'Seuls les produits de la catégorie s’affichent' : 'Only products in this category are shown';
-  const active = window._catalogCat || 'all';
-  const cats = getBrowseCategoryOptions();
+  let active = window._catalogCat || 'all';
+  const isClientSpace = currentUser && currentUser.role === 'client';
+  let cats = getBrowseCategoryOptions();
+  // Espace client entreprise uniquement : masquer les catégories à 0 produit
+  if (isClientSpace) {
+    cats = cats.filter(c => countProductsInCat(c) > 0);
+    if (active !== 'all' && !cats.some(c => String(c) === String(active))) {
+      active = 'all';
+      window._catalogCat = 'all';
+    }
+  }
   let html = `<button type="button" class="cat-picker-card all-card ${active==='all'?'active':''}" onclick="selectBrowseCategory('all')">
     <span class="ck">✓</span><span class="ico">✨</span>
     <span class="lbl">${fr?'Voir tout':'See all'}</span>
@@ -9913,8 +9937,15 @@ function productHasCat(p, cat) {
 function collectAllProductCats(products) {
   const set = new Set();
   (products || []).forEach(p => {
-    const c = String(p && p.cat || '').trim();
+    if (!p) return;
+    const c = String(p.cat || '').trim();
     if (c) set.add(c);
+    if (Array.isArray(p.cats)) {
+      p.cats.forEach(x => {
+        const t = String(x || '').trim();
+        if (t) set.add(t);
+      });
+    }
   });
   return [...set];
 }
@@ -14129,6 +14160,10 @@ async function openClientCompanySpace(companyId) {
   window._alloBaseRole = window._alloBaseRole || currentUser.role;
   currentUser.role = 'client';
   currentUser.companyId = company.id;
+  // Espace client entreprise : reset filtre catégorie / recherche (ne pas garder le filtre du catalogue user)
+  window._catalogCat = 'all';
+  window._catalogQ = '';
+  window._catalogPage = 1;
   try { if (USE_SUPABASE && typeof sbLoadAllIntoData === 'function') await sbLoadAllIntoData(); } catch (e) { console.warn('[Allo] client company catalog refresh', e); }
   buildSidebarNav(); buildNav(); switchView('home'); renderAll();
 }
