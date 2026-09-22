@@ -10038,7 +10038,7 @@ function getProductCodFieldHTML(product) {
   } else if (currentUser && currentUser.shopId) {
     shop = (data.shops || []).find(s => String(s.id) === String(currentUser.shopId));
   }
-  const shopOn = !!(shop && shop.codEnabled);
+  const shopOn = isCashOnDeliveryEnabledForShop(shop);
   const fr = lang !== 'en';
   // Valeur produit : true / false / null(hérite)
   let val = 'inherit';
@@ -11277,10 +11277,23 @@ function findCashOffer(entityType, entityId) {
   const now = Date.now();
   return (data.cashPaymentOffers || []).find(o => {
     if (String(o.entityType) !== String(entityType) || String(o.entityId) !== String(entityId) || o.enabled !== true) return false;
+    // expires_at = NULL signifie une offre permanente (notamment pour le COD gratuit).
     const starts = o.startsAt ? Date.parse(o.startsAt) : NaN;
     const expires = o.expiresAt ? Date.parse(o.expiresAt) : NaN;
-    return Number.isFinite(starts) && Number.isFinite(expires) && starts <= now && expires > now;
+    const startsOk = !o.startsAt || (Number.isFinite(starts) && starts <= now);
+    const expiresOk = !o.expiresAt || (Number.isFinite(expires) && expires > now);
+    return startsOk && expiresOk;
   }) || null;
+}
+
+function isCashOnDeliveryEnabledForShop(shop) {
+  if (!shop) return false;
+  // Le catalogue d'une entreprise n'est pas une boutique : son état COD officiel
+  // vient de cash_payment_offers(entity_type='entreprise', entity_id=company_id).
+  if (shop.isCompanyCatalog === true || shop.companyId) {
+    return !!findCashOffer('entreprise', shop.companyId);
+  }
+  return isShopCodEnabled(shop);
 }
 
 async function refreshCashPaymentOffers() {
@@ -11320,8 +11333,8 @@ function isShopCodEnabled(shop) {
 function isProductCodEnabled(p) {
   if (!p) return false;
   const shop = (data.shops || []).find(s => String(s.id) === String(p.shopId));
-  if (!isShopCodEnabled(shop)) return false;
-  // null/undefined = hérite de la boutique (activé)
+  if (!isCashOnDeliveryEnabledForShop(shop)) return false;
+  // null/undefined = hérite de l'espace vendeur (activé)
   if (p.codEnabled === false) return false;
   return true;
 }
@@ -11329,10 +11342,11 @@ function isProductCodEnabled(p) {
 function cashOfferAvailableForCart(groups) {
   const gs = groups || [];
   if (!gs.length) return false;
-  // COD gratuit : boutique active l'option ; chaque produit peut la désactiver
+  // Boutique : état via la boutique. Entreprise : état via son offre entreprise.
+  // Chaque produit peut ensuite désactiver individuellement le paiement en espèces.
   return gs.every(g => {
     const shop = (data.shops || []).find(s => String(s.id) === String(g.shopId));
-    if (!isShopCodEnabled(shop)) return false;
+    if (!isCashOnDeliveryEnabledForShop(shop)) return false;
     const items = g.items || g.lines || [];
     if (!items.length) return true;
     return items.every(entry => {
@@ -11475,8 +11489,12 @@ function applyShopCodFlagsFromCashOffers() {
 function renderCashOfferCard() {
   const ctx = getCashOfferContext();
   if (!ctx) return '';
-  const shop = (data.shops || []).find(s => String(s.id) === String(ctx.entityId));
-  const active = isShopCodEnabled(shop);
+  const shop = ctx.entityType === 'boutique'
+    ? (data.shops || []).find(s => String(s.id) === String(ctx.entityId))
+    : null;
+  const active = ctx.entityType === 'entreprise'
+    ? !!findCashOffer(ctx.entityType, ctx.entityId)
+    : isShopCodEnabled(shop);
   const fr = lang !== 'en';
   return `<div class="card" style="margin-top:10px;border-color:${active ? 'rgba(52,211,153,.35)' : 'rgba(251,191,36,.3)'}">
     <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
@@ -11500,35 +11518,44 @@ async function toggleShopCod() {
   // Une entreprise n'est pas une boutique : son paiement à la livraison
   // est rattaché directement à companies.id via l'entité "entreprise".
   if (ctx.entityType === 'entreprise') {
+    const currentlyActive = !!findCashOffer('entreprise', ctx.entityId);
     try {
-      const { data: result, error } = await sb.rpc('activate_cash_on_delivery', {
-        p_entity_type: 'entreprise',
-        p_entity_id: ctx.entityId,
-        p_duration_key: 'permanent'
-      });
+      const rpcName = currentlyActive ? 'deactivate_cash_on_delivery' : 'activate_cash_on_delivery';
+      const rpcArgs = currentlyActive
+        ? { p_entity_type: 'entreprise', p_entity_id: ctx.entityId }
+        : { p_entity_type: 'entreprise', p_entity_id: ctx.entityId, p_duration_key: 'permanent' };
+      const { data: result, error } = await sb.rpc(rpcName, rpcArgs);
       if (error) throw error;
-      if (!result || !result.ok) throw new Error('Activation non confirmée');
+      if (!result || !result.ok) throw new Error(currentlyActive ? 'Désactivation non confirmée' : 'Activation non confirmée');
       await refreshCashPaymentOffers();
-      try { renderAccount(); } catch (e) {}
-      alert(lang === 'en'
-        ? 'Cash on delivery is now enabled for your company (free).'
-        : 'Paiement à la livraison activé pour votre entreprise (gratuit).');
+      const afterActive = !!findCashOffer('entreprise', ctx.entityId);
+      if (afterActive !== !currentlyActive) {
+        throw new Error(currentlyActive ? 'Désactivation non confirmée dans Supabase' : 'Activation non confirmée dans Supabase');
+      }
+      try { renderAccount(); renderCart(); } catch (e) {}
+      alert(currentlyActive
+        ? (lang === 'en' ? 'Cash on delivery is now disabled for your company.' : 'Paiement à la livraison désactivé pour votre entreprise.')
+        : (lang === 'en' ? 'Cash on delivery is now enabled for your company (free).' : 'Paiement à la livraison activé pour votre entreprise (gratuit).'));
     } catch (e) {
       console.error('[Allo] toggle company COD', e);
-      alert(lang === 'en'
-        ? 'Cash on delivery could not be enabled for this company.'
-        : 'Impossible d’activer le paiement à la livraison pour cette entreprise.');
+      alert((lang === 'en' ? 'Cash on delivery could not be changed: ' : 'Impossible de modifier le paiement à la livraison : ') + (e.message || e));
     }
     return;
   }
 
   // Boutique publique : conserver le comportement existant.
-  const shop = (data.shops || []).find(s => String(s.id) === String(ctx.entityId));
-  if (!shop) { alert(lang==='en'?'Shop not found.':'Boutique introuvable.'); return; }
-  const next = !isShopCodEnabled(shop);
-  shop.codEnabled = next;
-  const flags = getShopCodFlagsMap();
-  flags[String(shop.id)] = next;
+  const shop = ctx.entityType === 'boutique'
+    ? (data.shops || []).find(s => String(s.id) === String(ctx.entityId))
+    : null;
+  if (ctx.entityType === 'boutique' && !shop) { alert(lang==='en'?'Shop not found.':'Boutique introuvable.'); return; }
+  const next = ctx.entityType === 'entreprise'
+    ? !findCashOffer(ctx.entityType, ctx.entityId)
+    : !isShopCodEnabled(shop);
+  if (shop) {
+    shop.codEnabled = next;
+    const flags = getShopCodFlagsMap();
+    flags[String(shop.id)] = next;
+  }
   try {
     await persistShopCodFlags();
     if (typeof USE_SUPABASE !== 'undefined' && USE_SUPABASE && typeof sbSaveShop === 'function') {
@@ -11575,6 +11602,12 @@ async function activateCashOnDelivery() {
     try { await persistShopCodFlags(); } catch (_) {}
     await sbLoadAllIntoData();
     await refreshCashPaymentOffers();
+    // Pour une entreprise, l'état officiel vient de cash_payment_offers(entity_type, entity_id).
+    // Ne jamais déduire son état depuis un catalogue/boutique.
+    if (ctx.entityType === 'entreprise') {
+      const offer = findCashOffer('entreprise', ctx.entityId);
+      if (!offer) throw new Error('Activation non confirmée dans Supabase');
+    }
     closeModal();
     renderAccount(); renderCart();
     alert(lang === 'en' ? 'Cash on delivery is free and permanently enabled.' : 'Le paiement à la livraison est gratuit et activé en permanence.');
