@@ -11495,7 +11495,34 @@ function renderCashOfferCard() {
 
 async function toggleShopCod() {
   const ctx = getCashOfferContext();
-  if (!ctx) { alert(lang==='en'?'Shop space not found.':'Espace vendeur introuvable.'); return; }
+  if (!ctx) { alert(lang==='en'?'Seller space not found.':'Espace vendeur introuvable.'); return; }
+
+  // Une entreprise n'est pas une boutique : son paiement à la livraison
+  // est rattaché directement à companies.id via l'entité "entreprise".
+  if (ctx.entityType === 'entreprise') {
+    try {
+      const { data: result, error } = await sb.rpc('activate_cash_on_delivery', {
+        p_entity_type: 'entreprise',
+        p_entity_id: ctx.entityId,
+        p_duration_key: 'permanent'
+      });
+      if (error) throw error;
+      if (!result || !result.ok) throw new Error('Activation non confirmée');
+      await refreshCashPaymentOffers();
+      try { renderAccount(); } catch (e) {}
+      alert(lang === 'en'
+        ? 'Cash on delivery is now enabled for your company (free).'
+        : 'Paiement à la livraison activé pour votre entreprise (gratuit).');
+    } catch (e) {
+      console.error('[Allo] toggle company COD', e);
+      alert(lang === 'en'
+        ? 'Cash on delivery could not be enabled for this company.'
+        : 'Impossible d’activer le paiement à la livraison pour cette entreprise.');
+    }
+    return;
+  }
+
+  // Boutique publique : conserver le comportement existant.
   const shop = (data.shops || []).find(s => String(s.id) === String(ctx.entityId));
   if (!shop) { alert(lang==='en'?'Shop not found.':'Boutique introuvable.'); return; }
   const next = !isShopCodEnabled(shop);
@@ -11504,7 +11531,6 @@ async function toggleShopCod() {
   flags[String(shop.id)] = next;
   try {
     await persistShopCodFlags();
-    // Tentative optionnelle de colonne shops.cod_enabled
     if (typeof USE_SUPABASE !== 'undefined' && USE_SUPABASE && typeof sbSaveShop === 'function') {
       try { await sbSaveShop(shop); } catch (e) { console.warn('[Allo] sbSaveShop cod', e); }
     }
