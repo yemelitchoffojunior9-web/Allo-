@@ -7292,11 +7292,47 @@ async function sbAdminGetDefaultCommission() {
 }
 async function sbAdminSaveCategory(name, commissionPct, sortOrder) {
   if (!(await sbAdminRequire())) return { data:null, error:new Error('Admin requis') };
+
+  // Les catégories globales utilisent un index unique partiel sur lower(name)
+  // (company_id IS NULL), donc PostgREST ne peut pas utiliser
+  // { onConflict: 'name' } ici. On conserve la portée globale et on évite
+  // toute modification des catégories d'entreprise.
+  const cleanName = String(name || '').trim();
+  if (!cleanName) return { data:null, error:new Error('Nom de catégorie requis') };
+
   const n = Number(commissionPct);
-  const row = { name:String(name).trim(), commission_pct:Number.isFinite(n) ? Math.max(0, Math.min(100,n)) : 0 };
-  if (sortOrder != null) row.sort_order = Number(sortOrder);
-  const res = await sb.from('categories').upsert(row, { onConflict:'name' }).select().maybeSingle();
-  if (res.error) console.error('[Allo] category upsert', res.error);
+  const commission = Number.isFinite(n) ? Math.max(0, Math.min(100,n)) : 0;
+
+  const existing = await sb.from('categories')
+    .select('id,name,company_id,commission_pct,sort_order')
+    .is('company_id', null)
+    .ilike('name', cleanName)
+    .maybeSingle();
+
+  if (existing.error) {
+    console.error('[Allo] category lookup', existing.error);
+    return { data:null, error:existing.error };
+  }
+
+  let res;
+  if (existing.data) {
+    const patch = { commission_pct: commission };
+    if (sortOrder != null) patch.sort_order = Number(sortOrder);
+    res = await sb.from('categories')
+      .update(patch)
+      .eq('id', existing.data.id)
+      .select()
+      .maybeSingle();
+  } else {
+    const row = { name: cleanName, commission_pct: commission, company_id: null };
+    if (sortOrder != null) row.sort_order = Number(sortOrder);
+    res = await sb.from('categories')
+      .insert(row)
+      .select()
+      .maybeSingle();
+  }
+
+  if (res.error) console.error('[Allo] category save', res.error);
   return res;
 }
 async function sbAdminDeleteCategory(name) {
