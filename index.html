@@ -8,7 +8,10 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="description" content="Allo — single-account multi-space commerce platform">
-<link rel="manifest" href="data:application/manifest+json,{"name":"Allo","short_name":"Allo","start_url":".","display":"standalone","background_color":"#0B0B12","theme_color":"#8B5CF6","lang":"fr"}">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="Allo">
 <title>Allo — Tout devient possible</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
@@ -20012,7 +20015,23 @@ function installPWA() {
       : 'Menu du navigateur → Ajouter à l\'écran d\'accueil');
   }
 }
-function registerServiceWorker() { return false; }
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return false;
+  navigator.serviceWorker.register('/sw.js')
+    .then((reg) => {
+      console.log('[Allo] Service Worker enregistré', reg.scope);
+    })
+    .catch((err) => {
+      console.warn('[Allo] Service Worker erreur', err);
+    });
+  return true;
+}
+// Auto-register on load
+if (document.readyState === 'complete') {
+  registerServiceWorker();
+} else {
+  window.addEventListener('load', registerServiceWorker);
+}
 
 function enhanceProductCardRatings() {
   // ratings shown via productRatingHTML when building cards - patch productCardHTML usage optional
