@@ -7114,16 +7114,20 @@ function getAccountTags(u) {
   if (raw === 'employe') tags.add('employe');
 
   const shopId = u.shopId || u.shop_id || null;
-  const companyId = u.companyId || u.company_id || null;
+  // companyId sur le profil peut etre un simple lien client (espace temporaire).
+  // Ce n'est PAS une preuve de propriete d'entreprise — seule companies.ownerId l'est.
+  // Ne jamais taguer entreprise uniquement parce que companyId est renseigne.
 
-  if (companyId) tags.add('entreprise');
   if (shopId) {
     const sh = (data.shops || []).find(s => String(s.id) === String(shopId));
-    if (sh && (sh.isCompanyCatalog || sh.companyId || sh.private === true)) tags.add('entreprise');
-    else tags.add('boutique');
+    // Catalogue entreprise lie au profil != possession d'une activite entreprise
+    if (sh && !(sh.isCompanyCatalog || sh.companyId || sh.private === true)) {
+      tags.add('boutique');
+    }
   }
 
   if (uid) {
+    // Proprietaire reel d'une entreprise uniquement
     if ((data.companies || []).some(c => String(c.ownerId || '') === uid)) tags.add('entreprise');
     if ((data.shops || []).some(s => {
       if (String(s.ownerId || '') !== uid) return false;
@@ -7131,11 +7135,11 @@ function getAccountTags(u) {
       return true;
     })) tags.add('boutique');
 
-    // Espace client (plusieurs entreprises possibles)
+    // Espace client (plusieurs entreprises possibles) — independant de la propriete
     if ((data.clients || []).some(c => String(c.id) === uid || String(c.clientId || '') === uid)) {
       tags.add('client');
     }
-    // Espace employé
+    // Espace employe
     if ((data.employeeMemberships || []).some(m => m.isActive !== false && String(m.userId || '') === uid)) {
       tags.add('employe');
     }
@@ -14051,20 +14055,27 @@ function renderSearch() {
 async function openAccountRoleCard(kind) {
   if (!currentUser) return;
 
-  // Un compte ne peut posséder qu'une seule activité commerciale : boutique OU entreprise.
-  // Le choix est verrouillé par shop_id / company_id dans profiles.
-  const hasShop = !!currentUser.shopId;
-  const hasCompany = !!currentUser.companyId;
-  if (kind === 'shop' && hasCompany && !hasShop) {
+  // Un compte ne peut posseder qu'une seule activite commerciale : boutique OU entreprise.
+  // La propriete entreprise = companies.ownerId, PAS un simple companyId (qui peut etre un lien client).
+  const uid = String(currentUser.id || '');
+  const ownedCompanyRow = (data.companies || []).find(c => String(c.ownerId || '') === uid) || null;
+  const linkedShopRow = currentUser.shopId
+    ? (data.shops || []).find(s => String(s.id) === String(currentUser.shopId))
+    : null;
+  const isPubShopRow = (s) => !!(s && s.isCompanyCatalog !== true && !s.companyId && s.private !== true);
+  const hasOwnedShop = !!(currentUser.shopId && linkedShopRow && isPubShopRow(linkedShopRow))
+    || (data.shops || []).some(s => String(s.ownerId || '') === uid && isPubShopRow(s));
+  const hasOwnedCompany = !!ownedCompanyRow;
+  if (kind === 'shop' && hasOwnedCompany && !hasOwnedShop) {
     alert(lang === 'en'
       ? 'This account is already configured as an enterprise. A single Allo account cannot own both a shop and an enterprise.'
-      : 'Ce compte est déjà configuré comme entreprise. Un même compte Allo ne peut pas posséder à la fois une boutique et une entreprise.');
+      : 'Ce compte est deja configure comme entreprise. Un meme compte Allo ne peut pas posseder a la fois une boutique et une entreprise.');
     return;
   }
-  if (kind === 'company' && hasShop && !hasCompany) {
+  if (kind === 'company' && hasOwnedShop && !hasOwnedCompany) {
     alert(lang === 'en'
       ? 'This account is already configured as a shop. A single Allo account cannot own both a shop and an enterprise.'
-      : 'Ce compte est déjà configuré comme boutique. Un même compte Allo ne peut pas posséder à la fois une boutique et une entreprise.');
+      : 'Ce compte est deja configure comme boutique. Un meme compte Allo ne peut pas posseder a la fois une boutique et une entreprise.');
     return;
   }
 
@@ -14121,8 +14132,8 @@ async function openAccountRoleCard(kind) {
   }
 
   if (kind === 'company') {
-    let company = (data.companies || []).find(c => String(c.ownerId || '') === String(currentUser.id))
-      || ((currentUser.companyId && (data.companies || []).find(c => String(c.id) === String(currentUser.companyId))) || null);
+    // Uniquement une entreprise dont on est proprietaire — jamais celle dont on est simple client.
+    let company = (data.companies || []).find(c => String(c.ownerId || '') === String(currentUser.id)) || null;
 
     if (!company) {
       const id = (typeof crypto !== 'undefined' && crypto.randomUUID)
@@ -14207,6 +14218,16 @@ function leaveAccountSpace() {
     currentUser.job = null;
     currentUser.features = {};
   }
+  // En quittant un espace client/employe, ne pas laisser companyId d'une entreprise
+  // dont on n'est pas proprietaire (sinon Mon entreprise apparait a tort).
+  try {
+    const uidLeave = String(currentUser.id || '');
+    const ownsLeave = (data.companies || []).some(c => String(c.ownerId || '') === uidLeave
+      && String(c.id) === String(currentUser.companyId || ''));
+    if (currentUser.companyId && !ownsLeave) {
+      currentUser.companyId = null;
+    }
+  } catch (e) {}
   window._alloBaseRole = null;
   buildSidebarNav(); buildNav();
   switchView('account');
@@ -14360,12 +14381,23 @@ function renderAccount() {
       const regFix = (registeredUsers || []).find(u => String(u.id) === String(currentUser.id));
       if (regFix) regFix.shopId = null;
     }
-    if (!currentUser.companyId) {
-      const ownedCo = (data.companies || []).find(c => String(c.ownerId || '') === uid);
-      if (ownedCo) currentUser.companyId = ownedCo.id;
+    // Propriete reelle uniquement : companies.ownerId === uid.
+    // Un companyId present parce que l'utilisateur est *client* d'une entreprise
+    // ne doit JAMAIS activer l'espace Mon entreprise.
+    const ownedCo = (data.companies || []).find(c => String(c.ownerId || '') === uid) || null;
+    if (ownedCo && !currentUser.companyId) {
+      currentUser.companyId = ownedCo.id;
     }
+    // Si companyId pointe vers une boite dont on n'est pas proprietaire (lien client),
+    // ne pas le traiter comme activite commerciale proprietaire.
+    const companyIdIsOwnership = !!(ownedCo && currentUser.companyId
+      && String(currentUser.companyId) === String(ownedCo.id));
+    const companyIdIsClientOnly = !!(currentUser.companyId && !companyIdIsOwnership
+      && (data.clients || []).some(c =>
+        String(c.id) === uid && String(c.companyId || '') === String(currentUser.companyId)));
+
     let businessType = null;
-    if (currentUser.companyId) {
+    if (companyIdIsOwnership) {
       businessType = 'company';
       if (currentUser.shopId) currentUser.shopId = null;
     } else if (currentUser.shopId && isPubShop(linkedShop)) {
@@ -14373,15 +14405,21 @@ function renderAccount() {
     } else if (currentUser.shopId && !linkedShop) {
       businessType = 'shop';
     }
+    // Si on est seulement client de currentUser.companyId, ne pas masquer boutique/entreprise
+    // et ne pas afficher Mon entreprise pour cette boite.
+    if (companyIdIsClientOnly) {
+      // companyId reste utile pour l'espace client actif, mais pas pour businessType
+    }
 
     const ownedShop = (businessType === 'shop')
       ? (isPubShop(linkedShop)
           ? linkedShop
           : (data.shops || []).find(s => String(s.ownerId || '') === uid && isPubShop(s)))
       : null;
-    const ownedCompany = linkedCompany || (businessType === 'company'
-      ? (data.companies || []).find(c => String(c.ownerId || '') === uid)
-      : null);
+    // Uniquement l'entreprise reellement possedee — jamais celle dont on est simple client
+    const ownedCompany = companyIdIsOwnership
+      ? (ownedCo || linkedCompany)
+      : ownedCo;
 
     const clientCompanies = getCompaniesForCurrentClient();
     const shopTitle = lang === 'en' ? 'My shop' : 'Ma boutique';
