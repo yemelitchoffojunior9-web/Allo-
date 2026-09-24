@@ -4,8 +4,8 @@ const PRECACHE = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png'
+  '/icon-192.png',
+  '/icon-512.png'
 ];
 
 self.addEventListener('install', (event) => {
@@ -28,7 +28,6 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
 
-  // Navigations: network-first, fallback to cached shell
   if (req.mode === 'navigate') {
     event.respondWith(
       fetch(req)
@@ -42,7 +41,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Static assets: cache-first
   event.respondWith(
     caches.match(req).then((cached) => {
       if (cached) return cached;

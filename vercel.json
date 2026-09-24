@@ -15,13 +15,10 @@
       ]
     },
     {
-      "source": "/icons/(.*)",
+      "source": "/(icon-.*\\.png|favicon-32\\.png|apple-touch-icon\\.png)",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
       ]
     }
-  ],
-  "rewrites": [
-    { "source": "/((?!icons|manifest\\.json|sw\\.js).*)", "destination": "/index.html" }
   ]
 }
